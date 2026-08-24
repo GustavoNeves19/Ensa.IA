@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+title: "LYRA: análise e otimização de experimentos químicos em Python com interpretação por LLM"
+message: "Se você usar este software, por favor cite-o conforme abaixo."
+type: software
+authors:
+  - family-names: "Athayde"
+    given-names: "Gabriel Henrique Lemos de"
+    affiliation: "Universidade Federal Rural da Amazônia"
+  - family-names: "Rafael"
+    given-names: "Gustavo Neves da Paz"
+    affiliation: "Universidade Federal Rural da Amazônia"
+license: MIT
+version: 0.1.0

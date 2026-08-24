@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  qualidade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Instalar dependências
+        run: uv sync --all-extras
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Formatação (ruff format)
+        run: uv run ruff format --check .
+
+      - name: Tipos (mypy)
+        run: uv run mypy
+        continue-on-error: true   # remover quando o núcleo estiver implementado
+
+      # Roda separado e SEM os extras de LLM: garante que o núcleo
+      # determinístico funciona sem langchain instalado e sem chave de API.
+      # É a verificação prática do ADR 0001.
+      - name: Testes de arquitetura (fronteira núcleo/LLM)
+        run: uv run pytest tests/test_arquitetura.py -v
+
+      - name: Testes
+        run: uv run pytest --cov=lyra --cov-report=term-missing
+
+  nucleo-sem-llm:
+    name: Núcleo instala e roda sem a camada de LLM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Instalar só o núcleo (sem extras)
+        run: uv sync --extra dev
+      - name: Importar o pacote sem langchain disponível
+        run: uv run python -c "import lyra; print(lyra.__version__)"
+      - name: Testes que não dependem de LLM
+        run: uv run pytest -m "not llm"

@@ -1,0 +1,89 @@
+[project]
+name = "lyra"
+version = "0.1.0"
+description = "Análise e otimização de experimentos químicos (DOE) em Python, com interpretação por LLM"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Gabriel Henrique Lemos de Athayde" },
+    { name = "Gustavo Neves da Paz Rafael" },
+]
+keywords = ["doe", "quimiometria", "design-of-experiments", "anova", "desirability"]
+
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "statsmodels>=0.14",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Camada de LLM separada de propósito: o núcleo determinístico tem que
+# instalar e rodar sem nada disso. `pip install lyra` (sem extras) instala um
+# pacote que faz DOE completo, offline.
+llm = [
+    "langchain>=0.3",
+    "langchain-core>=0.3",
+    "langchain-google-genai>=2.0",
+]
+ui = [
+    "streamlit>=1.38",
+    "plotly>=5.24",
+]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+]
+
+[project.scripts]
+lyra-validar = "lyra.validation.runner:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lyra"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+markers = [
+    "llm: testes que chamam a API de um modelo de linguagem (custam dinheiro e exigem rede)",
+    "lento: testes que levam mais de alguns segundos",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # Nomes de identificadores em português são intencionais neste projeto:
+    # a banca e a orientadora leem o código. Ver README, seção "Idioma".
+    "N999",
+    # Notação matemática consagrada: a matriz de modelo é X e o vetor de
+    # resposta é y em toda a literatura de regressão. Renomear para
+    # "matriz_x" prejudicaria a leitura de quem confere a estatística.
+    "N803",
+    # Docstrings em português usam sinais tipográficos (×, ², −) de propósito.
+    "RUF002",
+    "RUF003",
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/lyra"]
+strict = true
+# statsmodels não distribui stubs de tipo.
+[[tool.mypy.overrides]]
+module = ["statsmodels.*", "scipy.*"]
+ignore_missing_imports = true

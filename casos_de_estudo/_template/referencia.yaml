@@ -1,0 +1,75 @@
+# Valores PUBLICADOS no artigo original. Este arquivo é o ground truth do
+# §4.3 — todo número aqui deve ser rastreável a uma tabela do artigo,
+# registrada em fonte.md.
+#
+# Campo que o artigo não reporta fica `null`. Nunca preencha por estimativa.
+
+caso: nome-do-caso
+tipo_planejamento: composto_central   # fatorial_completo | composto_central | box_behnken
+
+fatores:
+  temperatura:
+    minimo: 40.0
+    maximo: 80.0
+    unidade: "°C"
+  ph:
+    minimo: 3.0
+    maximo: 9.0
+    unidade: ""
+  tempo:
+    minimo: 30.0
+    maximo: 60.0
+    unidade: "min"
+
+# Os coeficientes estão em escala codificada ou real? Muda tudo na comparação.
+escala_coeficientes: codificada   # codificada | real
+
+# O artigo reporta efeito (−1 → +1) ou coeficiente (centro → +1)?
+# Diferem por um fator de 2.
+grandeza_reportada: coeficiente   # coeficiente | efeito
+
+respostas:
+  rendimento:
+    # Notação canônica dos termos: "Intercepto", "x", "x^2", "x1:x2"
+    coeficientes:
+      Intercepto: 80.35
+      temperatura: 3.42
+      ph: -1.18
+      temperatura:ph: 2.05
+      temperatura^2: -4.61
+    significancia:
+      Intercepto: true
+      temperatura: true
+      ph: false
+      temperatura:ph: true
+      temperatura^2: true
+    r2: 0.947
+    r2_ajustado: 0.921
+    alfa_usado_no_artigo: 0.05
+
+  pureza:
+    coeficientes:
+      Intercepto: 92.8
+      ph: 2.31
+    significancia:
+      Intercepto: true
+      ph: true
+    r2: 0.883
+    r2_ajustado: null      # o artigo não reporta
+    alfa_usado_no_artigo: 0.05
+
+# Presente só se o artigo fez otimização. Senão, deixe `null`.
+condicao_otima:
+  coordenadas:
+    temperatura: 64.5
+    ph: 5.2
+    tempo: 47.0
+  resposta_prevista:
+    rendimento: 84.1
+    pureza: 93.6
+
+observacoes: |
+  Anote aqui qualquer coisa que o runner precise saber e que não caiba nos
+  campos acima: unidades divergentes, ensaios excluídos pelos autores,
+  ambiguidade na tabela original, valores que tiveram que ser lidos de
+  gráfico em vez de tabela.

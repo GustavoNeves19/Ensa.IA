@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Segredos — a chave da API do modelo NUNCA entra no repositório
+.env
+.env.local
+*.key
+
+# Saídas geradas. Os resultados de validação que entram na monografia são
+# versionados à mão em casos_de_estudo/<caso>/resultados/, não daqui.
+resultados/*
+!resultados/.gitkeep
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
