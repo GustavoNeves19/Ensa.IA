@@ -149,6 +149,20 @@ class TestConcordanciaSignificancia:
         assert r.n_total == 2
         assert r.taxa_concordancia == 0.5
 
+    def test_intercepto_fica_fora_da_concordancia(self) -> None:
+        """O intercepto não é um efeito de fator e os artigos não o classificam.
+
+        Mesmo presente nos coeficientes do LYRA (e ausente da referência, que o
+        deixa em branco), ele não pode entrar na taxa nem virar divergência.
+        """
+        resultado = _resultado(
+            [_coef("Intercepto", 50.0, significativo=True), _coef("a", 1.0)]
+        )
+        r = concordancia_significancia(resultado, "rendimento", {"a": True})
+        assert r.n_total == 1
+        assert r.taxa_concordancia == 1.0
+        assert r.divergencias == []
+
 
 class TestComparacaoR2:
     """§4.3(c)"""
