@@ -1,0 +1,7 @@
+# Um ensaio por linha, nos níveis REAIS (não codificados).
+# Nomes das colunas de fatores e respostas devem bater com referencia.yaml.
+# Fonte: Tabela 2 do artigo (DOI 10.3390/ma9060428) — 20 ensaios de um CCD
+# ortogonal rotacional (3 fatores, 5 níveis, alfa=1,68).
+# TODO: preencher as 20 linhas transcrevendo direto da Tabela 2 — nenhuma
+# linha abaixo é dado real ainda.
+h2o2,ph,fe2,remocao_toc
