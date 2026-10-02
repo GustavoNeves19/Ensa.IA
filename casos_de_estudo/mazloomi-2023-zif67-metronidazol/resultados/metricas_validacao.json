@@ -1,0 +1,123 @@
+{
+  "caso": "mazloomi-2023-zif67-metronidazol",
+  "schema_version": "1.0",
+  "criterios": {
+    "a_erro_relativo_coeficientes_pct": 5.0,
+    "b_alfa_significancia": 0.05,
+    "c_tolerancia_r2": 0.01
+  },
+  "respostas": {
+    "remocao_mnz": {
+      "erro_coeficientes": {
+        "comparacoes": [
+          {
+            "termo": "Intercepto",
+            "valor_lyra": 92.93333333333331,
+            "valor_referencia": 92.93,
+            "erro_relativo_pct": 0.0035869292298524483,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "dose_adsorvente",
+            "valor_lyra": 9.450000000000006,
+            "valor_referencia": 9.45,
+            "erro_relativo_pct": 7.518970748784129e-14,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "dose_adsorvente:ph",
+            "valor_lyra": 0.9249999999999723,
+            "valor_referencia": 0.925,
+            "erro_relativo_pct": 3.0006027692571798e-12,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "dose_adsorvente:tempo_mistura",
+            "valor_lyra": 3.0250000000000306,
+            "valor_referencia": 3.03,
+            "erro_relativo_pct": 0.16501650164915022,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "dose_adsorvente^2",
+            "valor_lyra": -8.41666666666667,
+            "valor_referencia": -8.42,
+            "erro_relativo_pct": 0.0395882818685309,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "ph",
+            "valor_lyra": 6.962500000000002,
+            "valor_referencia": 6.96,
+            "erro_relativo_pct": 0.0359195402299162,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "ph^2",
+            "valor_lyra": -18.29166666666662,
+            "valor_referencia": -18.29,
+            "erro_relativo_pct": 0.0091124476031849,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "tempo_mistura",
+            "valor_lyra": 6.362500000000004,
+            "valor_referencia": 6.36,
+            "erro_relativo_pct": 0.039308176100690935,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "tempo_mistura:ph",
+            "valor_lyra": -2.9000000000000012,
+            "valor_referencia": -2.9,
+            "erro_relativo_pct": 4.594026308793751e-14,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "tempo_mistura^2",
+            "valor_lyra": -5.0416666666667105,
+            "valor_referencia": -5.04,
+            "erro_relativo_pct": 0.03306878306965175,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          }
+        ],
+        "erro_relativo_medio_pct": 0.032560065975409905,
+        "erro_relativo_maximo_pct": 0.16501650164915022,
+        "proporcao_dentro_tolerancia": 1.0,
+        "termos_ausentes_no_lyra": [],
+        "termos_extras_no_lyra": []
+      },
+      "concordancia_significancia": {
+        "taxa_concordancia": 1.0,
+        "n_concordantes": 9,
+        "n_total": 9,
+        "divergencias": []
+      },
+      "comparacao_r2": {
+        "r2_lyra": 0.9853138180904545,
+        "r2_referencia": 0.9853,
+        "diferenca_r2": 1.3818090454531529e-05,
+        "r2_ajustado_lyra": 0.9588786906532726,
+        "r2_ajustado_referencia": 0.9589,
+        "diferenca_r2_ajustado": 2.130934672739393e-05,
+        "dentro_tolerancia": true
+      }
+    }
+  },
+  "condicao_otima": {
+    "diferencas": [],
+    "aplicavel": false,
+    "motivo_inaplicavel": "A análise não produziu ponto ótimo (otimização não executada ou bloqueada por R² insuficiente)."
+  },
+  "dentro_das_tolerancias": true
+}

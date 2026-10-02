@@ -1,0 +1,99 @@
+{
+  "caso": "go-2022-levofloxacino-hidroxiapatita-bbd",
+  "schema_version": "1.0",
+  "criterios": {
+    "a_erro_relativo_coeficientes_pct": 5.0,
+    "b_alfa_significancia": 0.05,
+    "c_tolerancia_r2": 0.01
+  },
+  "respostas": {
+    "eficiencia_fotodegradacao": {
+      "erro_coeficientes": {
+        "comparacoes": [
+          {
+            "termo": "Intercepto",
+            "valor_lyra": 53.34866666666667,
+            "valor_referencia": 53.349,
+            "erro_relativo_pct": 0.0006248164601589309,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "concentracao_levofloxacino",
+            "valor_lyra": -7.537500000000003,
+            "valor_referencia": -7.538,
+            "erro_relativo_pct": 0.006633059166848745,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "concentracao_levofloxacino:ph",
+            "valor_lyra": 2.0250000000000004,
+            "valor_referencia": 2.03,
+            "erro_relativo_pct": 0.2463054187191847,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "dose_catalisador",
+            "valor_lyra": 7.0249999999999915,
+            "valor_referencia": 7.025,
+            "erro_relativo_pct": 1.264310917722598e-13,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "dose_catalisador:concentracao_levofloxacino",
+            "valor_lyra": 5.225000000000006,
+            "valor_referencia": 5.23,
+            "erro_relativo_pct": 0.09560229445496299,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "dose_catalisador:ph",
+            "valor_lyra": 7.06,
+            "valor_referencia": 7.06,
+            "erro_relativo_pct": 0.0,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          },
+          {
+            "termo": "ph",
+            "valor_lyra": 3.870000000000001,
+            "valor_referencia": 3.87,
+            "erro_relativo_pct": 2.2950346762277135e-14,
+            "dentro_tolerancia": true,
+            "observacao": ""
+          }
+        ],
+        "erro_relativo_medio_pct": 0.049880798400186395,
+        "erro_relativo_maximo_pct": 0.2463054187191847,
+        "proporcao_dentro_tolerancia": 1.0,
+        "termos_ausentes_no_lyra": [],
+        "termos_extras_no_lyra": []
+      },
+      "concordancia_significancia": {
+        "taxa_concordancia": 1.0,
+        "n_concordantes": 6,
+        "n_total": 6,
+        "divergencias": []
+      },
+      "comparacao_r2": {
+        "r2_lyra": 0.9708190173966569,
+        "r2_referencia": 0.9708,
+        "diferenca_r2": 1.9017396656884067e-05,
+        "r2_ajustado_lyra": 0.9489332804441495,
+        "r2_ajustado_referencia": 0.9489,
+        "diferenca_r2_ajustado": 3.328044414951936e-05,
+        "dentro_tolerancia": true
+      }
+    }
+  },
+  "condicao_otima": {
+    "diferencas": [],
+    "aplicavel": false,
+    "motivo_inaplicavel": "A análise não produziu ponto ótimo (otimização não executada ou bloqueada por R² insuficiente)."
+  },
+  "dentro_das_tolerancias": true
+}
