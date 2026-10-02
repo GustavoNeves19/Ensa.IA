@@ -2,6 +2,22 @@
 # Nomes das colunas de fatores e respostas devem bater com referencia.yaml.
 # Fonte: Tabela 2 do artigo (DOI 10.3390/ma9060428) — 20 ensaios de um CCD
 # ortogonal rotacional (3 fatores, 5 níveis, alfa=1,68).
+#
+# A ordem das linhas não importa (o ajuste OLS é invariante à ordem);
+# transcreva na ordem da Tabela 2 e confira que há os 20 ensaios.
+#
+# Sanity check da composição esperada de um CCD rotacional de 3 fatores
+# (CONFIRA contra a Tabela 2, não tome como verdade):
+#   8 pontos fatoriais   -> cada fator em -1 ou +1 (vértices do cubo)
+#   6 pontos axiais      -> um fator em ±alfa (~1,68), os outros dois em 0
+#   6 pontos centrais    -> os três fatores em 0 (réplicas; o erro puro delas
+#                           é o que viabiliza o teste de falta de ajuste)
+#   = 20 ensaios
+#
+# Os pontos axiais caem FORA do intervalo [minimo, maximo] do referencia.yaml
+# (que são os níveis ±1): em unidades reais, o valor axial de um fator é
+#   centro ± alfa * (amplitude/2).  Isso é esperado, não é erro de digitação.
+#
 # TODO: preencher as 20 linhas transcrevendo direto da Tabela 2 — nenhuma
 # linha abaixo é dado real ainda.
 h2o2,ph,fe2,remocao_toc

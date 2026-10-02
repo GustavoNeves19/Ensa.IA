@@ -33,6 +33,38 @@ artigo.
 | R² / R² ajustado | Junto da Tabela 3 | | |
 | Condição ótima | Tabela 4 | | |
 
+## Guia de preenchimento (transcrição humana, conferida em dupla)
+
+Ordem sugerida para abrir o PDF uma vez só e preencher tudo. Cada valor vai
+para o campo indicado; `null` em todo campo que o artigo não reportar.
+
+1. **Fatores e faixas** → `referencia.yaml: fatores`. Confirme nome, unidade e
+   os níveis **−1 e +1 do fatorial** (não os axiais ±α) de cada fator. Esses
+   níveis definem a escala codificada contra a qual os coeficientes são
+   comparados.
+2. **Matriz de ensaios** (Tabela 2) → `dados.csv`. As 20 linhas em unidades
+   reais, resposta na última coluna. Veja o cabeçalho do `dados.csv` para a
+   composição esperada e o cálculo dos pontos axiais.
+3. **Modelo / coeficientes** (equação no texto) → `referencia.yaml: respostas.
+   remocao_toc.coeficientes`. **Atenção (lição do caso Go):** confira se o
+   artigo ajustou o **quadrático completo** (os 10 termos listados) ou um
+   **modelo reduzido** (descartou termos não significativos). Se for reduzido,
+   acrescente `termos_modelo:` com exatamente os termos publicados e deixe só
+   esses em `coeficientes`/`significancia` — senão o LYRA ajusta o completo e
+   os coeficientes não batem por diferença de modelo, não de cálculo.
+4. **ANOVA, R² e R² ajustado** (Tabela 3) → `r2`, `r2_ajustado` e a
+   classificação de **significância** por termo (significativo = `true`,
+   não significativo = `false`; não reportado = `null`).
+5. **Condição ótima** (Tabela 4) → `condicao_otima.coordenadas` (nos mesmos
+   níveis/escala dos fatores) e `resposta_prevista`. Anote em `observacoes`
+   tanto o previsto quanto a confirmação experimental, se o artigo der os dois.
+6. **Conferência dupla:** preencha a coluna "Conferido por" da tabela de
+   procedência acima. Quem confere não pode ser quem transcreveu.
+
+Quando tudo estiver preenchido e conferido, troque `status: rascunho` por um
+status normal (ou remova a linha) no `referencia.yaml` — só então o caso entra
+na execução do `lyra-validar`.
+
 ## Ressalvas
 
 Registre aqui qualquer decisão de interpretação tomada durante a transcrição.
