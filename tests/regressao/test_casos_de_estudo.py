@@ -12,8 +12,9 @@ repositório recém-clonado tem que passar no CI.
 from __future__ import annotations
 
 import pytest
+import yaml
 
-from lyra.validation.runner import listar_casos
+from lyra.validation.runner import listar_casos, validar_caso
 
 CASOS = listar_casos()
 
@@ -30,10 +31,31 @@ pytestmark = pytest.mark.skipif(
 def test_caso_reproduz_valores_publicados(caso) -> None:
     """O LYRA reproduz os valores do artigo dentro das tolerâncias do §4.3.
 
-    TODO(#8): implementar junto com o runner.
-        resultado = validar_caso(caso)
-        assert resultado["erro_coeficientes"].proporcao_dentro_tolerancia == 1.0
-        assert resultado["concordancia"].taxa_concordancia >= 0.9
-        assert resultado["r2"].dentro_tolerancia
+    Nesta fase a regressão garante que o caminho oficial lê o caso e usa a
+    estrutura de modelo publicada. As métricas do §4.3 serão acrescentadas
+    quando o AnalysisResult e a serialização forem ligados ao runner.
     """
-    pytest.skip("Aguardando o runner de validação — issue #8.")
+    resultado = validar_caso(caso)
+
+    assert resultado["termos"]
+    referencia = yaml.safe_load(
+        (caso / "referencia.yaml").read_text(encoding="utf-8")
+    )
+    assert set(resultado["ajustes"]) == set(referencia["respostas"])
+
+
+def test_go_respeita_modelo_2fi_publicado() -> None:
+    nome = "go-2022-levofloxacino-hidroxiapatita-bbd"
+    caso = next(c for c in CASOS if c.name == nome)
+
+    resultado = validar_caso(caso)
+
+    assert resultado["termos"] == [
+        "Intercepto",
+        "dose_catalisador",
+        "concentracao_levofloxacino",
+        "ph",
+        "dose_catalisador:concentracao_levofloxacino",
+        "dose_catalisador:ph",
+        "concentracao_levofloxacino:ph",
+    ]
