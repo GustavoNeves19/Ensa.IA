@@ -1,4 +1,4 @@
-"""Núcleo determinístico do LYRA.
+"""Núcleo determinístico do EnsaIA.
 
 Regra deste pacote: nada aqui dentro importa a camada de LLM, faz chamada de
 rede ou lê variável de ambiente de API. O resultado de `core` tem que ser
@@ -7,7 +7,7 @@ internet. A fronteira é verificada automaticamente em
 tests/test_arquitetura.py.
 """
 
-from lyra.core.results import (
+from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
     Coeficiente,

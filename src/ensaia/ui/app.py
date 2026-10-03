@@ -1,6 +1,6 @@
-"""Interface Streamlit do LYRA.
+"""Interface Streamlit do EnsaIA.
 
-    uv run streamlit run src/lyra/ui/app.py
+    uv run streamlit run src/ensaia/ui/app.py
 
 Público-alvo: profissionais e estudantes de química sem formação avançada em
 estatística ou programação. Isso é requisito, não preferência — é a barreira

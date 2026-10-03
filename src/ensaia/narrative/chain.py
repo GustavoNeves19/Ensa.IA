@@ -8,8 +8,8 @@ do pipeline em relatórios técnicos redigidos em linguagem natural."
 
 from __future__ import annotations
 
-from lyra.core.results import AnalysisResult
-from lyra.narrative.schema import NarrativeReport
+from ensaia.core.results import AnalysisResult
+from ensaia.narrative.schema import NarrativeReport
 
 # Versionar o prompt é obrigatório, não opcional: a métrica de fidelidade do
 # §4.3(e) mede o desempenho de UM prompt sobre UM modelo. Se o prompt mudar

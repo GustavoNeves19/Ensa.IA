@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from lyra.core.results import FaltaDeAjuste, LinhaAnova
+from ensaia.core.results import FaltaDeAjuste, LinhaAnova
 
 ALFA_PADRAO = 0.05
 

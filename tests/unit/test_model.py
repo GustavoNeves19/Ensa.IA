@@ -7,8 +7,8 @@ import pandas as pd
 import pytest
 from scipy import stats
 
-from lyra.core.design import Fator, Planejamento, termos_do_modelo
-from lyra.core.model import RESIDUO, AjusteOLS, ajustar_ols, matriz_modelo
+from ensaia.core.design import Fator, Planejamento, termos_do_modelo
+from ensaia.core.model import RESIDUO, AjusteOLS, ajustar_ols, matriz_modelo
 
 BETA_VERDADEIRO = {
     "Intercepto": 50.0,

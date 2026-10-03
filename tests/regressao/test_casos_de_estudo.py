@@ -16,7 +16,7 @@ import json
 import pytest
 import yaml
 
-from lyra.validation.runner import (
+from ensaia.validation.runner import (
     gravar_resultados,
     listar_casos,
     validar_caso,
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.mark.parametrize("caso", CASOS, ids=lambda c: c.name)
 def test_caso_reproduz_valores_publicados(caso) -> None:
-    """O LYRA reproduz os valores do artigo dentro das tolerâncias do §4.3.
+    """O EnsaIA reproduz os valores do artigo dentro das tolerâncias do §4.3.
 
     Os três critérios computáveis sem a desejabilidade — (a) erro relativo dos
     coeficientes, (b) concordância de significância e (c) diferença de R² —

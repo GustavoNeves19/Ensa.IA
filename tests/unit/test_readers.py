@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from lyra.io.readers import ler_dados
+from ensaia.io.readers import ler_dados
 
 
 def test_ler_dados_aceita_csv_brasileiro_com_comentario(tmp_path: Path) -> None:

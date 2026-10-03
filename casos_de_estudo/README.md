@@ -22,7 +22,7 @@ Meta: de três a cinco casos.
 ├── dados.csv        Um ensaio por linha
 ├── referencia.yaml  O que o artigo publicou
 ├── fonte.md         Citação ABNT, DOI, e de onde saiu cada número
-└── resultados/      Gerado pelo LYRA (versionado — é evidência do TCC)
+└── resultados/      Gerado pelo EnsaIA (versionado — é evidência do TCC)
 ```
 
 Use `_template/` como ponto de partida:
@@ -43,7 +43,7 @@ Por isso:
   o PDF. Registrem no `fonte.md` quem fez cada parte.
 - **Anotem a tabela/página** de onde cada bloco de valores veio.
 - **Não convertam nada de cabeça.** Se o artigo publica coeficientes em
-  unidades reais e o LYRA trabalha em codificadas, registrem o valor como
+  unidades reais e o EnsaIA trabalha em codificadas, registrem o valor como
   publicado e anotem em `observacoes` — a conversão é responsabilidade do
   runner, e precisa estar visível.
 - **Não preencham o que não está no artigo.** Campo ausente fica `null`. As
@@ -57,6 +57,6 @@ Por isso:
 ## Rodando a validação
 
 ```bash
-uv run lyra-validar                  # todos os casos
-uv run lyra-validar --caso meu-caso  # um só
+uv run ensaia-validar                  # todos os casos
+uv run ensaia-validar --caso meu-caso  # um só
 ```

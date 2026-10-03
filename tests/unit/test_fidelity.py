@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from lyra.core.results import (
+from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
     Coeficiente,
     FaltaDeAjuste,
     MetadadosExecucao,
 )
-from lyra.validation.fidelity import (
+from ensaia.validation.fidelity import (
     prechecar_numeros,
     segmentar_afirmacoes,
 )
@@ -42,7 +42,7 @@ def _resultado_simples() -> AnalysisResult:
                 termos_incluidos=["temperatura"],
             )
         ],
-        metadados=MetadadosExecucao(versao_lyra="0.1.0"),
+        metadados=MetadadosExecucao(versao_ensaia="0.1.0"),
     )
 
 

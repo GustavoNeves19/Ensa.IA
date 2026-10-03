@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
-from lyra.core.results import AnalysisResult
+from ensaia.core.results import AnalysisResult
 
 Classificacao = Literal["correta", "imprecisa", "nao_sustentada", "pendente"]
 

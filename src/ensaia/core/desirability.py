@@ -12,9 +12,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from lyra.core.design import Planejamento
-from lyra.core.model import AjusteOLS
-from lyra.core.results import PontoOtimo, Sentido
+from ensaia.core.design import Planejamento
+from ensaia.core.model import AjusteOLS
+from ensaia.core.results import PontoOtimo, Sentido
 
 # Abaixo deste R², o modelo não descreve os dados bem o bastante para que
 # otimizar sobre ele signifique alguma coisa. O protótipo usava 0,50; o valor

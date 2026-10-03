@@ -1,6 +1,6 @@
 """Validação do pipeline contra valores publicados — §4.3 do pré-projeto."""
 
-from lyra.validation.metrics import (
+from ensaia.validation.metrics import (
     comparacao_r2,
     concordancia_significancia,
     diferenca_condicao_otima,

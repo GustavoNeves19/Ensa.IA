@@ -1,11 +1,11 @@
 ﻿# ---------------------------------------------------------------------------
-# LYRA - finaliza a instalacao do repositorio
+# EnsaIA - finaliza a instalacao do repositorio
 #
 # Coloca no lugar os arquivos que a ponte remota nao pode escrever
 # (.github/ e .pre-commit-config.yaml), inicializa o git e faz o primeiro
 # commit. Rode uma vez so.
 #
-# Como rodar (PowerShell, na pasta lyra):
+# Como rodar (PowerShell, na pasta ensaia):
 #     powershell -ExecutionPolicy Bypass -File .\setup.ps1
 # ---------------------------------------------------------------------------
 
@@ -19,7 +19,7 @@ function Aviso($texto) { Write-Host "  [--] $texto" -ForegroundColor Yellow }
 function Erro($texto)  { Write-Host "  [!!] $texto" -ForegroundColor Red }
 
 Write-Host ""
-Write-Host "LYRA - finalizando a estrutura do repositorio" -ForegroundColor Cyan
+Write-Host "EnsaIA - finalizando a estrutura do repositorio" -ForegroundColor Cyan
 Write-Host "Pasta: $raiz"
 Write-Host ""
 
@@ -83,7 +83,7 @@ if (Test-Path (Join-Path $raiz ".git")) {
 
     git init -b main | Out-Null
     git add -A
-    git commit -m "feat: estrutura base do projeto LYRA" | Out-Null
+    git commit -m "feat: estrutura base do projeto EnsaIA" | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
         Passo "repositorio git criado e primeiro commit feito (branch main)"
@@ -103,7 +103,7 @@ Write-Host "     https://github.com/new"
 Write-Host ""
 Write-Host "  2. Conecte e suba:"
 Write-Host ""
-Write-Host "     git remote add origin https://github.com/SEU-USUARIO/lyra.git" -ForegroundColor White
+Write-Host "     git remote add origin https://github.com/SEU-USUARIO/ensaia.git" -ForegroundColor White
 Write-Host "     git push -u origin main" -ForegroundColor White
 Write-Host ""
 Write-Host "  3. Convide o Athayde:"

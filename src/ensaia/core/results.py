@@ -1,7 +1,7 @@
 """Contrato de saída do núcleo determinístico.
 
 Este módulo define `AnalysisResult` e seus tipos auxiliares. Ele é a
-**fronteira arquitetural** do LYRA: tudo que o núcleo estatístico calcula sai
+**fronteira arquitetural** do EnsaIA: tudo que o núcleo estatístico calcula sai
 por aqui, e tudo que a camada de LLM narra entra por aqui.
 
 Por que isso importa (e por que estes tipos são congelados):
@@ -125,7 +125,7 @@ class MetadadosExecucao:
     isto, qualquer pessoa da banca consegue refazer a mesma execução.
     """
 
-    versao_lyra: str
+    versao_ensaia: str
     schema_version: str = SCHEMA_VERSION
     alfa: float = 0.05
     semente: int | None = None
