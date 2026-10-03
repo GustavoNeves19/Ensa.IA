@@ -30,7 +30,7 @@
 Os dados foram copiados da planilha oficial local, nao de valores inferidos.
 Antes de usar o caso como evidencia final, uma pessoa confere as linhas da
 planilha e outra confirma a correspondencia entre os termos codificados e os
-nomes usados no LYRA.
+nomes usados no EnsaIA.
 
 | Parte | Transcrito por | Conferido por | Data |
 |---|---|---|---|

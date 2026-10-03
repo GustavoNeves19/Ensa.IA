@@ -2,7 +2,7 @@
 
 Dossiês produzidos por uma varredura de pesquisa (17 temas em paralelo +
 verificação cética de cada candidato a caso de estudo via WebFetch, 31
-agentes no total) antes de começar a implementar o núcleo do LYRA. Não são
+agentes no total) antes de começar a implementar o núcleo do EnsaIA. Não são
 ADR (não registram uma decisão tomada) — são material de apoio para tomar as
 decisões registradas em `docs/decisoes/` e para escrever o código das
 issues #3–#10.

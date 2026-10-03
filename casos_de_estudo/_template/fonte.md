@@ -26,12 +26,12 @@ De onde saiu cada coisa. Sem isto, ninguém consegue reconferir a transcrição
 
 Registre aqui qualquer decisão de interpretação tomada durante a transcrição.
 Estas notas viram texto do capítulo de resultados — em especial quando
-explicam uma divergência entre o LYRA e o valor publicado.
+explicam uma divergência entre o EnsaIA e o valor publicado.
 
 Exemplos do tipo de coisa que precisa estar aqui:
 
 - Valores lidos de gráfico, sem tabela correspondente.
-- Arredondamento do artigo mais grosseiro que a saída do LYRA.
+- Arredondamento do artigo mais grosseiro que a saída do EnsaIA.
 - Ensaios que os autores excluíram, e a justificativa deles.
 - Divergência entre o texto e a tabela do próprio artigo.
 - α usado pelos autores, se diferente de 0,05 (ver ADR 0003).

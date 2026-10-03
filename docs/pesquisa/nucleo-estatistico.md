@@ -22,7 +22,7 @@
 > Mover a seleção para o núcleo preserva o valor de produto sem repetir o
 > erro.
 
-# Guia de Implementação — Núcleo LYRA (issues #3, #4, #5, #6 + notas #9/#10)
+# Guia de Implementação — Núcleo EnsaIA (issues #3, #4, #5, #6 + notas #9/#10)
 
 Ordem de execução: **#3 → #4 → #5** (sequencial, cada uma consome a saída da anterior) **desbloqueiam #8**. **#6** depende só de #3 (precisa do modelo ajustado, não da ANOVA). #9 e #10 podem começar em paralelo a #3, mas #10 só fecha de verdade depois de #6.
 
@@ -40,7 +40,7 @@ Ordem de execução: **#3 → #4 → #5** (sequencial, cada uma consome a saída
 
 ```python
 def build_formula(term_names: list[str]) -> str:
-    """Traduz a notação canônica do LYRA para sintaxe patsy, na ordem
+    """Traduz a notação canônica do EnsaIA para sintaxe patsy, na ordem
     exata de declaração — nunca aceitar string de fórmula livre."""
     parts = []
     for t in term_names:
@@ -109,7 +109,7 @@ Escreva um teste de arquitetura (mesmo espírito do teste de AST que trava core/
    ```
    Opcional: VIF por termo com `variance_inflation_factor(sm.add_constant(X).values, idx)` — **lembrar de somar a constante antes**, senão a definição de R² da regressão auxiliar muda (issues #2376/#6249 do próprio statsmodels).
 
-### Armadilhas específicas do LYRA
+### Armadilhas específicas do EnsaIA
 
 - **`x1**2` numa fórmula patsy NÃO é potenciação** — é o operador de "crossing" (expansão de interação). Nunca gerar fórmula patsy sem passar por `I()`. Isso só importa no modelo sombra (item 0); o modelo canônico nem usa fórmula, então essa armadilha é evitada por construção.
 - **Não confundir `resolução`/`aliasing` de fatorial fracionado com um 2^k completo** — o 2^k completo não tem relação definidora nenhuma; todos os `2^k - 1` efeitos são mutuamente independentes. Não implemente lógica de resolução (III/IV/V) achando que se aplica ao caso completo.
@@ -176,7 +176,7 @@ Escreva um teste de arquitetura (mesmo espírito do teste de AST que trava core/
        return {"SSLOF": sslof, "df_LOF": df_lof, "SSPE": sspe, "df_PE": df_pe, "F": F, "p_valor": p_valor}
    ```
 
-### Armadilhas específicas do LYRA
+### Armadilhas específicas do EnsaIA
 
 - **`anova_lm` com múltiplos modelos (comparação aninhada) só suporta `typ=1`** — a própria função lança erro se você pedir `typ=2`/`3` passando dois modelos. Para a comparação modelo-reduzido-vs-completo do backward elimination, rode `anova_lm(modelo_único, typ=2)` a cada passo, não a variante de dois modelos.
 - **Tipo II não é apropriado quando há interação significativa presente** para interpretar os efeitos principais envolvidos — se o modelo final retiver uma interação significativa, documente essa ressalva no `AnalysisResult` em vez de reportar o p-valor Tipo II do efeito principal como se fosse a última palavra.
@@ -206,7 +206,7 @@ Escreva um teste de arquitetura (mesmo espírito do teste de AST que trava core/
 
 3. **Exposição no `AnalysisResult`**: para cada termo, reportar coeficiente, efeito (quando aplicável), erro-padrão, IC 95%, p-valor — tudo indexado pelo nome canônico exato, serializável em JSON.
 
-### Armadilhas específicas do LYRA
+### Armadilhas específicas do EnsaIA
 
 - **Não confundir "efeito" com "coeficiente de regressão"** — são convenções diferentes por um fator de 2. Misturar as duas ao relatar magnitude é o erro mais citado na literatura pesquisada. Deixe explícito na estrutura de saída qual dos dois cada campo representa.
 - **A relação `efeito = 2×coef` pressupõe fatores codificados em ±1.** Se por algum motivo um valor não-codificado vazar até aqui, a relação quebra silenciosamente — trave isso com uma asserção (`assert X[termo].min() == -1 and X[termo].max() == 1` para termos lineares de fatorial 2 níveis) antes de calcular o efeito.
@@ -276,14 +276,14 @@ Escreva um teste de arquitetura (mesmo espírito do teste de AST que trava core/
 
 4. **Registrar metadados de reprodutibilidade no `AnalysisResult`**: método usado (`grid` vs `lhs`), `n`, `seed`, esquema de otimização — a camada `narrative` precisa poder mencionar honestamente como o ótimo foi obtido, e a validação (d) do §4.3 (diferença na condição ótima) **não é reprodutível entre execuções sem isso**.
 
-### Armadilhas específicas do LYRA
+### Armadilhas específicas do EnsaIA
 
 - **Tensão com "core sem aleatoriedade":** `LatinHypercube` usa gerador pseudoaleatório internamente. Isso só permanece determinístico se `seed` for **sempre** fixo e explícito — trate a ausência de seed como bug de arquitetura, não como detalhe de implementação. Escreva um teste que roda a mesma chamada duas vezes e assere igualdade bit-a-bit da amostra gerada.
 - **LHS não é otimizador, é gerador de sementes de partida.** Nunca reporte o melhor ponto da amostra LHS crua como "ótimo" — sempre refine com Nelder-Mead a partir de multi-start, exatamente como a prática documentada do pacote R `desirability` (grid de reinício + `optim()`).
 - **Não reaproveite os pontos da amostra LHS como malha de *visualização*** (issue #10) — `go.Surface`/`go.Contour` exigem `z` como array 2D regular; LHS não é regular. A malha de otimização e a malha de visualização são dois `meshgrid`s independentes.
-- **A relação de `2^k grid` vs `10k` amostras LHS cresce muito diferente:** `k=6` com 5 níveis por eixo = 15.625 pontos de grid vs. 60 pontos LHS — não hardcode o limiar `k>4` sem revalidar contra o custo real de avaliação de `D` no LYRA (função barata de avaliar, então o gargalo real é a explosão combinatória, não o custo por ponto).
+- **A relação de `2^k grid` vs `10k` amostras LHS cresce muito diferente:** `k=6` com 5 níveis por eixo = 15.625 pontos de grid vs. 60 pontos LHS — não hardcode o limiar `k>4` sem revalidar contra o custo real de avaliação de `D` no EnsaIA (função barata de avaliar, então o gargalo real é a explosão combinatória, não o custo por ponto).
 - **Não existe fonte revisada por pares comparando LHS vs. grid especificamente para qualidade do ótimo de Derringer-Suich** — trate `n=10k` como escolha de engenharia documentada, não como resultado garantido da literatura; para os casos `k≤4` do próprio conjunto de testes, rode grid E LHS e compare o ótimo encontrado como validação cruzada interna antes de confiar no LHS para `k>4` (onde o grid deixa de ser viável para comparar).
-- Distinga claramente da issue #6 original (malha de *otimização*) da armadilha de #4 (falta de ajuste) e #3 (matriz de *projeto*) — são três "malhas" diferentes no vocabulário do LYRA, não confundir nomeação entre elas no código.
+- Distinga claramente da issue #6 original (malha de *otimização*) da armadilha de #4 (falta de ajuste) e #3 (matriz de *projeto*) — são três "malhas" diferentes no vocabulário do EnsaIA, não confundir nomeação entre elas no código.
 
 ---
 
@@ -302,7 +302,7 @@ Escreva um teste de arquitetura (mesmo espírito do teste de AST que trava core/
 - **Visualização de superfície/desejabilidade** com `k>2` fatores: **sempre** dois fatores por vez (`go.Surface` 3D ou `go.Contour` 2D), com os `k-2` fatores restantes fixados no ponto ótimo encontrado em #6. Nunca tentar plotar as `k` dimensões numa visualização só. Ofereça dois `st.selectbox` para o usuário escolher o par de fatores.
 - **Gere a malha de plotagem com `np.meshgrid` próprio e fino**, reavaliando o modelo canônico (#3) e a função de desejabilidade (#6) ponto a ponto — nunca reaproveite diretamente os pontos de uma amostra LHS como `z` de `go.Surface`/`go.Contour` (exigem grade 2D regular).
 - Para o mapa de desejabilidade: `go.Contour(..., contours=dict(start=0, end=1, size=0.1))` (D está sempre em `[0,1]` por definição) e marque o ponto ótimo global com `go.Scatter`/`go.Scatter3d` sobreposto.
-- Essa integração Plotly+Derringer-Suich não tem exemplo oficial pronto na documentação — é decisão de engenharia própria do LYRA; vale documentar explicitamente essa escolha no TCC.
+- Essa integração Plotly+Derringer-Suich não tem exemplo oficial pronto na documentação — é decisão de engenharia própria do EnsaIA; vale documentar explicitamente essa escolha no TCC.
 
 ---
 

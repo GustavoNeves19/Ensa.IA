@@ -15,7 +15,7 @@ O problema que uma leitura ingênua desses dois TODOs esconde: `anova_lm(typ=2)`
 só sabe montar a tabela Tipo II a partir de um modelo ajustado pela API de
 fórmula do statsmodels (`smf.ols("y ~ x1 + x2", ...)`) — é da fórmula que ela
 lê a estrutura de termos (quem é marginal a quem) que o cálculo Tipo II
-precisa. Mas a matriz de projeto do LYRA é montada à mão (`matriz_modelo`, #3),
+precisa. Mas a matriz de projeto do EnsaIA é montada à mão (`matriz_modelo`, #3),
 com nomes de coluna na notação canônica (`"x1^2"`, `"x1:x2"`) que a validação
 do §4.3(a) usa para casar coeficiente por nome — e um `sm.OLS(y, X).fit()`
 sobre essa matriz não carrega a "receita" de fórmula que `anova_lm` precisa.
@@ -31,7 +31,7 @@ alguém lembrar de testá-la a cada mudança no núcleo.
 
 O ajuste por fórmula não é uma segunda saída pública — é um detalhe de
 implementação **interno a `AjusteOLS`** (issue #3), que já existe no desenho
-atual exatamente "para que o resto do LYRA não importe statsmodels
+atual exatamente "para que o resto do EnsaIA não importe statsmodels
 diretamente".
 
 1. `ajustar_ols(X, y)` constrói o ajuste canônico (`sm.OLS(y, X).fit()`) e,
@@ -48,7 +48,7 @@ diretamente".
 3. `tabela_anova(ajuste, tipo=2)` (issue #4) chama um método do próprio
    `AjusteOLS` (ex. `ajuste.tabela_tipo2()`) que roda `anova_lm` sobre o ajuste
    por fórmula interno e traduz o índice de volta para notação canônica antes
-   de devolver. Fora de `model.py`, nada no LYRA sabe que existe um segundo
+   de devolver. Fora de `model.py`, nada no EnsaIA sabe que existe um segundo
    ajuste.
 
 ## Consequências

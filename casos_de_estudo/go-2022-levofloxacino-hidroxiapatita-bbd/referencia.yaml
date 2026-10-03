@@ -67,5 +67,5 @@ observacoes: |
   foram calculados no MINITAB 17. O modelo escolhido pelo estudo e 2FI, com
   sete parametros, e nao o quadratico completo de dez parametros de um BBD.
   A validacao deve usar exatamente termos_modelo para comparar como o mesmo
-  modelo estatistico, sem atribuir ao LYRA diferencas causadas por selecao de
+  modelo estatistico, sem atribuir ao EnsaIA diferencas causadas por selecao de
   termos distinta.

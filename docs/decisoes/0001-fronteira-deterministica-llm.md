@@ -12,7 +12,7 @@ Essa afirmação tem um ponto cego. Modelos de linguagem erram aritmética de
 formas difíceis de perceber, e erram com fluência: um relatório que diz "o R²
 de 0,94 indica bom ajuste" quando o R² real é 0,74 parece perfeitamente
 correto para quem não tem o número original à mão — que é exatamente o
-usuário-alvo do LYRA.
+usuário-alvo do EnsaIA.
 
 Se o LLM tivesse qualquer participação no cálculo, a equivalência estatística
 deixaria de ser demonstrável: cada execução poderia produzir um número
@@ -23,9 +23,9 @@ pipeline.
 
 O sistema é dividido em duas camadas com uma fronteira explícita:
 
-1. **`lyra/core`** calcula tudo. Não importa `langchain`, não faz chamada de
+1. **`ensaia/core`** calcula tudo. Não importa `langchain`, não faz chamada de
    rede, não lê chave de API. Roda offline e é determinístico.
-2. **`lyra/narrative`** recebe um `AnalysisResult` congelado e produz texto.
+2. **`ensaia/narrative`** recebe um `AnalysisResult` congelado e produz texto.
    Não importa `numpy`, `pandas`, `statsmodels` nem `scipy`.
 
 `AnalysisResult` (em `core/results.py`) é o único canal entre as duas. É
@@ -43,7 +43,7 @@ arquivo e falha o CI se um import proibido aparecer.
 - A métrica de fidelidade do §4.3(e) passa a ter sentido: mede exatamente
   quanto o LLM distorce ao *descrever*, isolado de erro de cálculo.
 - Trocar de modelo de linguagem não afeta resultado estatístico nenhum.
-- `pip install lyra` sem extras instala uma ferramenta de DOE completa e
+- `pip install ensaia` sem extras instala uma ferramenta de DOE completa e
   funcional, sem dependência de LLM.
 
 **Ruins, e assumidas**

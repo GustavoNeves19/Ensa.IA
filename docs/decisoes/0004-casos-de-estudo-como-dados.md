@@ -22,11 +22,11 @@ casos_de_estudo/<nome-do-caso>/
 ├── dados.csv        ensaios: níveis dos fatores + respostas medidas
 ├── referencia.yaml  valores publicados no artigo original
 ├── fonte.md         citação ABNT completa, DOI, e como os dados foram obtidos
-└── resultados/      saída do LYRA + planilha de fidelidade preenchida
+└── resultados/      saída do EnsaIA + planilha de fidelidade preenchida
 ```
 
 `referencia.yaml` guarda os coeficientes, R², significâncias e condição ótima
-como o artigo publicou — usando a mesma notação canônica de termos do LYRA.
+como o artigo publicou — usando a mesma notação canônica de termos do EnsaIA.
 
 O runner de validação varre o diretório, roda o pipeline em cada caso e aplica
 as métricas do §4.3. Adicionar um caso novo é criar uma pasta, sem tocar em
