@@ -13,14 +13,19 @@ número nenhum. `AnalysisResult` é `frozen`, serializável e auto-contido
 justamente para que a camada narrativa receba os resultados como dado morto,
 sem meio de recalcular ou "corrigir" nada.
 
+São modelos Pydantic v2 (spec, seção 10): além de congelados, validam os tipos
+na construção, então um JSON malformado vindo de uma ferramenta MCP ou de um
+arquivo de resultado é rejeitado com erro claro, não propagado silenciosamente.
+
 Ver docs/decisoes/0001-fronteira-deterministica-llm.md.
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 # Versão do esquema de serialização. Incrementar sempre que a forma de
 # AnalysisResult mudar de modo incompatível — os arquivos de resultado
@@ -39,8 +44,13 @@ TipoPlanejamento = Literal[
 Sentido = Literal["maximizar", "minimizar", "alvo"]
 
 
-@dataclass(frozen=True)
-class Coeficiente:
+class _Congelado(BaseModel):
+    """Base dos modelos do contrato: imutáveis após a construção."""
+
+    model_config = ConfigDict(frozen=True)
+
+
+class Coeficiente(_Congelado):
     """Um termo do modelo de regressão ajustado.
 
     `termo` usa notação canônica para que a comparação com valores publicados
@@ -58,8 +68,7 @@ class Coeficiente:
     ic_superior: float | None = None
 
 
-@dataclass(frozen=True)
-class LinhaAnova:
+class LinhaAnova(_Congelado):
     """Uma linha da tabela de ANOVA."""
 
     fonte: str
@@ -70,8 +79,7 @@ class LinhaAnova:
     valor_p: float | None = None
 
 
-@dataclass(frozen=True)
-class FaltaDeAjuste:
+class FaltaDeAjuste(_Congelado):
     """Teste de falta de ajuste (lack-of-fit).
 
     Só é calculável quando o planejamento tem repetições genuínas — em geral
@@ -91,18 +99,16 @@ class FaltaDeAjuste:
     motivo_inaplicavel: str | None = None
 
 
-@dataclass(frozen=True)
-class PontoOtimo:
+class PontoOtimo(_Congelado):
     """Condição ótima encontrada pela função de desejabilidade."""
 
     coordenadas: dict[str, float]
     resposta_prevista: dict[str, float]
     desejabilidade_global: float
-    desejabilidades_individuais: dict[str, float] = field(default_factory=dict)
+    desejabilidades_individuais: dict[str, float] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class AjusteResposta:
+class AjusteResposta(_Congelado):
     """Resultado completo do ajuste para UMA variável resposta."""
 
     resposta: str
@@ -114,11 +120,10 @@ class AjusteResposta:
     n_observacoes: int
     graus_liberdade_residuo: int
     termos_incluidos: list[str]
-    termos_descartados: list[str] = field(default_factory=list)
+    termos_descartados: list[str] = Field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class MetadadosExecucao:
+class MetadadosExecucao(_Congelado):
     """Tudo que é preciso para reproduzir esta análise.
 
     Sem isto, um resultado guardado em resultados/ é um número órfão. Com
@@ -135,8 +140,7 @@ class MetadadosExecucao:
     executado_em: str | None = None
 
 
-@dataclass(frozen=True)
-class AnalysisResult:
+class AnalysisResult(_Congelado):
     """Saída completa e auto-contida do pipeline determinístico.
 
     A camada de LLM recebe **este objeto e nada mais**. Se algum dado for
@@ -150,7 +154,7 @@ class AnalysisResult:
     ajustes: list[AjusteResposta]
     metadados: MetadadosExecucao
     ponto_otimo: PontoOtimo | None = None
-    avisos: list[str] = field(default_factory=list)
+    avisos: list[str] = Field(default_factory=list)
 
     def ajuste(self, resposta: str) -> AjusteResposta:
         """Recupera o ajuste de uma resposta pelo nome."""
@@ -163,7 +167,10 @@ class AnalysisResult:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return self.model_dump()
 
     def to_json(self, *, indent: int = 2) -> str:
+        # Via json.dumps(model_dump()) de propósito: mantém o mesmo formato
+        # (indentação, ordem de campos, repr de float) dos resultados já
+        # versionados, para o diff de evidência não mudar sem a conta mudar.
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
