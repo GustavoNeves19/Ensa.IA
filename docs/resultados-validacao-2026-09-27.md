@@ -5,7 +5,7 @@
 Este documento registra os resultados obtidos na reprodução manual de casos de
 estudo publicados. Ele é evidência de trabalho exploratório e de conferência
 numérica. Não substitui a validação automatizada oficial pelo comando
-`lyra-validar`, que ainda não está implementada neste checkout.
+`ensaia-validar`, que ainda não está implementada neste checkout.
 
 O objetivo é preservar uma distinção verificável entre: (1) resultados
 reproduzidos pelo núcleo estatístico, (2) referências transcritas da fonte e
@@ -43,12 +43,12 @@ exatamente sete parâmetros: intercepto, três termos lineares e três interaç�
 de dois fatores. Termos quadráticos não foram inseridos na comparação.
 
 Essa escolha é metodologicamente necessária: comparar um quadrático completo
-do LYRA contra um 2FI publicado mudaria R², coeficientes e testes de
+do EnsaIA contra um 2FI publicado mudaria R², coeficientes e testes de
 significância por efeito da seleção de modelo, não por divergência de cálculo.
 
 ### Comparação numérica
 
-| Métrica ou coeficiente | LYRA, reprodução manual | Estudo / MINITAB 17 |
+| Métrica ou coeficiente | EnsaIA, reprodução manual | Estudo / MINITAB 17 |
 |---|---:|---:|
 | R² | 0,9708 | 0,9708 |
 | R² ajustado | 0,9489 | 0,9489 |
@@ -82,7 +82,7 @@ O caso `mazloomi-2023-zif67-metronidazol` também foi formalizado com 15
 ensaios Box-Behnken e modelo quadrático completo de três fatores. A reprodução
 manual obteve:
 
-| Métrica | LYRA, reprodução manual | Artigo |
+| Métrica | EnsaIA, reprodução manual | Artigo |
 |---|---:|---:|
 | R² | 0,985314 | 0,9853 |
 | R² ajustado | 0,958879 | 0,9589 |
@@ -94,7 +94,7 @@ p = 0,1547. O p-valor do intercepto continua `null` porque não foi reportado.
 
 ## Interpretação para o TCC
 
-Os dois casos fornecem evidência de que o núcleo estatístico do LYRA consegue
+Os dois casos fornecem evidência de que o núcleo estatístico do EnsaIA consegue
 reproduzir indicadores e coeficientes publicados de experimentos químicos
 reais. O caso Go et al. adiciona uma comparação direta com resultados gerados
 no MINITAB 17, um software comercial, enquanto o caso Mazloomi et al. cobre o
@@ -108,15 +108,15 @@ estatístico, com fontes rastreáveis e conferência dupla pendente**.
 
 Implementar o caminho oficial de validação nesta ordem:
 
-1. implementar `lyra.io.readers.ler_dados` para carregar os CSVs dos casos;
-2. implementar `lyra.validation.runner.validar_caso`;
+1. implementar `ensaia.io.readers.ler_dados` para carregar os CSVs dos casos;
+2. implementar `ensaia.validation.runner.validar_caso`;
 3. fazer o runner respeitar `termos_modelo` quando houver modelo reduzido,
    especialmente o 2FI de Go et al.;
 4. aplicar as métricas do protocolo, preservando valores `null` não
    publicados;
 5. gerar, por caso, `resultados/analysis_result.json` e
    `resultados/metricas_validacao.json`;
-6. executar e registrar os dois casos pelo comando `uv run lyra-validar`;
+6. executar e registrar os dois casos pelo comando `uv run ensaia-validar`;
 7. só então realizar a conferência dupla humana e usar os artefatos gerados
    como evidência final do capítulo de resultados.
 
@@ -136,15 +136,15 @@ saída oficial do produto.
 
 Os três primeiros passos do caminho oficial foram implementados e verificados:
 
-1. `lyra.io.readers.ler_dados` lê CSV, XLSX e XLS, ignora comentários de CSV,
+1. `ensaia.io.readers.ler_dados` lê CSV, XLSX e XLS, ignora comentários de CSV,
    detecta separador comum e aceita CSV brasileiro com `;` e vírgula decimal.
-2. `lyra.validation.runner.validar_caso` agora lê a referência, constrói o
+2. `ensaia.validation.runner.validar_caso` agora lê a referência, constrói o
    planejamento e ajusta cada resposta pelo núcleo OLS determinístico.
 3. O runner usa `termos_modelo` quando o caso o declara. Assim, o caso Go et
    al. é executado como 2FI, com sete parâmetros, e não como quadrático
    completo. Na ausência desse campo, o modelo quadrático padrão é gerado.
 
-O comando `uv run lyra-validar` executa os dois casos aptos neste momento:
+O comando `uv run ensaia-validar` executa os dois casos aptos neste momento:
 
 | Caso | R² calculado | R² ajustado calculado | SSR calculada |
 |---|---:|---:|---:|

@@ -6,11 +6,11 @@ Antes de desenhar qualquer coisa, vale registrar o que já está pronto, porque 
 
 | Arquivo | Estado |
 |---|---|
-| `src/lyra/core/results.py` | ✅ Pronto — `AnalysisResult` é o contrato, `frozen`, com `to_json()`. |
-| `src/lyra/narrative/schema.py` | ✅ Pronto — `NarrativeReport` (`secoes`, `modelo_usado`, `prompt_version`, `avisos`). |
-| `src/lyra/narrative/prompts/relatorio_tecnico.md` | ✅ Escrito, com regras invioláveis e placeholder `{analysis_result_json}`. |
-| `src/lyra/narrative/chain.py` | 🔴 Esqueleto — assinatura e docstring prontas, `raise NotImplementedError`. **É isto que a #7 fecha.** |
-| `src/lyra/validation/fidelity.py` | ✅ Pronto e testado (`prechecar_numeros`, `segmentar_afirmacoes`, `exportar_planilha_classificacao`). **Não é escopo da #7** — mas falta uma peça de fiação para fechar o ciclo (ver §5). |
+| `src/ensaia/core/results.py` | ✅ Pronto — `AnalysisResult` é o contrato, `frozen`, com `to_json()`. |
+| `src/ensaia/narrative/schema.py` | ✅ Pronto — `NarrativeReport` (`secoes`, `modelo_usado`, `prompt_version`, `avisos`). |
+| `src/ensaia/narrative/prompts/relatorio_tecnico.md` | ✅ Escrito, com regras invioláveis e placeholder `{analysis_result_json}`. |
+| `src/ensaia/narrative/chain.py` | 🔴 Esqueleto — assinatura e docstring prontas, `raise NotImplementedError`. **É isto que a #7 fecha.** |
+| `src/ensaia/validation/fidelity.py` | ✅ Pronto e testado (`prechecar_numeros`, `segmentar_afirmacoes`, `exportar_planilha_classificacao`). **Não é escopo da #7** — mas falta uma peça de fiação para fechar o ciclo (ver §5). |
 | `tests/test_arquitetura.py` | ✅ Pronto — já bloqueia `numpy/pandas/statsmodels/scipy/sklearn` em `narrative/`. Vai continuar passando depois da #7, contanto que o código respeite a fronteira abaixo. |
 
 Ou seja: a #7 é escrever `gerar_relatorio()` em `chain.py`. `fidelity.py` já faz sua parte — o trabalho aqui é garantir que a saída de `chain.py` se encaixa bem nela.
@@ -23,7 +23,7 @@ Ou seja: a #7 é escrever `gerar_relatorio()` em `chain.py`. `fidelity.py` já f
 
 Duas coisas importantes que esse teste **não** cobre, e que ficam por sua conta na revisão de código:
 
-1. **O teste só lê os imports literais dos arquivos de `narrative/`, não a árvore de dependências transitivas.** Ele garante que *o código do LYRA* não calcula — não garante nada sobre o que acontece dentro do `langchain_google_genai` ou da API do Gemini. Isso é intencional e suficiente: a hipótese do TCC é sobre o LYRA não delegar cálculo ao LLM, não sobre "nenhum float existir em nenhuma dependência".
+1. **O teste só lê os imports literais dos arquivos de `narrative/`, não a árvore de dependências transitivas.** Ele garante que *o código do EnsaIA* não calcula — não garante nada sobre o que acontece dentro do `langchain_google_genai` ou da API do Gemini. Isso é intencional e suficiente: a hipótese do TCC é sobre o EnsaIA não delegar cálculo ao LLM, não sobre "nenhum float existir em nenhuma dependência".
 
 2. **Habilitar uma ferramenta de cálculo no próprio modelo (function calling / code execution do Gemini) não dispara nenhum import proibido**, porque isso é configuração do objeto `ChatGoogleGenerativeAI`, não um `import numpy`. O ADR 0001 já descartou explicitamente essa alternativa ("Dar ao LLM acesso a uma ferramenta de cálculo... reintroduz variabilidade... é o oposto do que o trabalho precisa provar"). **Regra de implementação, não coberta por CI:** em `chain.py`, o `ChatGoogleGenerativeAI` nunca recebe `bind_tools(...)`, nunca é envolvido em `create_agent`, e a API do Gemini não deve receber `code_execution` nem `google_search_retrieval` habilitados. Vale a pena deixar isso registrado como comentário no próprio código, porque é o único ponto onde a garantia depende de disciplina humana e não de teste automático.
 
@@ -63,7 +63,7 @@ llm = [
 
 ```markdown
 <!--
-Prompt de geração do relatório técnico do LYRA.
+Prompt de geração do relatório técnico do EnsaIA.
 Versão: 2026.08.1  (manter sincronizado com PROMPT_VERSION em chain.py)
 
 Ao editar este arquivo, incremente a versão em chain.py E registre a mudança
@@ -120,7 +120,7 @@ Confirmei na documentação do `langchain-google-genai` (via Context7) que `with
 
 A mesma documentação confirma que o **default** de `temperature` em `ChatGoogleGenerativeAI` é `0.7`, não `0`. Isso reforça o que já está no docstring atual de `chain.py`: `temperatura=0.0` tem que ser passado explicitamente, sempre, como `float`.
 
-Ponto de atenção específico da pesquisa: desde jul/2026 a linha Gemini 3.x Flash (`gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`) **ignora silenciosamente** `temperature`/`top_p`/`top_k` (retorna 200 OK, sem erro). O `.env.example` do projeto aponta `LYRA_MODELO_LLM=gemini-2.5-flash`, que **não** está nessa lista — hoje `temperature=0.0` é respeitado. Mas se algum dia trocarem o modelo padrão para a linha 3.x Flash sem revisitar isso, a suposição de reprodutibilidade quebra sem aviso nenhum no código. Vale blindar isso registrando o aviso no próprio `NarrativeReport`, já que o campo `avisos` existe exatamente para isso:
+Ponto de atenção específico da pesquisa: desde jul/2026 a linha Gemini 3.x Flash (`gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`) **ignora silenciosamente** `temperature`/`top_p`/`top_k` (retorna 200 OK, sem erro). O `.env.example` do projeto aponta `ENSAIA_MODELO_LLM=gemini-2.5-flash`, que **não** está nessa lista — hoje `temperature=0.0` é respeitado. Mas se algum dia trocarem o modelo padrão para a linha 3.x Flash sem revisitar isso, a suposição de reprodutibilidade quebra sem aviso nenhum no código. Vale blindar isso registrando o aviso no próprio `NarrativeReport`, já que o campo `avisos` existe exatamente para isso:
 
 ```python
 import os
@@ -142,8 +142,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
-from lyra.core.results import AnalysisResult
-from lyra.narrative.schema import NarrativeReport, SecaoRelatorio
+from ensaia.core.results import AnalysisResult
+from ensaia.narrative.schema import NarrativeReport, SecaoRelatorio
 
 PROMPT_VERSION = "2026.08.1"
 
@@ -181,7 +181,7 @@ def gerar_relatorio(
     temperatura: float = 0.0,
 ) -> NarrativeReport:
     """Ver docstring já existente no arquivo — mantida como está."""
-    modelo_resolvido = modelo or os.environ.get("LYRA_MODELO_LLM", _MODELO_PADRAO)
+    modelo_resolvido = modelo or os.environ.get("ENSAIA_MODELO_LLM", _MODELO_PADRAO)
 
     avisos: list[str] = []
     if modelo_resolvido in _MODELOS_SEM_TEMPERATURA:
@@ -241,11 +241,11 @@ O ponto frágil é que hoje isso depende de alguém lembrar de manter dois núme
 import re
 from pathlib import Path
 
-from lyra.narrative.chain import PROMPT_VERSION
+from ensaia.narrative.chain import PROMPT_VERSION
 
 _PROMPT_PATH = (
     Path(__file__).resolve().parents[2]
-    / "src" / "lyra" / "narrative" / "prompts" / "relatorio_tecnico.md"
+    / "src" / "ensaia" / "narrative" / "prompts" / "relatorio_tecnico.md"
 )
 
 
@@ -310,7 +310,7 @@ RelatorioFidelidade          ── toda afirmação nasce com
 
 | | Compara | Tolerância |
 |---|---|---|
-| `metrics.erro_relativo_coeficientes` (§4.3a) | coeficiente do LYRA × valor publicado no artigo de referência | 5% |
+| `metrics.erro_relativo_coeficientes` (§4.3a) | coeficiente do EnsaIA × valor publicado no artigo de referência | 5% |
 | `fidelity.prechecar_numeros` | número citado no texto do LLM × número que o próprio `AnalysisResult` contém | 1% |
 
 O segundo mede se o LLM **transcreveu** corretamente o que o pipeline já calculou — não se o pipeline acertou contra a literatura.
@@ -340,7 +340,7 @@ def salvar_planilha_classificacao(linhas: list[dict[str, object]], caminho: Path
     """Grava o CSV que o avaliador humano vai preencher.
 
     Formato simples de propósito: qualquer pessoa abre em Excel/LibreOffice/
-    Google Sheets sem depender de ferramenta nenhuma do LYRA.
+    Google Sheets sem depender de ferramenta nenhuma do EnsaIA.
     """
     if not linhas:
         raise ValueError("Nada para salvar — relatório sem afirmações segmentadas.")

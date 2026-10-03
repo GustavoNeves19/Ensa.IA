@@ -1,4 +1,4 @@
-# Alinhamento de execução do LYRA
+# Alinhamento de execução do EnsaIA
 
 **Registro:** reunião de Gustavo Neves e Gabriel Athayde em 21 de setembro de
 2026. Este documento converte os acordos em entregas verificáveis. Não altera

@@ -4,14 +4,14 @@
 
 ## Contexto
 
-O protótipo do LYRA foi escrito para exatamente três variáveis independentes.
+O protótipo do EnsaIA foi escrito para exatamente três variáveis independentes.
 O número 3 aparece espalhado pelo código: na construção do modelo polinomial,
 na malha de otimização, na interface.
 
 O pré-projeto assinado promete outra coisa. O §4.2, critério 2, exige
 "cobertura de diferentes tipos de planejamento experimental (ex.: fatorial
 completo 2^k, delineamento composto central, Box-Behnken), de modo a testar o
-LYRA em cenários de complexidade crescente".
+EnsaIA em cenários de complexidade crescente".
 
 Um 2^k com k fixo em 3 não é 2^k. Os casos de estudo publicados que servem de
 referência têm 2, 3, 4 fatores conforme o experimento — travar em 3 reduz
@@ -28,7 +28,7 @@ O número de fatores é dado de entrada, não constante de código.
   os fatores de uma interação sempre na ordem em que foram declarados.
 
 Essa última parte parece detalhe e não é. A validação do §4.3(a) casa os
-coeficientes do LYRA com os publicados **por nome**. Se a notação variar entre
+coeficientes do EnsaIA com os publicados **por nome**. Se a notação variar entre
 execuções, o termo aparece como "ausente na referência" e a métrica degrada
 sem erro nenhum aparecer.
 

@@ -37,7 +37,7 @@ artigo.
 
 Registre aqui qualquer decisão de interpretação tomada durante a transcrição.
 Estas notas viram texto do capítulo de resultados — em especial quando
-explicam uma divergência entre o LYRA e o valor publicado.
+explicam uma divergência entre o EnsaIA e o valor publicado.
 
 - Fatores identificados na pesquisa anterior: H2O2, pH, Fe²⁺ (nomes e ordem
   a confirmar contra o artigo real antes de virar `x1`, `x2`, `x3`).

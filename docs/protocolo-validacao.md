@@ -28,12 +28,12 @@ de ajuste. Alterar qualquer um exige alterar o pré-projeto — ver
 
 2. **Rodar o pipeline determinístico.**
    ```bash
-   uv run lyra-validar --caso <nome>
+   uv run ensaia-validar --caso <nome>
    ```
    Gera `<caso>/resultados/analysis_result.json` e a tabela comparativa
    das métricas (a)–(d).
 
-3. **Gerar o relatório do LLM.** Com `LYRA_TEMPERATURA=0.0`. Registrar modelo
+3. **Gerar o relatório do LLM.** Com `ENSAIA_TEMPERATURA=0.0`. Registrar modelo
    e `PROMPT_VERSION`.
 
 4. **Pré-checagem aritmética.** `validation.fidelity.prechecar_numeros`

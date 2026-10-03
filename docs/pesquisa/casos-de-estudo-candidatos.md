@@ -1,4 +1,4 @@
-# Shortlist de Casos de Estudo para o TCC LYRA
+# Shortlist de Casos de Estudo para o TCC EnsaIA
 
 ## Critério de corte aplicado
 
@@ -36,7 +36,7 @@ ajuste, junto com os vértices, na mesma ANOVA.
 - x3: concentração de etanol, 25-75%
 - Respostas: teor de fenólicos totais (TPC) e atividade antioxidante (AA)
 
-## Modelo ajustado (sem termos quadráticos, notação LYRA)
+## Modelo ajustado (sem termos quadráticos, notação EnsaIA)
 - TPC: 77,46 + 3,68 x1 + 4,86 x2 + 10,36 x3 − 2,43 x2:x3
 - AA: 224,09 + 18,95 x1 + 8,87 x2 + 7,54 x3
 
@@ -50,7 +50,7 @@ ajuste, junto com os vértices, na mesma ANOVA.
   TPC=116,23±2,85 mg GAE/g, AA=237,6±6,33 mg TE/g.
 
 ## Alertas para revisão humana antes do referencia.yaml
-- Para validar o núcleo LYRA contra um 2^3 fechado "de livro-texto",
+- Para validar o núcleo EnsaIA contra um 2^3 fechado "de livro-texto",
   isole apenas as 8 linhas de vértice da Tabela 9 e refaça o ajuste OLS
   só com elas — a ANOVA publicada mistura vértices e pontos centrais.
 - Confirmar manualmente que os 4 ensaios centrais realmente têm o
@@ -98,7 +98,7 @@ CCD ortogonal rotacional, 3 fatores em 5 níveis (-α, -1, 0, +1, +α),
 - x3: Fe2+
 - Resposta: remoção de TOC (%)
 
-## Modelo ajustado (notação LYRA)
+## Modelo ajustado (notação EnsaIA)
 Y = 88,2 − 2,2 x1 − 11,9 x2 + 10,2 x3 − 4,2 x1:x2 + 4,4 x1:x3 + 0,5 x2:x3
     − 0,3 x1^2 − 16,4 x2^2 − 3,2 x3^2
 
@@ -124,7 +124,7 @@ para os critérios (a)-(d) do §4.3.
 
 - **Fenton vs. Taguchi** (Asghar; Abdul Raman; Wan Daud, 2014, *The Scientific World Journal* 2014:869120, DOI 10.1155/2014/869120). CCD com 30 ensaios, **4 fatores** (concentração do corante, H2O2:Fe2+, corante:Fe2+, pH), 2 respostas (DQO e descoloração). ANOVA e condição ótima (desejabilidade 0,972) conferidas. Interessante porque compara CCD contra Taguchi no mesmo processo — pode virar discussão metodológica no TCC. Único ponto não 100% conferido: a equação quadrática completa (só o início foi checado literalmente).
 - **Transesterificação de óleo de girassol** (KoohiKamali; Tan; Ling, 2012, *The Scientific World Journal* 2012:475027, DOI 10.1100/2012/475027). CCD com 20 ensaios, 3 fatores, 6 pontos centrais. Modelo reduzido simples (Y=96,38−0,794x1+0,733x3+0,528x2²), ANOVA com F e p por termo conferida. É o processo mais "clássico" de engenharia química do lote (transesterificação/biodiesel), bom se quiser variar o domínio de aplicação. Pequena divergência de arredondamento no R² (0,88 vs 0,889 citado) não compromete a referência, mas vale conferir o valor exato na Tabela 3 do PDF.
-- **Zeólita 4A para efluente multicatiônico** (Nseke; Baloyi, 2024, *Heliyon* 10(15):e35176, DOI 10.1016/j.heliyon.2024.e35176). CCD com 29 ensaios, **4 fatores**, mas com **3 respostas simultâneas** (Cd²⁺, Cu²⁺, Zn²⁺) — três ANOVAs completas e três equações quadráticas, todas conferidas com R² entre 0,9917 e 0,9983. É o único caso com desejabilidade genuinamente multirresposta; útil se o TCC quiser testar o LYRA nesse cenário, mas aumenta a complexidade de validação (3 modelos em vez de 1).
+- **Zeólita 4A para efluente multicatiônico** (Nseke; Baloyi, 2024, *Heliyon* 10(15):e35176, DOI 10.1016/j.heliyon.2024.e35176). CCD com 29 ensaios, **4 fatores**, mas com **3 respostas simultâneas** (Cd²⁺, Cu²⁺, Zn²⁺) — três ANOVAs completas e três equações quadráticas, todas conferidas com R² entre 0,9917 e 0,9983. É o único caso com desejabilidade genuinamente multirresposta; útil se o TCC quiser testar o EnsaIA nesse cenário, mas aumenta a complexidade de validação (3 modelos em vez de 1).
 
 ---
 
@@ -157,7 +157,7 @@ fatoriais + 5 pontos centrais, ensaios 13-17).
 - x3 (C): tempo, 5-15 min
 - Resposta: remoção de azul de metileno (%)
 
-## Modelo reduzido (termos não significativos já removidos, notação LYRA)
+## Modelo reduzido (termos não significativos já removidos, notação EnsaIA)
 Y = 76,80 + 10,41 x1 + 2,54 x2 + 4,03 x3 + 2,52 x1:x2 + 2,65 x1:x3 + 4,66 x1^2
 
 ## O que foi verificado
