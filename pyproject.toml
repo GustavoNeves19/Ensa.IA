@@ -15,7 +15,6 @@ dependencies = [
     "numpy>=1.26",
     "pandas>=2.2",
     "scipy>=1.13",
-    "statsmodels>=0.14",
     "pyyaml>=6.0",
 ]
 
@@ -39,6 +38,9 @@ dev = [
     "mypy>=1.11",
     "pre-commit>=3.8",
     "types-PyYAML>=6.0",
+    # Oráculo de teste: o núcleo é conferido contra o statsmodels (ajuste e
+    # ANOVA Tipo II), mas statsmodels NÃO entra em produção. Ver ADR 0007.
+    "statsmodels>=0.14",
 ]
 
 [project.scripts]

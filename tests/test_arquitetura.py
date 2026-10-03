@@ -24,6 +24,8 @@ PROIBIDOS_EM_NARRATIVE = {"numpy", "pandas", "statsmodels", "scipy", "sklearn"}
 
 # O núcleo não pode depender da camada narrativa, nem de rede, nem de UI.
 # Um núcleo que importa `requests` deixou de ser reprodutível offline.
+# statsmodels fica fora da produção (ADR 0007): ajuste e ANOVA são em numpy
+# puro, e statsmodels só é permitido nos testes, como oráculo.
 PROIBIDOS_EM_CORE = {
     "ensaia.narrative",
     "ensaia.ui",
@@ -35,6 +37,7 @@ PROIBIDOS_EM_CORE = {
     "requests",
     "httpx",
     "streamlit",
+    "statsmodels",
 }
 
 

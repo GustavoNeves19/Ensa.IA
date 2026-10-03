@@ -14,135 +14,135 @@
       "coeficientes": [
         {
           "termo": "Intercepto",
-          "estimativa": 53.34866666666667,
-          "erro_padrao": 0.5693455550991077,
-          "valor_t": 93.70173559602148,
-          "valor_p": 1.8785078585865897e-13,
+          "estimativa": 53.34866666666668,
+          "erro_padrao": 0.5693455550991072,
+          "valor_t": 93.70173559602158,
+          "valor_p": 1.8785078585865743e-13,
           "significativo": true,
-          "ic_inferior": 52.03575346224801,
-          "ic_superior": 54.66157987108532
+          "ic_inferior": 52.03575346224803,
+          "ic_superior": 54.66157987108533
         },
         {
           "termo": "dose_catalisador",
-          "estimativa": 7.0249999999999915,
-          "erro_padrao": 0.7796085088577036,
-          "valor_t": 9.010932949273665,
-          "valor_p": 1.8366507595161965e-05,
+          "estimativa": 7.0249999999999995,
+          "erro_padrao": 0.7796085088577037,
+          "valor_t": 9.010932949273673,
+          "valor_p": 1.8366507595161826e-05,
           "significativo": true,
-          "ic_inferior": 5.227219554733773,
-          "ic_superior": 8.82278044526621
+          "ic_inferior": 5.227219554733781,
+          "ic_superior": 8.822780445266218
         },
         {
           "termo": "concentracao_levofloxacino",
-          "estimativa": -7.537500000000003,
-          "erro_padrao": 0.7796085088577046,
-          "valor_t": -9.668314178669078,
-          "valor_p": 1.0912797904024331e-05,
+          "estimativa": -7.537500000000005,
+          "erro_padrao": 0.7796085088577037,
+          "valor_t": -9.668314178669092,
+          "valor_p": 1.0912797904024204e-05,
           "significativo": true,
           "ic_inferior": -9.335280445266223,
-          "ic_superior": -5.739719554733783
+          "ic_superior": -5.739719554733787
         },
         {
           "termo": "ph",
-          "estimativa": 3.870000000000001,
-          "erro_padrao": 0.7796085088577042,
-          "valor_t": 4.964029966361439,
-          "valor_p": 0.0011013148866533748,
+          "estimativa": 3.87,
+          "erro_padrao": 0.7796085088577037,
+          "valor_t": 4.964029966361441,
+          "valor_p": 0.0011013148866533715,
           "significativo": true,
-          "ic_inferior": 2.0722195547337816,
-          "ic_superior": 5.667780445266221
+          "ic_inferior": 2.072219554733782,
+          "ic_superior": 5.667780445266218
         },
         {
           "termo": "dose_catalisador:concentracao_levofloxacino",
-          "estimativa": 5.225000000000006,
-          "erro_padrao": 1.1025329265680306,
-          "valor_t": 4.739087490352246,
-          "valor_p": 0.0014656760415331942,
+          "estimativa": 5.225000000000007,
+          "erro_padrao": 1.1025329265680297,
+          "valor_t": 4.739087490352251,
+          "valor_p": 0.0014656760415331857,
           "significativo": true,
-          "ic_inferior": 2.6825545121353764,
-          "ic_superior": 7.767445487864635
+          "ic_inferior": 2.6825545121353795,
+          "ic_superior": 7.767445487864634
         },
         {
           "termo": "dose_catalisador:ph",
-          "estimativa": 7.06,
-          "erro_padrao": 1.102532926568031,
-          "valor_t": 6.403436876916135,
-          "valor_p": 0.00020836832429330993,
+          "estimativa": 7.0600000000000005,
+          "erro_padrao": 1.1025329265680297,
+          "valor_t": 6.403436876916144,
+          "valor_p": 0.000208368324293308,
           "significativo": true,
-          "ic_inferior": 4.517554512135369,
-          "ic_superior": 9.60244548786463
+          "ic_inferior": 4.517554512135373,
+          "ic_superior": 9.602445487864628
         },
         {
           "termo": "concentracao_levofloxacino:ph",
-          "estimativa": 2.0250000000000004,
-          "erro_padrao": 1.1025329265680306,
-          "valor_t": 1.8366798407585245,
-          "valor_p": 0.10357129313130753,
+          "estimativa": 2.025,
+          "erro_padrao": 1.1025329265680297,
+          "valor_t": 1.8366798407585254,
+          "valor_p": 0.10357129313130742,
           "significativo": false,
-          "ic_inferior": -0.5174454878646291,
-          "ic_superior": 4.56744548786463
+          "ic_inferior": -0.5174454878646273,
+          "ic_superior": 4.567445487864627
         }
       ],
       "anova": [
         {
           "fonte": "dose_catalisador",
-          "soma_quadrados": 394.8049999999997,
+          "soma_quadrados": 394.8050000000002,
           "graus_liberdade": 1,
-          "quadrado_medio": 394.8049999999997,
-          "valor_f": 81.1969126163058,
-          "valor_p": 1.8366507595161954e-05
+          "quadrado_medio": 394.8050000000002,
+          "valor_f": 81.19691261630601,
+          "valor_p": 1.836650759516177e-05
         },
         {
           "fonte": "concentracao_levofloxacino",
-          "soma_quadrados": 454.5112499999999,
+          "soma_quadrados": 454.51125000000013,
           "graus_liberdade": 1,
-          "quadrado_medio": 454.5112499999999,
-          "valor_f": 93.47629905745352,
-          "valor_p": 1.0912797904024331e-05
+          "quadrado_medio": 454.51125000000013,
+          "valor_f": 93.4762990574537,
+          "valor_p": 1.091279790402425e-05
         },
         {
           "fonte": "ph",
           "soma_quadrados": 119.81520000000006,
           "graus_liberdade": 1,
           "quadrado_medio": 119.81520000000006,
-          "valor_f": 24.641593506934345,
-          "valor_p": 0.0011013148866533754
+          "valor_f": 24.64159350693438,
+          "valor_p": 0.0011013148866533696
         },
         {
           "fonte": "dose_catalisador:concentracao_levofloxacino",
-          "soma_quadrados": 109.20250000000023,
+          "soma_quadrados": 109.2024999999999,
           "graus_liberdade": 1,
-          "quadrado_medio": 109.20250000000023,
-          "valor_f": 22.458950241213152,
-          "valor_p": 0.0014656760415331942
+          "quadrado_medio": 109.2024999999999,
+          "valor_f": 22.458950241213117,
+          "valor_p": 0.0014656760415331998
         },
         {
           "fonte": "dose_catalisador:ph",
-          "soma_quadrados": 199.37439999999984,
+          "soma_quadrados": 199.37439999999987,
           "graus_liberdade": 1,
-          "quadrado_medio": 199.37439999999984,
-          "valor_f": 41.004003836649474,
-          "valor_p": 0.00020836832429330982
+          "quadrado_medio": 199.37439999999987,
+          "valor_f": 41.00400383664954,
+          "valor_p": 0.00020836832429330869
         },
         {
           "fonte": "concentracao_levofloxacino:ph",
-          "soma_quadrados": 16.402500000000007,
+          "soma_quadrados": 16.40250000000004,
           "graus_liberdade": 1,
-          "quadrado_medio": 16.402500000000007,
-          "valor_f": 3.3733928374487587,
-          "valor_p": 0.10357129313130753
+          "quadrado_medio": 16.40250000000004,
+          "valor_f": 3.3733928374487703,
+          "valor_p": 0.10357129313130713
         },
         {
           "fonte": "Resíduo",
-          "soma_quadrados": 38.89852333333332,
+          "soma_quadrados": 38.898523333333266,
           "graus_liberdade": 8,
-          "quadrado_medio": 4.862315416666665,
+          "quadrado_medio": 4.862315416666658,
           "valor_f": null,
           "valor_p": null
         }
       ],
       "r2": 0.9708190173966569,
-      "r2_ajustado": 0.9489332804441495,
+      "r2_ajustado": 0.9489332804441496,
       "falta_de_ajuste": {
         "aplicavel": false,
         "soma_quadrados_falta": null,

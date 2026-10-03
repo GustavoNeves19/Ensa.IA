@@ -12,63 +12,63 @@
         "comparacoes": [
           {
             "termo": "Intercepto",
-            "valor_ensaia": 53.34866666666667,
+            "valor_ensaia": 53.34866666666668,
             "valor_referencia": 53.349,
-            "erro_relativo_pct": 0.0006248164601589309,
+            "erro_relativo_pct": 0.0006248164601322933,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "concentracao_levofloxacino",
-            "valor_ensaia": -7.537500000000003,
+            "valor_ensaia": -7.537500000000005,
             "valor_referencia": -7.538,
-            "erro_relativo_pct": 0.006633059166848745,
+            "erro_relativo_pct": 0.006633059166825178,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "concentracao_levofloxacino:ph",
-            "valor_ensaia": 2.0250000000000004,
+            "valor_ensaia": 2.025,
             "valor_referencia": 2.03,
-            "erro_relativo_pct": 0.2463054187191847,
+            "erro_relativo_pct": 0.24630541871920658,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "dose_catalisador",
-            "valor_ensaia": 7.0249999999999915,
+            "valor_ensaia": 7.0249999999999995,
             "valor_referencia": 7.025,
-            "erro_relativo_pct": 1.264310917722598e-13,
+            "erro_relativo_pct": 1.264310917722598e-14,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "dose_catalisador:concentracao_levofloxacino",
-            "valor_ensaia": 5.225000000000006,
+            "valor_ensaia": 5.225000000000007,
             "valor_referencia": 5.23,
-            "erro_relativo_pct": 0.09560229445496299,
+            "erro_relativo_pct": 0.095602294454946,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "dose_catalisador:ph",
-            "valor_ensaia": 7.06,
+            "valor_ensaia": 7.0600000000000005,
             "valor_referencia": 7.06,
-            "erro_relativo_pct": 0.0,
+            "erro_relativo_pct": 1.2580430873939451e-14,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "ph",
-            "valor_ensaia": 3.870000000000001,
+            "valor_ensaia": 3.87,
             "valor_referencia": 3.87,
-            "erro_relativo_pct": 2.2950346762277135e-14,
+            "erro_relativo_pct": 0.0,
             "dentro_tolerancia": true,
             "observacao": ""
           }
         ],
-        "erro_relativo_medio_pct": 0.049880798400186395,
-        "erro_relativo_maximo_pct": 0.2463054187191847,
+        "erro_relativo_medio_pct": 0.049880798400162185,
+        "erro_relativo_maximo_pct": 0.24630541871920658,
         "proporcao_dentro_tolerancia": 1.0,
         "termos_ausentes_no_ensaia": [],
         "termos_extras_no_ensaia": []
@@ -83,9 +83,9 @@
         "r2_ensaia": 0.9708190173966569,
         "r2_referencia": 0.9708,
         "diferenca_r2": 1.9017396656884067e-05,
-        "r2_ajustado_ensaia": 0.9489332804441495,
+        "r2_ajustado_ensaia": 0.9489332804441496,
         "r2_ajustado_referencia": 0.9489,
-        "diferenca_r2_ajustado": 3.328044414951936e-05,
+        "diferenca_r2_ajustado": 3.3280444149630384e-05,
         "dentro_tolerancia": true
       }
     }

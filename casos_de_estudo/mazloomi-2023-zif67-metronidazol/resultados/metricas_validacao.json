@@ -12,87 +12,87 @@
         "comparacoes": [
           {
             "termo": "Intercepto",
-            "valor_ensaia": 92.93333333333331,
+            "valor_ensaia": 92.93333333333332,
             "valor_referencia": 92.93,
-            "erro_relativo_pct": 0.0035869292298524483,
+            "erro_relativo_pct": 0.0035869292298677403,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "dose_adsorvente",
-            "valor_ensaia": 9.450000000000006,
+            "valor_ensaia": 9.450000000000014,
             "valor_referencia": 9.45,
-            "erro_relativo_pct": 7.518970748784129e-14,
+            "erro_relativo_pct": 1.5037941497568258e-13,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "dose_adsorvente:ph",
-            "valor_ensaia": 0.9249999999999723,
+            "valor_ensaia": 0.9249999999999771,
             "valor_referencia": 0.925,
-            "erro_relativo_pct": 3.0006027692571798e-12,
+            "erro_relativo_pct": 2.4844990929449447e-12,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "dose_adsorvente:tempo_mistura",
-            "valor_ensaia": 3.0250000000000306,
+            "valor_ensaia": 3.0250000000000363,
             "valor_referencia": 3.03,
-            "erro_relativo_pct": 0.16501650164915022,
+            "erro_relativo_pct": 0.1650165016489597,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "dose_adsorvente^2",
-            "valor_ensaia": -8.41666666666667,
+            "valor_ensaia": -8.41666666666666,
             "valor_referencia": -8.42,
-            "erro_relativo_pct": 0.0395882818685309,
+            "erro_relativo_pct": 0.03958828186863638,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "ph",
-            "valor_ensaia": 6.962500000000002,
+            "valor_ensaia": 6.9625,
             "valor_referencia": 6.96,
-            "erro_relativo_pct": 0.0359195402299162,
+            "erro_relativo_pct": 0.035919540229890676,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "ph^2",
-            "valor_ensaia": -18.29166666666662,
+            "valor_ensaia": -18.291666666666615,
             "valor_referencia": -18.29,
-            "erro_relativo_pct": 0.0091124476031849,
+            "erro_relativo_pct": 0.009112447603146053,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "tempo_mistura",
-            "valor_ensaia": 6.362500000000004,
+            "valor_ensaia": 6.362499999999997,
             "valor_referencia": 6.36,
-            "erro_relativo_pct": 0.039308176100690935,
+            "erro_relativo_pct": 0.03930817610057921,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "tempo_mistura:ph",
-            "valor_ensaia": -2.9000000000000012,
+            "valor_ensaia": -2.8999999999999964,
             "valor_referencia": -2.9,
-            "erro_relativo_pct": 4.594026308793751e-14,
+            "erro_relativo_pct": 1.2250736823450004e-13,
             "dentro_tolerancia": true,
             "observacao": ""
           },
           {
             "termo": "tempo_mistura^2",
-            "valor_ensaia": -5.0416666666667105,
+            "valor_ensaia": -5.041666666666709,
             "valor_referencia": -5.04,
-            "erro_relativo_pct": 0.03306878306965175,
+            "erro_relativo_pct": 0.0330687830696165,
             "dentro_tolerancia": true,
             "observacao": ""
           }
         ],
-        "erro_relativo_medio_pct": 0.032560065975409905,
-        "erro_relativo_maximo_pct": 0.16501650164915022,
+        "erro_relativo_medio_pct": 0.032560065975345366,
+        "erro_relativo_maximo_pct": 0.1650165016489597,
         "proporcao_dentro_tolerancia": 1.0,
         "termos_ausentes_no_ensaia": [],
         "termos_extras_no_ensaia": []
