@@ -15,102 +15,102 @@
         {
           "termo": "Intercepto",
           "estimativa": 92.93333333333332,
-          "erro_padrao": 1.7133625159641819,
-          "valor_t": 54.24032127902354,
-          "valor_p": 4.028211564305578e-08,
+          "erro_padrao": 1.71336251596418,
+          "valor_t": 54.2403212790236,
+          "valor_p": 4.028211564305555e-08,
           "significativo": true,
-          "ic_inferior": 88.52899477193566,
-          "ic_superior": 97.33767189473099
+          "ic_inferior": 88.52899477193567,
+          "ic_superior": 97.33767189473097
         },
         {
           "termo": "dose_adsorvente",
           "estimativa": 9.450000000000014,
-          "erro_padrao": 1.049215977130861,
-          "valor_t": 9.006725217663536,
-          "valor_p": 0.0002816786645751224,
+          "erro_padrao": 1.0492159771308598,
+          "valor_t": 9.006725217663547,
+          "valor_p": 0.0002816786645751209,
           "significativo": true,
-          "ic_inferior": 6.752904467528015,
-          "ic_superior": 12.147095532472012
+          "ic_inferior": 6.752904467528019,
+          "ic_superior": 12.147095532472008
         },
         {
           "termo": "tempo_mistura",
           "estimativa": 6.362499999999997,
-          "erro_padrao": 1.049215977130861,
-          "valor_t": 6.064051766918957,
-          "valor_p": 0.0017603692681721177,
+          "erro_padrao": 1.0492159771308598,
+          "valor_t": 6.064051766918964,
+          "valor_p": 0.0017603692681721086,
           "significativo": true,
-          "ic_inferior": 3.665404467527999,
-          "ic_superior": 9.059595532471995
+          "ic_inferior": 3.665404467528002,
+          "ic_superior": 9.059595532471992
         },
         {
           "termo": "ph",
           "estimativa": 6.9625,
-          "erro_padrao": 1.049215977130861,
-          "valor_t": 6.635907336294422,
-          "valor_p": 0.001170959530045494,
+          "erro_padrao": 1.0492159771308598,
+          "valor_t": 6.635907336294429,
+          "valor_p": 0.0011709595300454882,
           "significativo": true,
-          "ic_inferior": 4.265404467528002,
-          "ic_superior": 9.659595532471998
+          "ic_inferior": 4.265404467528006,
+          "ic_superior": 9.659595532471995
         },
         {
           "termo": "dose_adsorvente^2",
           "estimativa": -8.41666666666666,
-          "erro_padrao": 1.5444041011917116,
-          "valor_t": -5.449782644433599,
-          "valor_p": 0.002826494185520329,
+          "erro_padrao": 1.5444041011917098,
+          "valor_t": -5.449782644433605,
+          "valor_p": 0.0028264941855203145,
           "significativo": true,
-          "ic_inferior": -12.386683796072303,
-          "ic_superior": -4.446649537261019
+          "ic_inferior": -12.3866837960723,
+          "ic_superior": -4.446649537261022
         },
         {
           "termo": "tempo_mistura^2",
           "estimativa": -5.041666666666709,
-          "erro_padrao": 1.5444041011917116,
-          "valor_t": -3.2644737622597595,
-          "valor_p": 0.022334736240909304,
+          "erro_padrao": 1.5444041011917098,
+          "valor_t": -3.264473762259763,
+          "valor_p": 0.02233473624090922,
           "significativo": true,
-          "ic_inferior": -9.01168379607235,
-          "ic_superior": -1.0716495372610662
+          "ic_inferior": -9.011683796072347,
+          "ic_superior": -1.0716495372610706
         },
         {
           "termo": "ph^2",
           "estimativa": -18.291666666666615,
-          "erro_padrao": 1.5444041011917116,
-          "valor_t": -11.8438345589423,
-          "valor_p": 7.554925843744272e-05,
+          "erro_padrao": 1.5444041011917098,
+          "valor_t": -11.843834558942314,
+          "valor_p": 7.554925843744225e-05,
           "significativo": true,
-          "ic_inferior": -22.26168379607226,
-          "ic_superior": -14.321649537260972
+          "ic_inferior": -22.26168379607225,
+          "ic_superior": -14.321649537260976
         },
         {
           "termo": "dose_adsorvente:tempo_mistura",
           "estimativa": 3.0250000000000363,
-          "erro_padrao": 1.4838154647170025,
-          "valor_t": 2.038663211113636,
-          "valor_p": 0.09703389548991438,
+          "erro_padrao": 1.483815464717001,
+          "valor_t": 2.0386632111136382,
+          "valor_p": 0.09703389548991415,
           "significativo": false,
-          "ic_inferior": -0.7892690810377472,
-          "ic_superior": 6.83926908103782
+          "ic_inferior": -0.7892690810377432,
+          "ic_superior": 6.839269081037816
         },
         {
           "termo": "dose_adsorvente:ph",
           "estimativa": 0.9249999999999771,
-          "erro_padrao": 1.4838154647170025,
-          "valor_t": 0.6233928827372046,
-          "valor_p": 0.560357591759153,
+          "erro_padrao": 1.483815464717001,
+          "valor_t": 0.6233928827372052,
+          "valor_p": 0.5603575917591526,
           "significativo": false,
-          "ic_inferior": -2.8892690810378063,
-          "ic_superior": 4.739269081037761
+          "ic_inferior": -2.8892690810378023,
+          "ic_superior": 4.739269081037756
         },
         {
           "termo": "tempo_mistura:ph",
           "estimativa": -2.8999999999999964,
-          "erro_padrao": 1.4838154647170025,
-          "valor_t": -1.9544209296626334,
-          "valor_p": 0.10805682666925875,
+          "erro_padrao": 1.483815464717001,
+          "valor_t": -1.9544209296626354,
+          "valor_p": 0.10805682666925845,
           "significativo": false,
-          "ic_inferior": -6.71426908103778,
-          "ic_superior": 0.9142690810377871
+          "ic_inferior": -6.714269081037775,
+          "ic_superior": 0.9142690810377831
         }
       ],
       "anova": [
@@ -119,84 +119,84 @@
           "soma_quadrados": 714.4200000000001,
           "graus_liberdade": 1,
           "quadrado_medio": 714.4200000000001,
-          "valor_f": 81.12109914649606,
-          "valor_p": 0.0002816786645751241
+          "valor_f": 81.12109914649625,
+          "valor_p": 0.00028167866457512263
         },
         {
           "fonte": "tempo_mistura",
           "soma_quadrados": 323.8512500000001,
           "graus_liberdade": 1,
           "quadrado_medio": 323.8512500000001,
-          "valor_f": 36.77272383187297,
-          "valor_p": 0.0017603692681721116
+          "valor_f": 36.77272383187306,
+          "valor_p": 0.001760369268172103
         },
         {
           "fonte": "ph",
           "soma_quadrados": 387.8112499999998,
           "graus_liberdade": 1,
           "quadrado_medio": 387.8112499999998,
-          "valor_f": 44.03526617588611,
-          "valor_p": 0.0011709595300454952
+          "valor_f": 44.03526617588621,
+          "valor_p": 0.0011709595300454893
         },
         {
           "fonte": "dose_adsorvente^2",
           "soma_quadrados": 261.56410256410254,
           "graus_liberdade": 1,
           "quadrado_medio": 261.56410256410254,
-          "valor_f": 29.7001308715697,
-          "valor_p": 0.0028264941855203236
+          "valor_f": 29.700130871569765,
+          "valor_p": 0.0028264941855203085
         },
         {
           "fonte": "tempo_mistura^2",
           "soma_quadrados": 93.85256410256403,
           "graus_liberdade": 1,
           "quadrado_medio": 93.85256410256403,
-          "valor_f": 10.6567889444822,
-          "valor_p": 0.022334736240910025
+          "valor_f": 10.656788944482225,
+          "valor_p": 0.022334736240909907
         },
         {
           "fonte": "ph^2",
           "soma_quadrados": 1235.3910256410254,
           "graus_liberdade": 1,
           "quadrado_medio": 1235.3910256410254,
-          "valor_f": 140.2764170595967,
-          "valor_p": 7.554925843744171e-05
+          "valor_f": 140.276417059597,
+          "valor_p": 7.554925843744128e-05
         },
         {
           "fonte": "dose_adsorvente:tempo_mistura",
           "soma_quadrados": 36.602499999999885,
           "graus_liberdade": 1,
           "quadrado_medio": 36.602499999999885,
-          "valor_f": 4.156147688348049,
-          "valor_p": 0.09703389548991785
+          "valor_f": 4.1561476883480575,
+          "valor_p": 0.09703389548991752
         },
         {
           "fonte": "dose_adsorvente:ph",
           "soma_quadrados": 3.4224999999999355,
           "graus_liberdade": 1,
           "quadrado_medio": 3.4224999999999355,
-          "valor_f": 0.388618686247414,
-          "valor_p": 0.5603575917591471
+          "valor_f": 0.38861868624741486,
+          "valor_p": 0.5603575917591469
         },
         {
           "fonte": "tempo_mistura:ph",
           "soma_quadrados": 33.63999999999999,
           "graus_liberdade": 1,
           "quadrado_medio": 33.63999999999999,
-          "valor_f": 3.8197611703033605,
-          "valor_p": 0.10805682666925845
+          "valor_f": 3.819761170303369,
+          "valor_p": 0.10805682666925816
         },
         {
           "fonte": "Resíduo",
-          "soma_quadrados": 44.034166666666685,
+          "soma_quadrados": 44.034166666666586,
           "graus_liberdade": 5,
-          "quadrado_medio": 8.806833333333337,
+          "quadrado_medio": 8.806833333333318,
           "valor_f": null,
           "valor_p": null
         }
       ],
       "r2": 0.9853138180904545,
-      "r2_ajustado": 0.9588786906532726,
+      "r2_ajustado": 0.9588786906532727,
       "falta_de_ajuste": {
         "aplicavel": false,
         "soma_quadrados_falta": null,
