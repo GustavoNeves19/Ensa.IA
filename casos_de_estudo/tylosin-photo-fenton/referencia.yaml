@@ -1,0 +1,82 @@
+# Valores PUBLICADOS no artigo original. Este arquivo é o ground truth do
+# §4.3 — todo número aqui deve ser rastreável a uma tabela do artigo,
+# registrada em fonte.md.
+#
+# Campo que o artigo não reporta fica `null`. Nunca preencha por estimativa.
+#
+# NADA de numérico foi preenchido aqui ainda — só a forma. Ver fonte.md:
+# os números precisam vir de alguém abrindo o PDF/PMC de verdade, não da
+# pesquisa automatizada que só disse ONDE olhar.
+
+caso: tylosin-photo-fenton
+status: rascunho
+tipo_planejamento: composto_central   # fatorial_completo | composto_central | box_behnken
+
+fatores:
+  # minimo/maximo = níveis -1 e +1 do FATORIAL (vértices), NÃO os pontos axiais
+  # -alfa/+alfa. Os coeficientes publicados estão nessa escala codificada; usar
+  # os axiais aqui distorce todos os coeficientes por um fator alfa (~1,68).
+  h2o2:
+    minimo: null   # TODO: nível -1 do fatorial (Tabela 1 ou texto)
+    maximo: null   # TODO: nível +1 do fatorial
+    unidade: "g/L"   # confirmar unidade contra o artigo
+  ph:
+    minimo: null
+    maximo: null
+    unidade: ""
+  fe2:
+    minimo: null
+    maximo: null
+    unidade: "mg/L"   # confirmar unidade contra o artigo
+
+# O artigo reporta em escala codificada ou real? Confirmar antes de preencher
+# coeficientes abaixo — muda tudo na comparação do §4.3(a).
+escala_coeficientes: codificada   # codificada | real
+
+# O artigo reporta efeito (−1 → +1) ou coeficiente (centro → +1)?
+grandeza_reportada: coeficiente   # coeficiente | efeito
+
+respostas:
+  remocao_toc:
+    # Notação canônica dos termos: "Intercepto", "x", "x^2", "x1:x2"
+    coeficientes:
+      Intercepto: null
+      h2o2: null
+      ph: null
+      fe2: null
+      h2o2:ph: null
+      h2o2:fe2: null
+      ph:fe2: null
+      h2o2^2: null
+      ph^2: null
+      fe2^2: null
+    significancia:
+      Intercepto: null
+      h2o2: null
+      ph: null
+      fe2: null
+      h2o2:ph: null
+      h2o2:fe2: null
+      ph:fe2: null
+      h2o2^2: null
+      ph^2: null
+      fe2^2: null
+    r2: null
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05   # confirmar — artigos de CCD às vezes usam 0,10
+
+# Presente só se o artigo fez otimização (este fez — Tabela 4).
+condicao_otima:
+  coordenadas:
+    h2o2: null
+    ph: null
+    fe2: null
+  resposta_prevista:
+    remocao_toc: null   # artigo reporta previsto e confirmação experimental — anotar os dois em observacoes
+
+observacoes: |
+  TODO: transcrever direto do artigo (DOI 10.3390/ma9060428, mirror
+  https://pmc.ncbi.nlm.nih.gov/articles/PMC5456803/), conferido em dupla.
+  A pesquisa anterior (não-humana) sugeriu remoção prevista ~100% e
+  confirmação experimental ~97,1% para a condição ótima — checar e substituir
+  por leitura direta da Tabela 4, não copiar este número sem conferir.

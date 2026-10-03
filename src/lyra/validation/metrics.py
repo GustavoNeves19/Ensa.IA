@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from lyra.core.design import INTERCEPTO
 from lyra.core.results import AnalysisResult
 
 # --- Limiares fixados no §4.3 do pré-projeto assinado -----------------------
@@ -151,17 +152,30 @@ def concordancia_significancia(
     divergência (e não é simplesmente ignorado): se o artigo considerou o termo
     e o LYRA nem o incluiu, isso é discordância de fato, e varrer para debaixo
     do tapete inflaria artificialmente a taxa.
+
+    O intercepto fica de fora: a concordância de significância do §4.3(b) é
+    sobre *quais efeitos são significativos*, e o intercepto (a média geral) não
+    é um efeito de fator. Os artigos de DOE não o classificam, e incluí-lo só
+    criaria uma divergência artificial contra uma referência que, corretamente,
+    o deixa em branco.
     """
     ajuste = resultado.ajuste(resposta)
-    obtido = {c.termo: c.significativo for c in ajuste.coeficientes}
+    obtido = {
+        c.termo: c.significativo for c in ajuste.coeficientes if c.termo != INTERCEPTO
+    }
+    referencia_sem_intercepto = {
+        termo: sig
+        for termo, sig in significancia_referencia.items()
+        if termo != INTERCEPTO
+    }
 
-    termos = sorted(set(obtido) | set(significancia_referencia))
+    termos = sorted(set(obtido) | set(referencia_sem_intercepto))
     concordantes = 0
     divergencias: list[str] = []
 
     for termo in termos:
         sig_lyra = obtido.get(termo)
-        sig_ref = significancia_referencia.get(termo)
+        sig_ref = referencia_sem_intercepto.get(termo)
 
         if sig_lyra is None:
             divergencias.append(f"{termo}: ausente no LYRA, referência={sig_ref}")
