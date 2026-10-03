@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from ensaia.core.design import Fator, Planejamento, termos_do_modelo
 from ensaia.core.effects import efeitos_principais, extrair_coeficientes
 from ensaia.core.model import ajustar_ols, matriz_modelo
 from ensaia.core.table import Table
+
+
+def _np(matriz: Table) -> np.ndarray:
+    return np.column_stack([matriz.coluna(t) for t in matriz.colunas])
 
 BETA_VERDADEIRO = {
     "Intercepto": 50.0,
@@ -55,10 +58,7 @@ def ajuste_ccd():
     termos = list(BETA_VERDADEIRO)
     matriz = matriz_modelo(dados, _planejamento(["x1", "x2", "x3"]), termos)
     ruido = np.random.default_rng(7).normal(0.0, 0.8, len(dados))
-    y = pd.Series(
-        matriz.to_numpy() @ np.array(list(BETA_VERDADEIRO.values())) + ruido,
-        index=matriz.index,
-    )
+    y = _np(matriz) @ np.array(list(BETA_VERDADEIRO.values())) + ruido
     return ajustar_ols(matriz, y)
 
 
@@ -124,9 +124,6 @@ def test_efeitos_ignoram_intercepto_quadraticos_e_interacoes() -> None:
         {nomes[0]: [p[0] for p in pontos], nomes[1]: [p[1] for p in pontos]}
     )
     matriz = matriz_modelo(dados, _planejamento(nomes), termos)
-    y = pd.Series(
-        matriz.to_numpy() @ np.array([10.0, 2.0, -3.0, 1.0, -1.0, 4.0]),
-        index=matriz.index,
-    )
+    y = _np(matriz) @ np.array([10.0, 2.0, -3.0, 1.0, -1.0, 4.0])
     efeitos = efeitos_principais(extrair_coeficientes(ajustar_ols(matriz, y)))
     assert set(efeitos) == {"a", "b"}

@@ -107,9 +107,9 @@
         "r2_ensaia": 0.9853138180904545,
         "r2_referencia": 0.9853,
         "diferenca_r2": 1.3818090454531529e-05,
-        "r2_ajustado_ensaia": 0.9588786906532726,
+        "r2_ajustado_ensaia": 0.9588786906532727,
         "r2_ajustado_referencia": 0.9589,
-        "diferenca_r2_ajustado": 2.130934672739393e-05,
+        "diferenca_r2_ajustado": 2.1309346727282907e-05,
         "dentro_tolerancia": true
       }
     }

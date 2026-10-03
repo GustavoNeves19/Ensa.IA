@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 import yaml
 
 from ensaia import __version__
@@ -105,8 +104,7 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
                 f"{caso.name}: a resposta {resposta!r} tem valores ausentes ou "
                 f"não numéricos nas linhas CSV {linhas}."
             )
-        y = pd.Series(y_valores)
-        ajuste = ajustar_ols(matriz, y)
+        ajuste = ajustar_ols(matriz, y_valores)
         ajustes_resposta.append(_ajuste_resposta(resposta, ajuste, termos, avisos))
 
     analise = AnalysisResult(
@@ -164,30 +162,16 @@ def _ajuste_resposta(
 def _linhas_anova(
     resposta: str, ajuste: AjusteOLS, avisos: list[str]
 ) -> list[LinhaAnova]:
-    """ANOVA Tipo II em linhas `LinhaAnova`, ou vazia se o modelo não é hierárquico."""
+    """ANOVA Tipo II em linhas `LinhaAnova`, ou vazia se o modelo não é hierárquico.
+
+    O `AjusteOLS` já devolve as linhas prontas; aqui só se traduz a recusa do
+    modelo não hierárquico (um `ValueError`) num aviso que sobe ao relatório.
+    """
     try:
-        tabela = ajuste.tabela_tipo2()
+        return ajuste.tabela_tipo2()
     except ValueError as erro:
         avisos.append(f"{resposta}: ANOVA Tipo II indisponível — {erro}")
         return []
-
-    linhas: list[LinhaAnova] = []
-    for fonte, linha in tabela.iterrows():
-        sq = float(linha["soma_quadrados"])
-        gl = int(linha["graus_liberdade"])
-        f = linha["valor_f"]
-        p = linha["valor_p"]
-        linhas.append(
-            LinhaAnova(
-                fonte=str(fonte),
-                soma_quadrados=sq,
-                graus_liberdade=gl,
-                quadrado_medio=sq / gl if gl else 0.0,
-                valor_f=None if pd.isna(f) else float(f),
-                valor_p=None if pd.isna(p) else float(p),
-            )
-        )
-    return linhas
 
 
 def _aplicar_metricas(

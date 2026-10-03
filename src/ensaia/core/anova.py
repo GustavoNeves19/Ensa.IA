@@ -7,9 +7,8 @@ registrada em docs/decisoes/0003-criterio-de-significancia.md.
 
 from __future__ import annotations
 
-import pandas as pd
-
 from ensaia.core.results import FaltaDeAjuste, LinhaAnova
+from ensaia.core.table import Table
 
 ALFA_PADRAO = 0.05
 
@@ -49,7 +48,7 @@ def selecionar_termos(
 
 
 def teste_falta_ajuste(
-    dados: pd.DataFrame,
+    dados: Table,
     ajuste,
     fatores: list[str],
 ) -> FaltaDeAjuste:

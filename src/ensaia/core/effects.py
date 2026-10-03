@@ -13,8 +13,6 @@ seção 3): parte dos artigos reporta o coeficiente (variação do centro ao ní
 
 from __future__ import annotations
 
-import pandas as pd
-
 from ensaia.core.design import INTERCEPTO, interpretar_termo
 from ensaia.core.model import AjusteOLS
 from ensaia.core.results import Coeficiente
@@ -30,32 +28,20 @@ def extrair_coeficientes(
 ) -> list[Coeficiente]:
     """Converte o ajuste OLS na lista de `Coeficiente` do contrato público.
 
-    Lê sempre do **ajuste canônico** (as propriedades de `AjusteOLS`, montadas
-    sobre a matriz nomeada à mão). O ajuste-sombra interno existe só para a
-    ANOVA Tipo II e usa nomes de coluna do patsy ("I(f0 ** 2)"): compará-los com
-    a notação canônica faria a métrica do §4.3(a) tratar coeficientes presentes
-    como "termo ausente", silenciosamente. Por isso a extração nunca passa por
-    ele — `AjusteOLS` já expõe tudo com os nomes certos via `ajuste.termos`.
-
-    A ordem de saída é a ordem dos termos da matriz do modelo, que é estável e a
-    mesma de `design.termos_do_modelo` — a comparação com os valores publicados
-    casa por nome, não por posição.
+    Lê os coeficientes, erros, t e p diretamente do `AjusteOLS`, que já os
+    expõe com os nomes canônicos de termo via `ajuste.termos`. A ordem de saída
+    é a ordem dos termos da matriz do modelo, que é estável e a mesma de
+    `design.termos_do_modelo` — a comparação com os valores publicados casa por
+    nome, não por posição.
 
     Com `calcular_ic=False`, `ic_inferior`/`ic_superior` ficam None: útil quando
-    o intervalo não vai ser usado e não se quer pagar o `conf_int`.
+    o intervalo não vai ser usado.
     """
-    estimativas = _para_float(ajuste.coeficientes)
-    erros = _para_float(ajuste.erros_padrao)
-    ts = _para_float(ajuste.valores_t)
-    ps = _para_float(ajuste.valores_p)
-
-    if calcular_ic:
-        intervalo = ajuste.intervalo_confianca(alfa)
-        ic_inferior = _para_float(intervalo["inferior"])
-        ic_superior = _para_float(intervalo["superior"])
-    else:
-        ic_inferior = {}
-        ic_superior = {}
+    estimativas = ajuste.coeficientes
+    erros = ajuste.erros_padrao
+    ts = ajuste.valores_t
+    ps = ajuste.valores_p
+    intervalo = ajuste.intervalo_confianca(alfa) if calcular_ic else {}
 
     return [
         Coeficiente(
@@ -65,8 +51,8 @@ def extrair_coeficientes(
             valor_t=ts[termo],
             valor_p=ps[termo],
             significativo=ps[termo] < alfa,
-            ic_inferior=ic_inferior.get(termo),
-            ic_superior=ic_superior.get(termo),
+            ic_inferior=intervalo[termo][0] if termo in intervalo else None,
+            ic_superior=intervalo[termo][1] if termo in intervalo else None,
         )
         for termo in ajuste.termos
     ]
@@ -105,8 +91,3 @@ def efeitos_principais(coeficientes: list[Coeficiente]) -> dict[str, float]:
         if len(partes) == 1 and partes[0][1] == 1:
             efeitos[coef.termo] = 2.0 * coef.estimativa
     return efeitos
-
-
-def _para_float(serie: pd.Series) -> dict[str, float]:
-    """Series do statsmodels → dict termo→float, legível pelo mypy estrito."""
-    return {str(termo): float(valor) for termo, valor in serie.items()}

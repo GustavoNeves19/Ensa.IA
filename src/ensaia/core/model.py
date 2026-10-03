@@ -5,10 +5,10 @@ estatístico determinístico que reproduza as etapas fundamentais de uma anális
 de DOE, tais como: regressão OLS, ANOVA, cálculo de efeitos e otimização por
 função de desejabilidade, utilizando programas em Python."
 
-Este módulo cobre a parte de OLS e a ANOVA Tipo II. O ajuste é feito em numpy
-puro (mínimos quadrados + `scipy.stats` para t e F); não há dependência de
-statsmodels no cálculo. Pandas entra só como contêiner de dados na fronteira.
-Ver docs/decisoes/0007-nucleo-em-numpy-sem-statsmodels.md.
+Tudo aqui é numpy puro: a matriz de modelo é uma `Table`, o ajuste usa
+`numpy.linalg`, e as distribuições t e F vêm do `scipy.stats`. Não há pandas nem
+statsmodels no núcleo. Ver ADR 0007 (numpy, sem statsmodels) e 0008 (Table, sem
+pandas).
 
 Este módulo NÃO decide quais termos ficam no modelo final — isso é seleção por
 significância e vive em `anova.py`, porque depende da tabela de ANOVA.
@@ -17,11 +17,11 @@ significância e vive em `anova.py`, porque depende da tabela de ANOVA.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 from scipy import stats
 
 from ensaia.core.design import INTERCEPTO, Planejamento, interpretar_termo
+from ensaia.core.results import LinhaAnova
 from ensaia.core.table import Table
 
 RESIDUO = "Resíduo"
@@ -33,7 +33,7 @@ def matriz_modelo(
     termos: list[str],
     *,
     codificar: bool = True,
-) -> pd.DataFrame:
+) -> Table:
     """Monta a matriz X do modelo a partir dos termos em notação canônica.
 
     Trabalhar em variáveis codificadas [-1, +1] não é preciosismo: em unidades
@@ -46,7 +46,7 @@ def matriz_modelo(
     Com `codificar=False`, `dados` já está na escala codificada (caso de
     planilhas que trazem a matriz codificada) e os valores entram como estão.
 
-    Cada termo vira uma coluna, na ordem recebida:
+    Devolve uma `Table` com uma coluna por termo, na ordem recebida:
         "Intercepto"  -> coluna de 1s
         "x"           -> coluna codificada do fator x
         "x^2"         -> quadrado da coluna codificada
@@ -86,7 +86,7 @@ def matriz_modelo(
             else valores
         )
 
-    colunas: dict[str, NDArray[np.float64]] = {}
+    colunas: dict[str, NDArray[np.float64] | tuple[str, ...]] = {}
     for termo in termos:
         coluna_termo = np.ones(len(dados))
         for nome, potencia in interpretar_termo(termo):
@@ -98,10 +98,10 @@ def matriz_modelo(
             coluna_termo = coluna_termo * niveis[nome] ** potencia
         colunas[termo] = coluna_termo
 
-    return pd.DataFrame(colunas)
+    return Table(colunas=tuple(termos), valores=colunas)
 
 
-def ajustar_ols(X: pd.DataFrame, y: pd.Series) -> AjusteOLS:
+def ajustar_ols(X: Table, y: NDArray[np.float64]) -> AjusteOLS:
     """Ajusta y = Xβ + ε por mínimos quadrados ordinários.
 
     Guarda o objeto de resultado inteiro — a ANOVA e o teste de falta de ajuste
@@ -119,30 +119,27 @@ def ajustar_ols(X: pd.DataFrame, y: pd.Series) -> AjusteOLS:
 class AjusteOLS:
     """Ajuste OLS em numpy puro, com a ANOVA Tipo II calculada à mão.
 
-    Existe para que o resto do EnsaIA não dependa de detalhes do ajuste: se um
-    dia a implementação mudar, muda aqui e em nenhum outro lugar. Toda a
-    estatística é computada com `numpy.linalg` (mínimos quadrados) e
-    `scipy.stats` (distribuições t e F) — sem statsmodels, sem patsy.
-
-    A matriz entra com os nomes de termo na notação canônica
-    ("Intercepto", "x1", "x1^2", "x1:x2") e sai com exatamente esses nomes: a
-    validação do §4.3(a) compara coeficientes por nome, então não pode haver
-    tradução nenhuma no caminho. Ver ADR 0007 (que sucede a ADR 0005).
+    Entra uma `Table` (matriz de modelo, uma coluna por termo em notação
+    canônica) e um vetor-resposta numpy; saem coeficientes, erros, ANOVA e
+    diagnósticos como `dict`/`numpy`, sem pandas. Os nomes de termo saem
+    exatamente como entraram — a validação do §4.3(a) compara por nome, então
+    não pode haver tradução no caminho. Ver ADR 0007 e 0008.
     """
 
-    def __init__(self, X: pd.DataFrame, y: pd.Series) -> None:
-        _validar_entrada(X, y)
-        self._termos: list[str] = [str(coluna) for coluna in X.columns]
-        self._indice = X.index
-        self._X: NDArray[np.float64] = X.to_numpy(dtype=float)
-        self._y: NDArray[np.float64] = y.to_numpy(dtype=float)
+    def __init__(self, X: Table, y: NDArray[np.float64]) -> None:
+        self._y: NDArray[np.float64] = np.asarray(y, dtype=float)
+        self._termos: list[str] = list(X.colunas)
+        _validar_entrada(X, self._y)
+        self._X: NDArray[np.float64] = np.column_stack(
+            [X.coluna(t) for t in self._termos]
+        )
         self._n, self._p = self._X.shape
         self._gl_residuo = self._n - self._p
 
         beta, _, _, _ = np.linalg.lstsq(self._X, self._y, rcond=None)
-        self._beta = beta
-        self._ajustados = self._X @ beta
-        self._residuos = self._y - self._ajustados
+        self._beta: NDArray[np.float64] = beta
+        self._ajustados: NDArray[np.float64] = self._X @ beta
+        self._residuos: NDArray[np.float64] = self._y - self._ajustados
         self._ssr = float(self._residuos @ self._residuos)
         self._sigma2 = self._ssr / self._gl_residuo
         centrado = self._y - self._y.mean()
@@ -154,41 +151,43 @@ class AjusteOLS:
         self._erros = np.sqrt(np.diag(self._sigma2 * self._cov_nao_escalada))
 
         self._motivo_sem_tipo2: str | None = None
-        self._tipo2: pd.DataFrame | None = None
+        self._tipo2: list[LinhaAnova] | None = None
         self._construir_tipo2()
 
     @property
     def termos(self) -> list[str]:
         return list(self._termos)
 
-    def _serie(self, valores: NDArray[np.float64]) -> pd.Series:
-        return pd.Series(valores, index=self._termos)
+    def _mapa(self, valores: NDArray[np.float64]) -> dict[str, float]:
+        return {t: float(v) for t, v in zip(self._termos, valores, strict=True)}
 
     @property
-    def coeficientes(self) -> pd.Series:
-        return self._serie(self._beta)
+    def coeficientes(self) -> dict[str, float]:
+        return self._mapa(self._beta)
 
     @property
-    def erros_padrao(self) -> pd.Series:
-        return self._serie(self._erros)
+    def erros_padrao(self) -> dict[str, float]:
+        return self._mapa(self._erros)
 
     @property
-    def valores_t(self) -> pd.Series:
-        return self._serie(self._beta / self._erros)
+    def valores_t(self) -> dict[str, float]:
+        return self._mapa(self._beta / self._erros)
 
     @property
-    def valores_p(self) -> pd.Series:
+    def valores_p(self) -> dict[str, float]:
         t = self._beta / self._erros
-        return self._serie(2.0 * stats.t.sf(np.abs(t), df=self._gl_residuo))
+        return self._mapa(2.0 * stats.t.sf(np.abs(t), df=self._gl_residuo))
 
-    def intervalo_confianca(self, alfa: float = 0.05) -> pd.DataFrame:
-        """IC de (1 − alfa) para cada coeficiente, colunas `inferior`/`superior`."""
+    def intervalo_confianca(self, alfa: float = 0.05) -> dict[str, tuple[float, float]]:
+        """IC de (1 − alfa) por coeficiente: termo -> (inferior, superior)."""
         t_critico = float(stats.t.ppf(1.0 - alfa / 2.0, df=self._gl_residuo))
         margem = t_critico * self._erros
-        return pd.DataFrame(
-            {"inferior": self._beta - margem, "superior": self._beta + margem},
-            index=self._termos,
-        )
+        inferior = self._beta - margem
+        superior = self._beta + margem
+        return {
+            t: (float(inferior[i]), float(superior[i]))
+            for i, t in enumerate(self._termos)
+        }
 
     @property
     def r2(self) -> float:
@@ -196,7 +195,7 @@ class AjusteOLS:
 
     @property
     def r2_ajustado(self) -> float:
-        return 1.0 - (self._ssr / self._gl_residuo) / (self._sst / (self._n - 1))
+        return float(1.0 - (self._ssr / self._gl_residuo) / (self._sst / (self._n - 1)))
 
     @property
     def soma_quadrados_residual(self) -> float:
@@ -219,24 +218,23 @@ class AjusteOLS:
         return int(self._p)
 
     @property
-    def residuos(self) -> pd.Series:
-        return pd.Series(self._residuos, index=self._indice)
+    def residuos(self) -> NDArray[np.float64]:
+        return self._residuos
 
     @property
-    def valores_ajustados(self) -> pd.Series:
-        return pd.Series(self._ajustados, index=self._indice)
+    def valores_ajustados(self) -> NDArray[np.float64]:
+        return self._ajustados
 
-    def tabela_tipo2(self) -> pd.DataFrame:
-        """ANOVA Tipo II, com nomes canônicos e a linha "Resíduo" no fim.
+    def tabela_tipo2(self) -> list[LinhaAnova]:
+        """ANOVA Tipo II como lista de `LinhaAnova`, com a linha "Resíduo" no fim.
 
-        Colunas: `soma_quadrados`, `graus_liberdade`, `valor_f`, `valor_p`.
-        Só existe para modelos hierárquicos (todo fator com termo linear);
-        num modelo sem o termo linear de algum fator, a soma de quadrados Tipo
-        II perde o sentido e isto falha alto em vez de inventar a tabela.
+        Só existe para modelos hierárquicos (todo fator com termo linear); num
+        modelo sem o termo linear de algum fator, a soma de quadrados Tipo II
+        perde o sentido e isto falha alto em vez de inventar a tabela.
         """
         if self._tipo2 is None:
             raise ValueError(self._motivo_sem_tipo2)
-        return self._tipo2.copy()
+        return list(self._tipo2)
 
     def _rss(self, termos: list[str]) -> float:
         """Soma de quadrados residual de um submodelo só com estes termos."""
@@ -270,10 +268,9 @@ class AjusteOLS:
         # Tipo II: para cada termo t, SQ(t) = SQ_res(modelo sem t e sem os termos
         # que CONTÊM t) − SQ_res(o mesmo modelo com t de volta). "Conter" usa a
         # mesma noção de fatores atômicos do patsy: x1:x2 contém x1, mas x1^2 NÃO
-        # contém x1 (é fator atômico distinto). Reproduz o anova_lm(typ=2) que a
-        # ADR 0005 delegava ao statsmodels.
+        # contém x1 (é fator atômico distinto). Reproduz o anova_lm(typ=2).
         assinatura = {t: _assinatura_fatores(t) for t in termos}
-        linhas: dict[str, tuple[float, int, float, float]] = {}
+        linhas: list[LinhaAnova] = []
         for t in termos:
             contem_t = {u for u in termos if u != t and assinatura[t] < assinatura[u]}
             completo = [u for u in self._termos if u not in contem_t]
@@ -281,14 +278,26 @@ class AjusteOLS:
             sq = self._rss(reduzido) - self._rss(completo)
             f = (sq / 1) / self._sigma2
             p = float(stats.f.sf(f, 1, self._gl_residuo))
-            linhas[t] = (sq, 1, f, p)
+            linhas.append(
+                LinhaAnova(
+                    fonte=t,
+                    soma_quadrados=sq,
+                    graus_liberdade=1,
+                    quadrado_medio=sq,
+                    valor_f=f,
+                    valor_p=p,
+                )
+            )
 
-        linhas[RESIDUO] = (self._ssr, self._gl_residuo, float("nan"), float("nan"))
-        self._tipo2 = pd.DataFrame.from_dict(
-            linhas,
-            orient="index",
-            columns=["soma_quadrados", "graus_liberdade", "valor_f", "valor_p"],
+        linhas.append(
+            LinhaAnova(
+                fonte=RESIDUO,
+                soma_quadrados=self._ssr,
+                graus_liberdade=self._gl_residuo,
+                quadrado_medio=self._ssr / self._gl_residuo,
+            )
         )
+        self._tipo2 = linhas
 
 
 def _assinatura_fatores(termo: str) -> frozenset[str]:
@@ -307,31 +316,29 @@ def _assinatura_fatores(termo: str) -> frozenset[str]:
     return frozenset(nome for nome, _ in partes)
 
 
-def _validar_entrada(X: pd.DataFrame, y: pd.Series) -> None:
+def _validar_entrada(X: Table, y: NDArray[np.float64]) -> None:
     if len(X) != len(y):
         raise ValueError(
             f"X tem {len(X)} linhas e y tem {len(y)}: os ensaios não se alinham."
         )
-    if not X.index.equals(y.index):
-        raise ValueError("X e y têm índices diferentes: os ensaios não se alinham.")
-    if INTERCEPTO not in X.columns:
+    termos = list(X.colunas)
+    if INTERCEPTO not in termos:
         raise ValueError(
             f"A matriz do modelo precisa da coluna {INTERCEPTO!r}: sem intercepto, "
             "R² e ANOVA mudam de definição e deixam de ser comparáveis com a "
             "literatura."
         )
-    if X.columns.duplicated().any():
-        repetidas = sorted(X.columns[X.columns.duplicated()].unique())
+    if len(set(termos)) != len(termos):
+        repetidas = sorted({t for t in termos if termos.count(t) > 1})
         raise ValueError(f"Colunas repetidas na matriz do modelo: {repetidas}.")
 
-    valores = X.to_numpy(dtype=float)
-    resposta = y.to_numpy(dtype=float)
+    valores = np.column_stack([X.coluna(t) for t in termos])
     if not np.isfinite(valores).all():
         raise ValueError("A matriz do modelo tem valores ausentes ou infinitos.")
-    if not np.isfinite(resposta).all():
+    if not np.isfinite(y).all():
         raise ValueError("A resposta tem valores ausentes ou infinitos.")
 
-    n_termos = X.shape[1]
+    n_termos = len(termos)
     posto = int(np.linalg.matrix_rank(valores))
     if posto < n_termos:
         raise ValueError(
@@ -349,13 +356,15 @@ def _validar_entrada(X: pd.DataFrame, y: pd.Series) -> None:
         )
 
 
-def _termos_redundantes(X: pd.DataFrame) -> list[str]:
+def _termos_redundantes(X: Table) -> list[str]:
     redundantes: list[str] = []
     posto_atual = 0
-    for j in range(X.shape[1]):
-        posto = int(np.linalg.matrix_rank(X.iloc[:, : j + 1].to_numpy(dtype=float)))
+    acumulado: list[NDArray[np.float64]] = []
+    for nome in X.colunas:
+        acumulado.append(X.coluna(nome))
+        posto = int(np.linalg.matrix_rank(np.column_stack(acumulado)))
         if posto == posto_atual:
-            redundantes.append(str(X.columns[j]))
+            redundantes.append(nome)
         else:
             posto_atual = posto
     return redundantes
