@@ -14,6 +14,6 @@ def test_ler_dados_aceita_csv_brasileiro_com_comentario(tmp_path: Path) -> None:
 
     dados = ler_dados(arquivo)
 
-    assert list(dados.columns) == ["concentracao", "resposta"]
-    assert dados.loc[0, "concentracao"] == 1.5
-    assert dados.loc[0, "resposta"] == 82.3
+    assert dados.colunas == ("concentracao", "resposta")
+    assert dados.coluna("concentracao")[0] == 1.5
+    assert dados.coluna("resposta")[0] == 82.3

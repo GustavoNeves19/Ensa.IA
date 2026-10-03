@@ -19,3 +19,4 @@ Formato: contexto → decisão → consequências (inclusive as ruins).
 | [0005](0005-anova-tipo-ii-encapsulada.md) | ANOVA Tipo II encapsulada em `AjusteOLS`, com autocheck em runtime | Substituída pela 0007 |
 | [0006](0006-camada-de-ia-httpx-sem-langchain.md) | A camada de IA fala HTTP direto, sem LangChain | Aceita |
 | [0007](0007-nucleo-em-numpy-sem-statsmodels.md) | Núcleo em numpy puro; statsmodels só como oráculo de teste | Aceita |
+| [0008](0008-table-dados-sem-pandas.md) | Contêiner de dados próprio (`Table`), remoção faseada do pandas | Aceita |
