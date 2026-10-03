@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from lyra.core.design import Fator, termos_do_modelo
+from lyra.core.design import Fator, interpretar_termo, termos_do_modelo
 
 
 class TestFator:
@@ -73,3 +73,27 @@ class TestTermosDoModelo:
         quebra em silêncio."""
         assert termos_do_modelo(["b", "a"])[-1] == "b:a"
         assert termos_do_modelo(["a", "b"])[-1] == "a:b"
+
+
+class TestInterpretarTermo:
+    def test_decompoe_cada_forma_da_notacao_canonica(self) -> None:
+        assert interpretar_termo("Intercepto") == []
+        assert interpretar_termo("x1") == [("x1", 1)]
+        assert interpretar_termo("x1^2") == [("x1", 2)]
+        assert interpretar_termo("x1:x2") == [("x1", 1), ("x2", 1)]
+
+    def test_e_o_inverso_de_termos_do_modelo(self) -> None:
+        """Todo termo gerado tem que ser lido de volta sem sobra nem perda."""
+        for termo in termos_do_modelo(["a", "b", "c"], grau_interacao=3)[1:]:
+            fatores = "".join(
+                f"{n}" if p == 1 else f"{n}^{p}" for n, p in interpretar_termo(termo)
+            )
+            assert fatores == termo.replace(":", "")
+
+    def test_nome_de_fator_com_espaco_e_acento(self) -> None:
+        assert interpretar_termo("Razão S/L^2") == [("Razão S/L", 2)]
+
+    @pytest.mark.parametrize("termo", ["x^1", "x^", "^2", "x^a", "x:", ":x"])
+    def test_termo_malformado_falha_alto(self, termo: str) -> None:
+        with pytest.raises(ValueError):
+            interpretar_termo(termo)

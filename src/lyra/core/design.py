@@ -24,8 +24,14 @@ INTERCEPTO = "Intercepto"
 class Fator:
     """Um fator independente e sua faixa experimental.
 
-    `minimo`/`maximo` são os níveis reais (unidades do experimento). A
-    codificação para [-1, +1] é derivada, nunca informada pelo usuário: pedir
+    `minimo`/`maximo` são os níveis reais (unidades do experimento) que
+    correspondem a -1 e +1 na escala codificada. Em composto central, são os
+    níveis do fatorial, NÃO os pontos axiais: os axiais caem em ±α (ex.: ±1,68)
+    e é nessa escala que os artigos publicam os coeficientes. Passar os níveis
+    axiais aqui encolhe a escala e distorce todos os coeficientes por um fator
+    α, sem nenhum erro aparente.
+
+    A codificação para [-1, +1] é derivada, nunca informada pelo usuário: pedir
     ao usuário que codifique à mão é uma das barreiras que o TCC se propõe a
     remover.
     """
@@ -115,6 +121,38 @@ def termos_do_modelo(
             termos.append(":".join(combo))
 
     return termos
+
+
+def interpretar_termo(termo: str) -> list[tuple[str, int]]:
+    """Decompõe um termo canônico em pares (fator, potência).
+
+        "Intercepto" -> []
+        "x1"         -> [("x1", 1)]
+        "x1^2"       -> [("x1", 2)]
+        "x1:x2"      -> [("x1", 1), ("x2", 1)]
+
+    É o inverso de `termos_do_modelo`: a notação é definida nos dois lugares
+    e só aqui é lida, para que a regra de "quem contém quem" (hierarquia do
+    modelo) não dependa de cada módulo reinterpretar a string do seu jeito.
+    """
+    if termo == INTERCEPTO:
+        return []
+
+    partes: list[tuple[str, int]] = []
+    for pedaco in termo.split(":"):
+        nome, separador, potencia = pedaco.rpartition("^")
+        if not separador:
+            if not pedaco:
+                raise ValueError(f"Termo {termo!r} tem um fator vazio.")
+            partes.append((pedaco, 1))
+            continue
+        if not nome or not potencia.isdigit() or int(potencia) < 2:
+            raise ValueError(
+                f"Termo {termo!r}: a potência de {pedaco!r} deve ser um inteiro "
+                f">= 2 (ex.: 'x1^2')."
+            )
+        partes.append((nome, int(potencia)))
+    return partes
 
 
 def detectar_tipo(
