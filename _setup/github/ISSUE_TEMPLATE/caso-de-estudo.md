@@ -27,5 +27,5 @@ labels: caso-de-estudo, validacao
 - [ ] `referencia.yaml` preenchido
 - [ ] `fonte.md` com procedência de cada bloco de valores
 - [ ] Transcrição conferida pela dupla (quem transcreveu ≠ quem conferiu)
-- [ ] `uv run lyra-validar --caso <nome>` executado
+- [ ] `uv run ensaia-validar --caso <nome>` executado
 - [ ] Divergências analisadas e registradas

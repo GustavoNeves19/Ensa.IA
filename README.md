@@ -1,4 +1,4 @@
-# LYRA
+# EnsaIA
 
 Análise e otimização de experimentos químicos (DOE) em Python, com uma camada
 de interpretação por modelo de linguagem.
@@ -21,7 +21,7 @@ softwares consolidados (Statistica, MiniTab) têm custo de licenciamento alto,
 e interpretar a saída deles exige formação em estatística que boa parte dos
 profissionais e estudantes de química não tem.
 
-O LYRA ataca as duas: um pipeline estatístico determinístico em Python, de
+O EnsaIA ataca as duas: um pipeline estatístico determinístico em Python, de
 código aberto, e uma camada de linguagem que traduz o resultado numérico em
 texto compreensível.
 
@@ -33,7 +33,7 @@ texto compreensível.
                  ▼
     ┌────────────────────────────┐
     │   NÚCLEO DETERMINÍSTICO    │   sem rede, sem LLM, sem aleatoriedade
-    │   lyra/core                │   mesmo dado → mesmo resultado, sempre
+    │   ensaia/core              │   mesmo dado → mesmo resultado, sempre
     │                            │
     │   OLS → ANOVA → efeitos    │
     │       → desejabilidade     │
@@ -44,13 +44,13 @@ texto compreensível.
          ║ AnalysisResult ║   ◄── a fronteira. frozen, serializável em JSON
          ╚═══════╤═══════╝
                  │
-        ┌────────┴─────────┐
-        ▼                  ▼
-┌───────────────┐   ┌──────────────┐
-│ lyra/narrative│   │lyra/validation│
-│  (LLM narra)  │   │ (§4.3 mede)   │
-│  não calcula  │   │              │
-└───────────────┘   └──────────────┘
+         ┌───────┴───────────────┐
+         ▼                       ▼
+┌──────────────────┐   ┌───────────────────┐
+│ ensaia/narrative │   │ ensaia/validation │
+│   (LLM narra)    │   │   (§4.3 mede)     │
+│   não calcula    │   │                   │
+└──────────────────┘   └───────────────────┘
 ```
 
 **O LLM narra, mas não calcula.** Essa é a decisão que sustenta a hipótese do
@@ -74,15 +74,15 @@ curl -LsSf https://astral.sh/uv/install.sh | sh      # Linux/macOS
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"   # Windows
 
 # clonar e instalar
-git clone git@github.com:<org>/lyra.git
-cd lyra
+git clone git@github.com:<org>/ensaia.git
+cd ensaia
 uv sync --all-extras
 
 # rodar os testes
 uv run pytest
 
 # subir a interface
-uv run streamlit run src/lyra/ui/app.py
+uv run streamlit run src/ensaia/ui/app.py
 ```
 
 Para usar a camada de LLM, copie `.env.example` para `.env` e preencha a
@@ -94,7 +94,7 @@ proposital e é testado.
 ## Estrutura
 
 ```
-src/lyra/
+src/ensaia/
 ├── core/          Núcleo determinístico. Offline, reprodutível.
 │   ├── design.py       Fatores, codificação [-1,+1], termos do modelo
 │   ├── model.py        Matriz de modelo e ajuste OLS
@@ -119,8 +119,8 @@ os dados experimentais, os valores publicados no artigo original, e a citação
 da fonte — ver [`casos_de_estudo/README.md`](casos_de_estudo/README.md).
 
 ```bash
-uv run lyra-validar                      # roda todos os casos
-uv run lyra-validar --caso nome-do-caso  # roda um só
+uv run ensaia-validar                      # roda todos os casos
+uv run ensaia-validar --caso nome-do-caso  # roda um só
 ```
 
 As métricas são as cinco fixadas no §4.3 do pré-projeto assinado:

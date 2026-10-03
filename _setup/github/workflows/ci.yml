@@ -37,7 +37,7 @@ jobs:
         run: uv run pytest tests/test_arquitetura.py -v
 
       - name: Testes
-        run: uv run pytest --cov=lyra --cov-report=term-missing
+        run: uv run pytest --cov=ensaia --cov-report=term-missing
 
   nucleo-sem-llm:
     name: Núcleo instala e roda sem a camada de LLM
@@ -48,6 +48,6 @@ jobs:
       - name: Instalar só o núcleo (sem extras)
         run: uv sync --extra dev
       - name: Importar o pacote sem langchain disponível
-        run: uv run python -c "import lyra; print(lyra.__version__)"
+        run: uv run python -c "import ensaia; print(ensaia.__version__)"
       - name: Testes que não dependem de LLM
         run: uv run pytest -m "not llm"

@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import pandas as pd
 
-from lyra.core.design import INTERCEPTO, interpretar_termo
-from lyra.core.model import AjusteOLS
-from lyra.core.results import Coeficiente
+from ensaia.core.design import INTERCEPTO, interpretar_termo
+from ensaia.core.model import AjusteOLS
+from ensaia.core.results import Coeficiente
 
 ALFA_PADRAO = 0.05
 

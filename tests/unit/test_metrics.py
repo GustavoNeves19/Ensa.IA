@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from lyra.core.results import (
+from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
     Coeficiente,
@@ -18,7 +18,7 @@ from lyra.core.results import (
     MetadadosExecucao,
     PontoOtimo,
 )
-from lyra.validation.metrics import (
+from ensaia.validation.metrics import (
     comparacao_r2,
     concordancia_significancia,
     diferenca_condicao_otima,
@@ -60,7 +60,7 @@ def _resultado(
                 termos_incluidos=[c.termo for c in coeficientes],
             )
         ],
-        metadados=MetadadosExecucao(versao_lyra="0.1.0"),
+        metadados=MetadadosExecucao(versao_ensaia="0.1.0"),
         ponto_otimo=ponto_otimo,
     )
 
@@ -110,8 +110,8 @@ class TestErroRelativoCoeficientes:
         r = erro_relativo_coeficientes(
             resultado, "rendimento", {"a": 100.0, "ausente": 2.0}
         )
-        assert r.termos_ausentes_no_lyra == ["ausente"]
-        assert r.termos_extras_no_lyra == ["extra"]
+        assert r.termos_ausentes_no_ensaia == ["ausente"]
+        assert r.termos_extras_no_ensaia == ["extra"]
         assert r.erro_relativo_medio_pct == pytest.approx(0.0)
 
     def test_sinal_oposto_conta_como_erro_grande(self) -> None:
@@ -152,7 +152,7 @@ class TestConcordanciaSignificancia:
     def test_intercepto_fica_fora_da_concordancia(self) -> None:
         """O intercepto não é um efeito de fator e os artigos não o classificam.
 
-        Mesmo presente nos coeficientes do LYRA (e ausente da referência, que o
+        Mesmo presente nos coeficientes do EnsaIA (e ausente da referência, que o
         deixa em branco), ele não pode entrar na taxa nem virar divergência.
         """
         resultado = _resultado(

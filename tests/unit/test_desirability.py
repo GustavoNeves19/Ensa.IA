@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from lyra.core.desirability import (
+from ensaia.core.desirability import (
     AlvoResposta,
     desejabilidade_global,
     desejabilidade_individual,

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-RAIZ = Path(__file__).resolve().parent.parent / "src" / "lyra"
+RAIZ = Path(__file__).resolve().parent.parent / "src" / "ensaia"
 
 # A camada narrativa não pode tocar em ferramenta de cálculo. Se ela precisa
 # de um número, o número vem pronto no AnalysisResult.
@@ -25,8 +25,8 @@ PROIBIDOS_EM_NARRATIVE = {"numpy", "pandas", "statsmodels", "scipy", "sklearn"}
 # O núcleo não pode depender da camada narrativa, nem de rede, nem de UI.
 # Um núcleo que importa `requests` deixou de ser reprodutível offline.
 PROIBIDOS_EM_CORE = {
-    "lyra.narrative",
-    "lyra.ui",
+    "ensaia.narrative",
+    "ensaia.ui",
     "langchain",
     "langchain_core",
     "langchain_google_genai",
@@ -98,7 +98,7 @@ def test_analysisresult_e_serializavel() -> None:
     """
     import json
 
-    from lyra.core.results import (
+    from ensaia.core.results import (
         AjusteResposta,
         AnalysisResult,
         Coeficiente,
@@ -145,7 +145,7 @@ def test_analysisresult_e_serializavel() -> None:
                 termos_incluidos=["Intercepto", "temperatura"],
             )
         ],
-        metadados=MetadadosExecucao(versao_lyra="0.1.0"),
+        metadados=MetadadosExecucao(versao_ensaia="0.1.0"),
     )
 
     texto = resultado.to_json()

@@ -1,5 +1,5 @@
 <!--
-Prompt de geração do relatório técnico do LYRA.
+Prompt de geração do relatório técnico do EnsaIA.
 Versão: 2026.08.1  (manter sincronizado com PROMPT_VERSION em chain.py)
 
 Ao editar este arquivo, incremente a versão em chain.py E registre a mudança

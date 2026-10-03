@@ -20,8 +20,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from lyra.core.design import INTERCEPTO
-from lyra.core.results import AnalysisResult
+from ensaia.core.design import INTERCEPTO
+from ensaia.core.results import AnalysisResult
 
 # --- Limiares fixados no §4.3 do pré-projeto assinado -----------------------
 TOLERANCIA_ERRO_RELATIVO = 5.0  # §4.3(a), em pontos percentuais
@@ -32,7 +32,7 @@ TOLERANCIA_R2 = 0.01  # §4.3(c), em valor absoluto de R²
 @dataclass(frozen=True)
 class ComparacaoCoeficiente:
     termo: str
-    valor_lyra: float
+    valor_ensaia: float
     valor_referencia: float
     erro_relativo_pct: float | None
     dentro_tolerancia: bool
@@ -47,8 +47,8 @@ class ResultadoErroCoeficientes:
     erro_relativo_medio_pct: float | None
     erro_relativo_maximo_pct: float | None
     proporcao_dentro_tolerancia: float
-    termos_ausentes_no_lyra: list[str] = field(default_factory=list)
-    termos_extras_no_lyra: list[str] = field(default_factory=list)
+    termos_ausentes_no_ensaia: list[str] = field(default_factory=list)
+    termos_extras_no_ensaia: list[str] = field(default_factory=list)
 
 
 def erro_relativo_coeficientes(
@@ -89,7 +89,7 @@ def erro_relativo_coeficientes(
             comparacoes.append(
                 ComparacaoCoeficiente(
                     termo=termo,
-                    valor_lyra=obtido,
+                    valor_ensaia=obtido,
                     valor_referencia=esperado,
                     erro_relativo_pct=None,
                     dentro_tolerancia=math.isclose(obtido, 0.0, abs_tol=1e-9),
@@ -106,7 +106,7 @@ def erro_relativo_coeficientes(
         comparacoes.append(
             ComparacaoCoeficiente(
                 termo=termo,
-                valor_lyra=obtido,
+                valor_ensaia=obtido,
                 valor_referencia=esperado,
                 erro_relativo_pct=erro,
                 dentro_tolerancia=erro <= tolerancia_pct,
@@ -123,8 +123,8 @@ def erro_relativo_coeficientes(
         ),
         erro_relativo_maximo_pct=max(erros_validos) if erros_validos else None,
         proporcao_dentro_tolerancia=proporcao,
-        termos_ausentes_no_lyra=ausentes,
-        termos_extras_no_lyra=extras,
+        termos_ausentes_no_ensaia=ausentes,
+        termos_extras_no_ensaia=extras,
     )
 
 
@@ -148,9 +148,9 @@ def concordancia_significancia(
     Taxa = nº de termos com classificação coincidente / nº total de termos
     avaliados, exatamente como definido no documento.
 
-    Um termo presente na referência mas ausente do modelo do LYRA conta como
+    Um termo presente na referência mas ausente do modelo do EnsaIA conta como
     divergência (e não é simplesmente ignorado): se o artigo considerou o termo
-    e o LYRA nem o incluiu, isso é discordância de fato, e varrer para debaixo
+    e o EnsaIA nem o incluiu, isso é discordância de fato, e varrer para debaixo
     do tapete inflaria artificialmente a taxa.
 
     O intercepto fica de fora: a concordância de significância do §4.3(b) é
@@ -174,18 +174,18 @@ def concordancia_significancia(
     divergencias: list[str] = []
 
     for termo in termos:
-        sig_lyra = obtido.get(termo)
+        sig_ensaia = obtido.get(termo)
         sig_ref = referencia_sem_intercepto.get(termo)
 
-        if sig_lyra is None:
-            divergencias.append(f"{termo}: ausente no LYRA, referência={sig_ref}")
+        if sig_ensaia is None:
+            divergencias.append(f"{termo}: ausente no EnsaIA, referência={sig_ref}")
         elif sig_ref is None:
-            divergencias.append(f"{termo}: ausente na referência, LYRA={sig_lyra}")
-        elif sig_lyra == sig_ref:
+            divergencias.append(f"{termo}: ausente na referência, EnsaIA={sig_ensaia}")
+        elif sig_ensaia == sig_ref:
             concordantes += 1
         else:
             divergencias.append(
-                f"{termo}: LYRA={'sig' if sig_lyra else 'n.s.'}, "
+                f"{termo}: EnsaIA={'sig' if sig_ensaia else 'n.s.'}, "
                 f"referência={'sig' if sig_ref else 'n.s.'}"
             )
 
@@ -202,10 +202,10 @@ def concordancia_significancia(
 class ResultadoComparacaoR2:
     """§4.3(c)"""
 
-    r2_lyra: float
+    r2_ensaia: float
     r2_referencia: float | None
     diferenca_r2: float | None
-    r2_ajustado_lyra: float
+    r2_ajustado_ensaia: float
     r2_ajustado_referencia: float | None
     diferenca_r2_ajustado: float | None
     dentro_tolerancia: bool
@@ -238,10 +238,10 @@ def comparacao_r2(
     dentro = all(d <= tolerancia for d in diferencas) if diferencas else False
 
     return ResultadoComparacaoR2(
-        r2_lyra=ajuste.r2,
+        r2_ensaia=ajuste.r2,
         r2_referencia=r2_referencia,
         diferenca_r2=dif_r2,
-        r2_ajustado_lyra=ajuste.r2_ajustado,
+        r2_ajustado_ensaia=ajuste.r2_ajustado,
         r2_ajustado_referencia=r2_ajustado_referencia,
         diferenca_r2_ajustado=dif_r2_aj,
         dentro_tolerancia=dentro,
@@ -251,7 +251,7 @@ def comparacao_r2(
 @dataclass(frozen=True)
 class DiferencaFator:
     fator: str
-    valor_lyra: float
+    valor_ensaia: float
     valor_referencia: float
     diferenca_absoluta: float
     diferenca_pct_faixa: float | None
@@ -271,7 +271,7 @@ def diferenca_condicao_otima(
     condicao_referencia: dict[str, float],
     faixas_experimentais: dict[str, tuple[float, float]] | None = None,
 ) -> ResultadoCondicaoOtima:
-    """§4.3(d) — diferença entre a condição ótima do LYRA e a publicada.
+    """§4.3(d) — diferença entre a condição ótima do EnsaIA e a publicada.
 
     Expressa em termos absolutos e, quando `faixas_experimentais` é fornecida,
     também como percentual da faixa de cada fator. O percentual é o número que
@@ -293,9 +293,9 @@ def diferenca_condicao_otima(
     diferencas: list[DiferencaFator] = []
 
     for fator in sorted(set(obtido) & set(condicao_referencia)):
-        val_lyra = obtido[fator]
+        val_ensaia = obtido[fator]
         val_ref = condicao_referencia[fator]
-        dif_abs = abs(val_lyra - val_ref)
+        dif_abs = abs(val_ensaia - val_ref)
 
         dif_pct = None
         if faixas_experimentais and fator in faixas_experimentais:
@@ -307,7 +307,7 @@ def diferenca_condicao_otima(
         diferencas.append(
             DiferencaFator(
                 fator=fator,
-                valor_lyra=val_lyra,
+                valor_ensaia=val_ensaia,
                 valor_referencia=val_ref,
                 diferenca_absoluta=dif_abs,
                 diferenca_pct_faixa=dif_pct,

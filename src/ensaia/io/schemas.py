@@ -1,7 +1,7 @@
 """Validação dos dados experimentais de entrada.
 
 Mensagens de erro aqui são parte do produto, não detalhe técnico. O
-usuário-alvo do LYRA não tem formação em programação: "KeyError: 'temp'" não
+usuário-alvo do EnsaIA não tem formação em programação: "KeyError: 'temp'" não
 ajuda ninguém. Toda falha de validação precisa dizer o que está errado, em
 qual linha, e o que fazer.
 """

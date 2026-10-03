@@ -1,4 +1,4 @@
-"""LYRA — análise e otimização de experimentos químicos em Python.
+"""EnsaIA — análise e otimização de experimentos químicos em Python.
 
 TCC — Universidade Federal Rural da Amazônia (UFRA)
 Curso de Graduação em Sistemas de Informação
@@ -11,6 +11,6 @@ Orientadora: Profa. Dra. Luiza Helena da Silva Martins
 
 __version__ = "0.1.0"
 
-from lyra.core.results import AnalysisResult
+from ensaia.core.results import AnalysisResult
 
 __all__ = ["AnalysisResult", "__version__"]

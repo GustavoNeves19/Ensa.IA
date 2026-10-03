@@ -1,6 +1,6 @@
 """Executa a validação sobre todos os casos de estudo — §4.3 do pré-projeto.
 
-Ponto de entrada: `uv run lyra-validar`.
+Ponto de entrada: `uv run ensaia-validar`.
 
 Este é o script que produz o capítulo de resultados do TCC. A saída dele
 precisa ser reproduzível a partir do repositório limpo: mesmos casos, mesmo
@@ -19,11 +19,11 @@ from typing import Any
 import pandas as pd
 import yaml
 
-from lyra import __version__
-from lyra.core.design import Fator, Planejamento, termos_do_modelo
-from lyra.core.effects import extrair_coeficientes
-from lyra.core.model import AjusteOLS, ajustar_ols, matriz_modelo
-from lyra.core.results import (
+from ensaia import __version__
+from ensaia.core.design import Fator, Planejamento, termos_do_modelo
+from ensaia.core.effects import extrair_coeficientes
+from ensaia.core.model import AjusteOLS, ajustar_ols, matriz_modelo
+from ensaia.core.results import (
     SCHEMA_VERSION,
     AjusteResposta,
     AnalysisResult,
@@ -31,12 +31,12 @@ from lyra.core.results import (
     LinhaAnova,
     MetadadosExecucao,
 )
-from lyra.io.readers import ler_dados
-from lyra.validation import metrics
+from ensaia.io.readers import ler_dados
+from ensaia.validation import metrics
 
 RAIZ_CASOS = Path(__file__).resolve().parents[3] / "casos_de_estudo"
 
-# α fixado no §4.3(b) / ADR 0003. A significância do LYRA é avaliada neste
+# α fixado no §4.3(b) / ADR 0003. A significância do EnsaIA é avaliada neste
 # nível e é também o nível do intervalo de confiança reportado.
 ALFA = metrics.ALFA_SIGNIFICANCIA
 
@@ -112,7 +112,7 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
         respostas=[str(r) for r in respostas],
         ajustes=ajustes_resposta,
         metadados=MetadadosExecucao(
-            versao_lyra=__version__, alfa=ALFA, executado_em=executado_em
+            versao_ensaia=__version__, alfa=ALFA, executado_em=executado_em
         ),
         ponto_otimo=None,
         avisos=avisos,
@@ -372,8 +372,8 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8")
 
     parser = argparse.ArgumentParser(
-        prog="lyra-validar",
-        description="Valida o pipeline do LYRA contra os casos de estudo publicados.",
+        prog="ensaia-validar",
+        description="Valida o pipeline do EnsaIA contra os casos de estudo publicados.",
     )
     parser.add_argument(
         "--caso",

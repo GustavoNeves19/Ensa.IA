@@ -1,6 +1,6 @@
 """Representação e detecção de planejamentos experimentais.
 
-O pré-projeto assinado compromete o LYRA com três famílias de planejamento
+O pré-projeto assinado compromete o EnsaIA com três famílias de planejamento
 (§4.2, critério 2): fatorial completo 2^k, delineamento composto central e
 Box-Behnken. O protótipo atual trabalha com exatamente 3 fatores fixos —
 generalizar para k fatores é a refatoração central da fase de implementação.
@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import combinations
 
-from lyra.core.results import TipoPlanejamento
+from ensaia.core.results import TipoPlanejamento
 
 INTERCEPTO = "Intercepto"
 

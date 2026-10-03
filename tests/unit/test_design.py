@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from lyra.core.design import Fator, interpretar_termo, termos_do_modelo
+from ensaia.core.design import Fator, interpretar_termo, termos_do_modelo
 
 
 class TestFator:

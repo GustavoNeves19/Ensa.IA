@@ -6,9 +6,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from lyra.core.design import Fator, Planejamento, termos_do_modelo
-from lyra.core.effects import efeitos_principais, extrair_coeficientes
-from lyra.core.model import ajustar_ols, matriz_modelo
+from ensaia.core.design import Fator, Planejamento, termos_do_modelo
+from ensaia.core.effects import efeitos_principais, extrair_coeficientes
+from ensaia.core.model import ajustar_ols, matriz_modelo
 
 BETA_VERDADEIRO = {
     "Intercepto": 50.0,

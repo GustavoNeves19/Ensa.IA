@@ -21,7 +21,7 @@ import statsmodels.formula.api as smf
 from numpy.typing import NDArray
 from statsmodels.stats.anova import anova_lm
 
-from lyra.core.design import INTERCEPTO, Planejamento, interpretar_termo
+from ensaia.core.design import INTERCEPTO, Planejamento, interpretar_termo
 
 RESIDUO = "Resíduo"
 
@@ -122,7 +122,7 @@ def ajustar_ols(X: pd.DataFrame, y: pd.Series) -> AjusteOLS:
 class AjusteOLS:
     """Envelope fino sobre o resultado do statsmodels.
 
-    Existe para que o resto do LYRA não importe statsmodels diretamente: se um
+    Existe para que o resto do EnsaIA não importe statsmodels diretamente: se um
     dia a implementação mudar, muda aqui e em nenhum outro lugar.
 
     Por dentro há dois ajustes do mesmo modelo (ADR 0005). O canônico, sobre a
