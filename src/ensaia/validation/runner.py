@@ -16,6 +16,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -84,11 +85,11 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
         raise ValueError(f"{caso.name}: 'respostas' deve conter ao menos uma resposta.")
 
     colunas_exigidas = set(fatores) | set(respostas)
-    ausentes = sorted(colunas_exigidas - set(dados.columns))
+    ausentes = sorted(colunas_exigidas - set(dados.colunas))
     if ausentes:
         raise ValueError(
             f"{caso.name}: colunas ausentes em dados.csv: {ausentes}. "
-            f"Disponíveis: {list(dados.columns)}."
+            f"Disponíveis: {list(dados.colunas)}."
         )
 
     matriz = matriz_modelo(dados, planejamento, termos, codificar=True)
@@ -96,13 +97,15 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
     avisos: list[str] = []
     for nome_resposta in respostas:
         resposta = str(nome_resposta)
-        y = pd.to_numeric(dados[resposta], errors="coerce")
-        if y.isna().any():
-            linhas = (y.index[y.isna()] + 2).tolist()
+        y_valores = dados.coluna(resposta)
+        if np.isnan(y_valores).any():
+            # +2: a linha 1 do CSV é o cabeçalho, então o ensaio i cai na linha i+2.
+            linhas = [int(i) + 2 for i in np.flatnonzero(np.isnan(y_valores))]
             raise ValueError(
                 f"{caso.name}: a resposta {resposta!r} tem valores ausentes ou "
                 f"não numéricos nas linhas CSV {linhas}."
             )
+        y = pd.Series(y_valores)
         ajuste = ajustar_ols(matriz, y)
         ajustes_resposta.append(_ajuste_resposta(resposta, ajuste, termos, avisos))
 

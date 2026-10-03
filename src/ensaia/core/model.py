@@ -22,12 +22,13 @@ from numpy.typing import NDArray
 from scipy import stats
 
 from ensaia.core.design import INTERCEPTO, Planejamento, interpretar_termo
+from ensaia.core.table import Table
 
 RESIDUO = "Resíduo"
 
 
 def matriz_modelo(
-    dados: pd.DataFrame,
+    dados: Table,
     planejamento: Planejamento,
     termos: list[str],
     *,
@@ -59,11 +60,11 @@ def matriz_modelo(
                 "('x1:x2', 'x1^2'). Renomeie o fator."
             )
 
-    ausentes = [nome for nome in nomes if nome not in dados.columns]
+    ausentes = [nome for nome in nomes if not dados.tem(nome)]
     if ausentes:
         raise ValueError(
             f"Fatores {ausentes} não estão nos dados. "
-            f"Colunas disponíveis: {list(dados.columns)}."
+            f"Colunas disponíveis: {list(dados.colunas)}."
         )
 
     repetidos = sorted({t for t in termos if termos.count(t) > 1})
@@ -72,16 +73,17 @@ def matriz_modelo(
 
     niveis: dict[str, NDArray[np.float64]] = {}
     for fator in planejamento.fatores:
-        coluna = pd.to_numeric(dados[fator.nome], errors="coerce")
-        if coluna.isna().any():
-            linhas = [int(i) for i in np.flatnonzero(coluna.isna().to_numpy())]
+        valores = dados.coluna(fator.nome)
+        if np.isnan(valores).any():
+            linhas = [int(i) for i in np.flatnonzero(np.isnan(valores))]
             raise ValueError(
                 f"Fator {fator.nome!r} tem valores ausentes ou não numéricos "
                 f"nas linhas {linhas} (contagem a partir de 0)."
             )
-        valores = coluna.astype(float)
         niveis[fator.nome] = (
-            valores.map(fator.codificar).to_numpy() if codificar else valores.to_numpy()
+            np.array([fator.codificar(float(v)) for v in valores])
+            if codificar
+            else valores
         )
 
     colunas: dict[str, NDArray[np.float64]] = {}
@@ -96,7 +98,7 @@ def matriz_modelo(
             coluna_termo = coluna_termo * niveis[nome] ** potencia
         colunas[termo] = coluna_termo
 
-    return pd.DataFrame(colunas, index=dados.index)
+    return pd.DataFrame(colunas)
 
 
 def ajustar_ols(X: pd.DataFrame, y: pd.Series) -> AjusteOLS:

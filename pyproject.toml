@@ -86,7 +86,7 @@ ignore = [
 python_version = "3.11"
 files = ["src/ensaia"]
 strict = true
-# statsmodels não distribui stubs de tipo.
+# scipy e openpyxl não distribuem stubs de tipo completos.
 [[tool.mypy.overrides]]
-module = ["statsmodels.*", "scipy.*"]
+module = ["scipy.*", "openpyxl.*"]
 ignore_missing_imports = true

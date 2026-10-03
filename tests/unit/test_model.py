@@ -9,6 +9,7 @@ from scipy import stats
 
 from ensaia.core.design import Fator, Planejamento, termos_do_modelo
 from ensaia.core.model import RESIDUO, AjusteOLS, ajustar_ols, matriz_modelo
+from ensaia.core.table import Table
 
 BETA_VERDADEIRO = {
     "Intercepto": 50.0,
@@ -35,14 +36,19 @@ def _planejamento(
     )
 
 
-def _ccd_3_fatores() -> pd.DataFrame:
+def _ccd_3_fatores() -> Table:
     """CCD de 3 fatores já em escala codificada: 8 fatoriais, 6 axiais, 3 centrais."""
     a = 1.68
     fatorial = [(i, j, k) for i in (-1, 1) for j in (-1, 1) for k in (-1, 1)]
     axiais = [(-a, 0, 0), (a, 0, 0), (0, -a, 0), (0, a, 0), (0, 0, -a), (0, 0, a)]
     centrais = [(0, 0, 0)] * 3
-    return pd.DataFrame(
-        fatorial + axiais + centrais, columns=["x1", "x2", "x3"], dtype=float
+    linhas = fatorial + axiais + centrais
+    return Table.de_colunas(
+        {
+            "x1": [r[0] for r in linhas],
+            "x2": [r[1] for r in linhas],
+            "x3": [r[2] for r in linhas],
+        }
     )
 
 
@@ -78,7 +84,9 @@ class TestMatrizModelo:
             tipo="fatorial_completo",
             fatores=[Fator("temperatura", 40.0, 80.0), Fator("ph", 3.0, 9.0)],
         )
-        dados = pd.DataFrame({"temperatura": [40.0, 80.0, 60.0], "ph": [3.0, 9.0, 9.0]})
+        dados = Table.de_colunas(
+            {"temperatura": [40.0, 80.0, 60.0], "ph": [3.0, 9.0, 9.0]}
+        )
         matriz = matriz_modelo(
             dados,
             planejamento,
@@ -94,7 +102,7 @@ class TestMatrizModelo:
             tipo="composto_central", fatores=[Fator("t", 40.0, 80.0)]
         )
         matriz = matriz_modelo(
-            pd.DataFrame({"t": [88.0]}), planejamento, ["Intercepto", "t", "t^2"]
+            Table.de_colunas({"t": [88.0]}), planejamento, ["Intercepto", "t", "t^2"]
         )
         assert matriz["t"].iloc[0] == pytest.approx(1.4)
         assert matriz["t^2"].iloc[0] == pytest.approx(1.96)
@@ -104,14 +112,14 @@ class TestMatrizModelo:
             tipo="composto_central", fatores=[Fator("t", 40.0, 80.0)]
         )
         matriz = matriz_modelo(
-            pd.DataFrame({"t": [-1.68, 0.0]}), planejamento, ["t"], codificar=False
+            Table.de_colunas({"t": [-1.68, 0.0]}), planejamento, ["t"], codificar=False
         )
         assert matriz["t"].tolist() == pytest.approx([-1.68, 0.0])
 
     def test_fator_ausente_nos_dados_lista_as_colunas_existentes(self) -> None:
         with pytest.raises(ValueError, match=r"\['x3'\] não estão nos dados"):
             matriz_modelo(
-                _ccd_3_fatores()[["x1", "x2"]],
+                Table.de_colunas({"x1": [-1.0, 1.0], "x2": [-1.0, 1.0]}),
                 _planejamento(["x1", "x2", "x3"]),
                 ["Intercepto"],
             )
@@ -133,10 +141,12 @@ class TestMatrizModelo:
     def test_nome_de_fator_com_caractere_reservado(self) -> None:
         planejamento = _planejamento(["a:b"])
         with pytest.raises(ValueError, match="reservados"):
-            matriz_modelo(pd.DataFrame({"a:b": [0.0]}), planejamento, ["Intercepto"])
+            matriz_modelo(
+                Table.de_colunas({"a:b": [0.0]}), planejamento, ["Intercepto"]
+            )
 
     def test_valor_ausente_aponta_a_linha(self) -> None:
-        dados = pd.DataFrame({"x1": [1.0, np.nan, -1.0]})
+        dados = Table.de_colunas({"x1": [1.0, np.nan, -1.0]})
         with pytest.raises(ValueError, match=r"linhas \[1\]"):
             matriz_modelo(dados, _planejamento(["x1"]), ["Intercepto", "x1"])
 
@@ -194,7 +204,7 @@ class TestAjusteOLS:
     def test_posto_deficiente_lista_os_termos_redundantes(self) -> None:
         """Fatorial 2² puro não tem curvatura: x1^2 e x2^2 são iguais ao
         intercepto. O ajuste "funcionaria" e devolveria lixo — tem que falhar."""
-        dados = pd.DataFrame(
+        dados = Table.de_colunas(
             {"x1": [-1.0, 1.0, -1.0, 1.0], "x2": [-1.0, -1.0, 1.0, 1.0]}
         )
         matriz = matriz_modelo(
@@ -206,7 +216,7 @@ class TestAjusteOLS:
         assert "['x1^2', 'x2^2']" in str(erro.value)
 
     def test_sem_graus_de_liberdade_residuais_falha_alto(self) -> None:
-        dados = pd.DataFrame(
+        dados = Table.de_colunas(
             {"x1": [-1.0, 1.0, -1.0, 1.0], "x2": [-1.0, -1.0, 1.0, 1.0]}
         )
         matriz = matriz_modelo(
@@ -329,7 +339,9 @@ class TestTabelaTipo2:
             (0, 0),
             (0, 0),
         ]
-        dados = pd.DataFrame(pontos, columns=nomes, dtype=float)
+        dados = Table.de_colunas(
+            {nomes[0]: [p[0] for p in pontos], nomes[1]: [p[1] for p in pontos]}
+        )
         termos = termos_do_modelo(nomes)
         matriz = matriz_modelo(dados, _planejamento(nomes), termos)
         y = pd.Series(

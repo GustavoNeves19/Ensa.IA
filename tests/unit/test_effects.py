@@ -9,6 +9,7 @@ import pytest
 from ensaia.core.design import Fator, Planejamento, termos_do_modelo
 from ensaia.core.effects import efeitos_principais, extrair_coeficientes
 from ensaia.core.model import ajustar_ols, matriz_modelo
+from ensaia.core.table import Table
 
 BETA_VERDADEIRO = {
     "Intercepto": 50.0,
@@ -33,13 +34,18 @@ def _planejamento(nomes: list[str]) -> Planejamento:
     )
 
 
-def _ccd_3_fatores() -> pd.DataFrame:
+def _ccd_3_fatores() -> Table:
     a = 1.68
     fatorial = [(i, j, k) for i in (-1, 1) for j in (-1, 1) for k in (-1, 1)]
     axiais = [(-a, 0, 0), (a, 0, 0), (0, -a, 0), (0, a, 0), (0, 0, -a), (0, 0, a)]
     centrais = [(0, 0, 0)] * 3
-    return pd.DataFrame(
-        fatorial + axiais + centrais, columns=["x1", "x2", "x3"], dtype=float
+    linhas = fatorial + axiais + centrais
+    return Table.de_colunas(
+        {
+            "x1": [r[0] for r in linhas],
+            "x2": [r[1] for r in linhas],
+            "x3": [r[2] for r in linhas],
+        }
     )
 
 
@@ -113,9 +119,9 @@ def test_efeito_e_o_dobro_do_coeficiente_so_nos_principais(ajuste_ccd) -> None:
 def test_efeitos_ignoram_intercepto_quadraticos_e_interacoes() -> None:
     nomes = ["a", "b"]
     termos = termos_do_modelo(nomes)  # Intercepto, a, b, a^2, b^2, a:b
-    dados = pd.DataFrame(
-        [(i, j) for i in (-1.0, 0.0, 1.0) for j in (-1.0, 0.0, 1.0)],
-        columns=nomes,
+    pontos = [(i, j) for i in (-1.0, 0.0, 1.0) for j in (-1.0, 0.0, 1.0)]
+    dados = Table.de_colunas(
+        {nomes[0]: [p[0] for p in pontos], nomes[1]: [p[1] for p in pontos]}
     )
     matriz = matriz_modelo(dados, _planejamento(nomes), termos)
     y = pd.Series(
