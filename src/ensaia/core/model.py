@@ -5,30 +5,25 @@ estatístico determinístico que reproduza as etapas fundamentais de uma anális
 de DOE, tais como: regressão OLS, ANOVA, cálculo de efeitos e otimização por
 função de desejabilidade, utilizando programas em Python."
 
-Este módulo cobre a parte de OLS. Ele NÃO decide quais termos ficam no modelo
-final — isso é seleção por significância e vive em `anova.py`, porque depende
-da tabela de ANOVA.
+Este módulo cobre a parte de OLS e a ANOVA Tipo II. O ajuste é feito em numpy
+puro (mínimos quadrados + `scipy.stats` para t e F); não há dependência de
+statsmodels no cálculo. Pandas entra só como contêiner de dados na fronteira.
+Ver docs/decisoes/0007-nucleo-em-numpy-sem-statsmodels.md.
+
+Este módulo NÃO decide quais termos ficam no modelo final — isso é seleção por
+significância e vive em `anova.py`, porque depende da tabela de ANOVA.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
 from numpy.typing import NDArray
-from statsmodels.stats.anova import anova_lm
+from scipy import stats
 
 from ensaia.core.design import INTERCEPTO, Planejamento, interpretar_termo
 
 RESIDUO = "Resíduo"
-
-# statsmodels só monta ANOVA Tipo II a partir de um ajuste por fórmula; o
-# ajuste "sombra" tem que ser numericamente o mesmo modelo do canônico.
-_RTOL_SOMBRA = 1e-6
-_ATOL_SOMBRA = 1e-8
 
 
 def matriz_modelo(
@@ -120,27 +115,41 @@ def ajustar_ols(X: pd.DataFrame, y: pd.Series) -> AjusteOLS:
 
 
 class AjusteOLS:
-    """Envelope fino sobre o resultado do statsmodels.
+    """Ajuste OLS em numpy puro, com a ANOVA Tipo II calculada à mão.
 
-    Existe para que o resto do EnsaIA não importe statsmodels diretamente: se um
-    dia a implementação mudar, muda aqui e em nenhum outro lugar.
+    Existe para que o resto do EnsaIA não dependa de detalhes do ajuste: se um
+    dia a implementação mudar, muda aqui e em nenhum outro lugar. Toda a
+    estatística é computada com `numpy.linalg` (mínimos quadrados) e
+    `scipy.stats` (distribuições t e F) — sem statsmodels, sem patsy.
 
-    Por dentro há dois ajustes do mesmo modelo (ADR 0005). O canônico, sobre a
-    matriz montada à mão, dá coeficientes, erros e intervalos com os nomes de
-    termo exatos que a validação usa. O "sombra", por fórmula, só existe porque
-    `anova_lm(typ=2)` do statsmodels exige um modelo ajustado por fórmula. Fora
-    deste módulo ninguém enxerga o segundo: a tabela sai com nomes canônicos.
-
-    A consistência entre os dois é checada a cada construção, não só em teste:
-    SSR, R² e cada coeficiente (pelo nome traduzido) têm que bater, e o
-    conjunto de nomes traduzidos tem que ser exatamente o conjunto de termos.
+    A matriz entra com os nomes de termo na notação canônica
+    ("Intercepto", "x1", "x1^2", "x1:x2") e sai com exatamente esses nomes: a
+    validação do §4.3(a) compara coeficientes por nome, então não pode haver
+    tradução nenhuma no caminho. Ver ADR 0007 (que sucede a ADR 0005).
     """
 
     def __init__(self, X: pd.DataFrame, y: pd.Series) -> None:
         _validar_entrada(X, y)
-        self._X = X.astype(float)
-        self._y = y.astype(float)
-        self._resultado: Any = sm.OLS(self._y, self._X).fit()
+        self._termos: list[str] = [str(coluna) for coluna in X.columns]
+        self._indice = X.index
+        self._X: NDArray[np.float64] = X.to_numpy(dtype=float)
+        self._y: NDArray[np.float64] = y.to_numpy(dtype=float)
+        self._n, self._p = self._X.shape
+        self._gl_residuo = self._n - self._p
+
+        beta, _, _, _ = np.linalg.lstsq(self._X, self._y, rcond=None)
+        self._beta = beta
+        self._ajustados = self._X @ beta
+        self._residuos = self._y - self._ajustados
+        self._ssr = float(self._residuos @ self._residuos)
+        self._sigma2 = self._ssr / self._gl_residuo
+        centrado = self._y - self._y.mean()
+        self._sst = float(centrado @ centrado)
+
+        # Var(β) = σ²·(XᵀX)⁻¹. O posto cheio já foi exigido em _validar_entrada,
+        # então a inversa existe; é a mesma fórmula fechada que a literatura usa.
+        self._cov_nao_escalada = np.linalg.inv(self._X.T @ self._X)
+        self._erros = np.sqrt(np.diag(self._sigma2 * self._cov_nao_escalada))
 
         self._motivo_sem_tipo2: str | None = None
         self._tipo2: pd.DataFrame | None = None
@@ -148,87 +157,106 @@ class AjusteOLS:
 
     @property
     def termos(self) -> list[str]:
-        return [str(t) for t in self._X.columns]
+        return list(self._termos)
+
+    def _serie(self, valores: NDArray[np.float64]) -> pd.Series:
+        return pd.Series(valores, index=self._termos)
 
     @property
     def coeficientes(self) -> pd.Series:
-        return pd.Series(self._resultado.params)
+        return self._serie(self._beta)
 
     @property
     def erros_padrao(self) -> pd.Series:
-        return pd.Series(self._resultado.bse)
+        return self._serie(self._erros)
 
     @property
     def valores_t(self) -> pd.Series:
-        return pd.Series(self._resultado.tvalues)
+        return self._serie(self._beta / self._erros)
 
     @property
     def valores_p(self) -> pd.Series:
-        return pd.Series(self._resultado.pvalues)
+        t = self._beta / self._erros
+        return self._serie(2.0 * stats.t.sf(np.abs(t), df=self._gl_residuo))
 
     def intervalo_confianca(self, alfa: float = 0.05) -> pd.DataFrame:
         """IC de (1 − alfa) para cada coeficiente, colunas `inferior`/`superior`."""
-        intervalo = pd.DataFrame(self._resultado.conf_int(alpha=alfa))
-        intervalo.columns = ["inferior", "superior"]
-        return intervalo
+        t_critico = float(stats.t.ppf(1.0 - alfa / 2.0, df=self._gl_residuo))
+        margem = t_critico * self._erros
+        return pd.DataFrame(
+            {"inferior": self._beta - margem, "superior": self._beta + margem},
+            index=self._termos,
+        )
 
     @property
     def r2(self) -> float:
-        return float(self._resultado.rsquared)
+        return 1.0 - self._ssr / self._sst
 
     @property
     def r2_ajustado(self) -> float:
-        return float(self._resultado.rsquared_adj)
+        return 1.0 - (self._ssr / self._gl_residuo) / (self._sst / (self._n - 1))
 
     @property
     def soma_quadrados_residual(self) -> float:
-        return float(self._resultado.ssr)
+        return self._ssr
 
     @property
     def soma_quadrados_total(self) -> float:
-        return float(self._resultado.centered_tss)
+        return self._sst
 
     @property
     def gl_residuo(self) -> int:
-        return int(self._resultado.df_resid)
+        return int(self._gl_residuo)
 
     @property
     def n_observacoes(self) -> int:
-        return int(self._resultado.nobs)
+        return int(self._n)
 
     @property
     def n_parametros(self) -> int:
-        return int(self._X.shape[1])
+        return int(self._p)
 
     @property
     def residuos(self) -> pd.Series:
-        return pd.Series(self._resultado.resid)
+        return pd.Series(self._residuos, index=self._indice)
 
     @property
     def valores_ajustados(self) -> pd.Series:
-        return pd.Series(self._resultado.fittedvalues)
+        return pd.Series(self._ajustados, index=self._indice)
 
     def tabela_tipo2(self) -> pd.DataFrame:
         """ANOVA Tipo II, com nomes canônicos e a linha "Resíduo" no fim.
 
         Colunas: `soma_quadrados`, `graus_liberdade`, `valor_f`, `valor_p`.
         Só existe para modelos hierárquicos (todo fator com termo linear);
-        num modelo sem o termo linear de algum fator, a fórmula sombra não
-        consegue ser montada e isto falha alto em vez de inventar a tabela.
+        num modelo sem o termo linear de algum fator, a soma de quadrados Tipo
+        II perde o sentido e isto falha alto em vez de inventar a tabela.
         """
         if self._tipo2 is None:
             raise ValueError(self._motivo_sem_tipo2)
         return self._tipo2.copy()
 
+    def _rss(self, termos: list[str]) -> float:
+        """Soma de quadrados residual de um submodelo só com estes termos."""
+        colunas = [self._termos.index(t) for t in termos]
+        sub = self._X[:, colunas]
+        beta, _, _, _ = np.linalg.lstsq(sub, self._y, rcond=None)
+        residuo = self._y - sub @ beta
+        return float(residuo @ residuo)
+
     def _construir_tipo2(self) -> None:
-        termos = [t for t in self.termos if t != INTERCEPTO]
-        lineares = [
+        termos = [t for t in self._termos if t != INTERCEPTO]
+
+        # Hierarquia: um fator que aparece num termo de ordem superior (x^2, x:y)
+        # sem o próprio termo linear torna a Tipo II sem sentido. É uma recusa
+        # deliberada, não limitação de ferramenta (ADR 0007, herdada da 0005).
+        lineares = {
             partes[0][0]
             for partes in (interpretar_termo(t) for t in termos)
             if len(partes) == 1 and partes[0][1] == 1
-        ]
+        }
         usados = {nome for t in termos for nome, _ in interpretar_termo(t)}
-        sem_linear = sorted(usados - set(lineares))
+        sem_linear = sorted(usados - lineares)
         if sem_linear:
             self._motivo_sem_tipo2 = (
                 f"ANOVA Tipo II indisponível: os fatores {sem_linear} aparecem em "
@@ -237,126 +265,44 @@ class AjusteOLS:
             )
             return
 
-        aliases = {nome: f"f{i}" for i, nome in enumerate(lineares)}
-        dados_sombra = pd.DataFrame(
-            {aliases[nome]: self._X[nome].to_numpy() for nome in lineares}
-        )
-        dados_sombra["y"] = self._y.to_numpy()
+        # Tipo II: para cada termo t, SQ(t) = SQ_res(modelo sem t e sem os termos
+        # que CONTÊM t) − SQ_res(o mesmo modelo com t de volta). "Conter" usa a
+        # mesma noção de fatores atômicos do patsy: x1:x2 contém x1, mas x1^2 NÃO
+        # contém x1 (é fator atômico distinto). Reproduz o anova_lm(typ=2) que a
+        # ADR 0005 delegava ao statsmodels.
+        assinatura = {t: _assinatura_fatores(t) for t in termos}
+        linhas: dict[str, tuple[float, int, float, float]] = {}
+        for t in termos:
+            contem_t = {u for u in termos if u != t and assinatura[t] < assinatura[u]}
+            completo = [u for u in self._termos if u not in contem_t]
+            reduzido = [u for u in completo if u != t]
+            sq = self._rss(reduzido) - self._rss(completo)
+            f = (sq / 1) / self._sigma2
+            p = float(stats.f.sf(f, 1, self._gl_residuo))
+            linhas[t] = (sq, 1, f, p)
 
-        traducao = {t: _termo_patsy(t, aliases) for t in termos}
-        mapa = {_chave(patsy): termo for termo, patsy in traducao.items()}
-        if len(mapa) != len(termos):
-            raise ValueError(
-                "Há termos que, escritos em outra ordem de fatores, são o mesmo "
-                "termo (ex.: 'x1:x2' e 'x2:x1')."
-            )
-
-        formula = "y ~ " + (" + ".join(traducao.values()) if termos else "1")
-        sombra = smf.ols(formula, data=dados_sombra).fit()
-
-        self._checar_sombra(sombra, mapa, termos)
-
-        tabela = anova_lm(sombra, typ=2)
-        novos = []
-        for nome in tabela.index:
-            if nome == "Residual":
-                novos.append(RESIDUO)
-                continue
-            canonico = mapa.get(_chave(str(nome)))
-            if canonico is None:
-                raise RuntimeError(
-                    f"A tabela ANOVA trouxe o termo {nome!r}, que não corresponde a "
-                    "nenhum termo do modelo. Ver ADR 0005."
-                )
-            novos.append(canonico)
-        tabela.index = novos
-        if set(novos) != set(termos) | {RESIDUO}:
-            raise RuntimeError(
-                "Os nomes traduzidos da tabela ANOVA não coincidem com os termos "
-                f"do modelo: faltam {sorted((set(termos) | {RESIDUO}) - set(novos))}. "
-                "Ver ADR 0005."
-            )
-        self._tipo2 = tabela.rename(
-            columns={
-                "sum_sq": "soma_quadrados",
-                "df": "graus_liberdade",
-                "F": "valor_f",
-                "PR(>F)": "valor_p",
-            }
+        linhas[RESIDUO] = (self._ssr, self._gl_residuo, float("nan"), float("nan"))
+        self._tipo2 = pd.DataFrame.from_dict(
+            linhas,
+            orient="index",
+            columns=["soma_quadrados", "graus_liberdade", "valor_f", "valor_p"],
         )
 
-    def _checar_sombra(
-        self, sombra: Any, mapa: dict[str, str], termos: list[str]
-    ) -> None:
-        canonico = self._resultado
-        ssr_igual = np.isclose(
-            canonico.ssr, sombra.ssr, rtol=_RTOL_SOMBRA, atol=_ATOL_SOMBRA
-        )
-        r2_igual = np.isclose(
-            canonico.rsquared, sombra.rsquared, rtol=_RTOL_SOMBRA, atol=_ATOL_SOMBRA
-        )
-        if not (ssr_igual and r2_igual):
-            raise RuntimeError(
-                "O ajuste por fórmula (usado só para a ANOVA Tipo II) divergiu do "
-                f"ajuste canônico: SSR {sombra.ssr!r} contra {canonico.ssr!r}. "
-                "Ver ADR 0005."
-            )
 
-        coef_sombra = sombra.params
-        traduzidos: dict[str, float] = {INTERCEPTO: float(coef_sombra["Intercept"])}
-        for nome, valor in coef_sombra.items():
-            if nome == "Intercept":
-                continue
-            termo = mapa.get(_chave(str(nome)))
-            if termo is None:
-                raise RuntimeError(
-                    f"O ajuste por fórmula trouxe o coeficiente {nome!r}, que não "
-                    "corresponde a nenhum termo do modelo. Ver ADR 0005."
-                )
-            traduzidos[termo] = float(valor)
+def _assinatura_fatores(termo: str) -> frozenset[str]:
+    """Conjunto de fatores atômicos de um termo, para a regra de contenção.
 
-        esperados = {INTERCEPTO, *termos}
-        if set(traduzidos) != esperados:
-            raise RuntimeError(
-                "Os coeficientes do ajuste por fórmula não cobrem exatamente os "
-                f"termos do modelo: faltam {sorted(esperados - set(traduzidos))}. "
-                "Ver ADR 0005."
-            )
-        for termo, valor in traduzidos.items():
-            if not np.isclose(
-                valor,
-                canonico.params[termo],
-                rtol=_RTOL_SOMBRA,
-                atol=_ATOL_SOMBRA,
-            ):
-                raise RuntimeError(
-                    f"O coeficiente de {termo!r} difere entre o ajuste canônico "
-                    f"({canonico.params[termo]!r}) e o por fórmula ({valor!r}): a "
-                    "tradução de nomes trocou termos. Ver ADR 0005."
-                )
+    Reproduz a noção de "fator" do patsy, que é o que a Tipo II usa:
+        "x1"     -> {"x1"}
+        "x1^2"   -> {"x1^2"}   (átomo próprio — NÃO contém "x1")
+        "x1:x2"  -> {"x1", "x2"}
 
-
-def _termo_patsy(termo: str, aliases: dict[str, str]) -> str:
-    """Termo canônico → sintaxe patsy, com fatores trocados por aliases seguros.
-
-    Nomes reais de fator ('Tempo (min)', 'Razão S/L') não são identificadores
-    válidos numa fórmula; os aliases f0, f1, ... são.
+    Assim `{x1} ⊂ {x1, x2}` (x1:x2 contém x1), mas `{x1} ⊄ {x1^2}`.
     """
-    partes = []
-    for nome, potencia in interpretar_termo(termo):
-        alias = aliases[nome]
-        partes.append(alias if potencia == 1 else f"I({alias}**{potencia})")
-    return ":".join(partes)
-
-
-def _chave(nome_patsy: str) -> str:
-    """Forma normalizada de um nome patsy, para casar com a tradução.
-
-    O patsy devolve `I(f0**2)` como `I(f0 ** 2)` (com espaços) e não garante a
-    ordem dos fatores dentro de uma interação — daí tirar espaços e ordenar.
-    """
-    limpo = nome_patsy.replace(" ", "")
-    return ":".join(sorted(limpo.split(":")))
+    partes = interpretar_termo(termo)
+    if len(partes) == 1 and partes[0][1] > 1:
+        return frozenset({termo})
+    return frozenset(nome for nome, _ in partes)
 
 
 def _validar_entrada(X: pd.DataFrame, y: pd.Series) -> None:

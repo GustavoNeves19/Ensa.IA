@@ -22,7 +22,9 @@ def tabela_anova(ajuste, tipo: int = 2) -> list[LinhaAnova]:
     (tipo I) depende da ordem em que os termos entram no modelo, e resultados
     que mudam conforme a ordem das colunas não são defensáveis numa banca.
 
-    TODO(#4): implementar via statsmodels.stats.anova.anova_lm(typ=2).
+    TODO(#4): a Tipo II já é calculada em numpy por `AjusteOLS.tabela_tipo2()`
+    (ver model.py e ADR 0007); aqui é só adaptá-la para `list[LinhaAnova]` e
+    acrescentar a decomposição falta de ajuste/erro puro. Sem statsmodels.
     """
     raise NotImplementedError("Ver issue #4 — ANOVA e seleção de termos.")
 
