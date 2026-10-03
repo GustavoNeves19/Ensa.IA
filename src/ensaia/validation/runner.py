@@ -20,6 +20,7 @@ import numpy as np
 import yaml
 
 from ensaia import __version__
+from ensaia.core.anova import teste_falta_ajuste
 from ensaia.core.design import Fator, Planejamento, termos_do_modelo
 from ensaia.core.effects import extrair_coeficientes
 from ensaia.core.model import AjusteOLS, ajustar_ols, matriz_modelo
@@ -27,10 +28,10 @@ from ensaia.core.results import (
     SCHEMA_VERSION,
     AjusteResposta,
     AnalysisResult,
-    FaltaDeAjuste,
     LinhaAnova,
     MetadadosExecucao,
 )
+from ensaia.core.table import Table
 from ensaia.io.readers import ler_dados
 from ensaia.validation import metrics
 
@@ -105,7 +106,9 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
                 f"não numéricos nas linhas CSV {linhas}."
             )
         ajuste = ajustar_ols(matriz, y_valores)
-        ajustes_resposta.append(_ajuste_resposta(resposta, ajuste, termos, avisos))
+        ajustes_resposta.append(
+            _ajuste_resposta(resposta, ajuste, termos, avisos, dados, fatores)
+        )
 
     analise = AnalysisResult(
         tipo_planejamento=planejamento.tipo,
@@ -131,14 +134,20 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
 
 
 def _ajuste_resposta(
-    resposta: str, ajuste: AjusteOLS, termos: list[str], avisos: list[str]
+    resposta: str,
+    ajuste: AjusteOLS,
+    termos: list[str],
+    avisos: list[str],
+    dados: Table,
+    fatores: list[str],
 ) -> AjusteResposta:
     """Empacota um ajuste OLS no contrato congelado `AjusteResposta`.
 
     A extração de coeficientes é delegada a `effects.extrair_coeficientes`, que é
     a fonte única dessa tradução (issue #5): runner e núcleo não podem divergir
     no modo de nomear termos e marcar significância, sob pena de a métrica do
-    §4.3(a) comparar coisas diferentes.
+    §4.3(a) comparar coisas diferentes. A falta de ajuste vem de
+    `anova.teste_falta_ajuste`, que precisa dos dados crus (para achar réplicas).
     """
     return AjusteResposta(
         resposta=resposta,
@@ -146,13 +155,7 @@ def _ajuste_resposta(
         anova=_linhas_anova(resposta, ajuste, avisos),
         r2=ajuste.r2,
         r2_ajustado=ajuste.r2_ajustado,
-        falta_de_ajuste=FaltaDeAjuste(
-            aplicavel=False,
-            motivo_inaplicavel=(
-                "Teste de falta de ajuste pertence à ANOVA (issue #4) e ainda "
-                "não é calculado por esta etapa de validação."
-            ),
-        ),
+        falta_de_ajuste=teste_falta_ajuste(dados, resposta, fatores, ajuste, alfa=ALFA),
         n_observacoes=ajuste.n_observacoes,
         graus_liberdade_residuo=ajuste.gl_residuo,
         termos_incluidos=list(termos),
