@@ -21,12 +21,12 @@ import yaml
 
 from lyra import __version__
 from lyra.core.design import Fator, Planejamento, termos_do_modelo
+from lyra.core.effects import extrair_coeficientes
 from lyra.core.model import AjusteOLS, ajustar_ols, matriz_modelo
 from lyra.core.results import (
     SCHEMA_VERSION,
     AjusteResposta,
     AnalysisResult,
-    Coeficiente,
     FaltaDeAjuste,
     LinhaAnova,
     MetadadosExecucao,
@@ -132,32 +132,16 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
 def _ajuste_resposta(
     resposta: str, ajuste: AjusteOLS, termos: list[str], avisos: list[str]
 ) -> AjusteResposta:
-    """Empacota um ajuste OLS no contrato congelado `AjusteResposta`."""
-    coefs = _serie_float(ajuste.coeficientes)
-    erros = _serie_float(ajuste.erros_padrao)
-    ts = _serie_float(ajuste.valores_t)
-    ps = _serie_float(ajuste.valores_p)
-    ic = ajuste.intervalo_confianca(ALFA)
-    ic_inf = _serie_float(ic["inferior"])
-    ic_sup = _serie_float(ic["superior"])
+    """Empacota um ajuste OLS no contrato congelado `AjusteResposta`.
 
-    coeficientes = [
-        Coeficiente(
-            termo=termo,
-            estimativa=coefs[termo],
-            erro_padrao=erros[termo],
-            valor_t=ts[termo],
-            valor_p=ps[termo],
-            significativo=ps[termo] < ALFA,
-            ic_inferior=ic_inf[termo],
-            ic_superior=ic_sup[termo],
-        )
-        for termo in termos
-    ]
-
+    A extração de coeficientes é delegada a `effects.extrair_coeficientes`, que é
+    a fonte única dessa tradução (issue #5): runner e núcleo não podem divergir
+    no modo de nomear termos e marcar significância, sob pena de a métrica do
+    §4.3(a) comparar coisas diferentes.
+    """
     return AjusteResposta(
         resposta=resposta,
-        coeficientes=coeficientes,
+        coeficientes=extrair_coeficientes(ajuste, alfa=ALFA),
         anova=_linhas_anova(resposta, ajuste, avisos),
         r2=ajuste.r2,
         r2_ajustado=ajuste.r2_ajustado,
@@ -172,11 +156,6 @@ def _ajuste_resposta(
         graus_liberdade_residuo=ajuste.gl_residuo,
         termos_incluidos=list(termos),
     )
-
-
-def _serie_float(serie: pd.Series) -> dict[str, float]:
-    """Series do statsmodels → dict termo→float, legível pelo mypy estrito."""
-    return {str(termo): float(valor) for termo, valor in serie.items()}
 
 
 def _linhas_anova(
