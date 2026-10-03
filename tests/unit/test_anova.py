@@ -9,7 +9,19 @@ from scipy import stats
 from ensaia.core import anova
 from ensaia.core.design import Fator, Planejamento, termos_do_modelo
 from ensaia.core.model import ajustar_ols, matriz_modelo
+from ensaia.core.results import LinhaAnova
 from ensaia.core.table import Table
+
+
+def _la(fonte: str, p: float | None) -> LinhaAnova:
+    return LinhaAnova(
+        fonte=fonte,
+        soma_quadrados=1.0,
+        graus_liberdade=1,
+        quadrado_medio=1.0,
+        valor_f=1.0,
+        valor_p=p,
+    )
 
 
 def _planejamento(nomes: list[str]) -> Planejamento:
@@ -73,3 +85,41 @@ def test_modelo_sem_grau_de_liberdade_para_falta_nao_e_aplicavel() -> None:
     falta = anova.teste_falta_ajuste(dados, "resp", ["x1"], ajuste)
     assert not falta.aplicavel
     assert "grau" in (falta.motivo_inaplicavel or "")
+
+
+def test_selecao_mantem_significativos_e_descarta_o_resto() -> None:
+    tabela = [_la("x1", 0.001), _la("x2", 0.60), _la("x1:x2", 0.80)]
+    mantidos, descartados = anova.selecionar_termos(tabela, alfa=0.05)
+    assert mantidos == ["x1"]
+    assert descartados == ["x2", "x1:x2"]
+
+
+def test_hierarquia_mantem_linear_de_interacao_significativa() -> None:
+    tabela = [_la("x1", 0.40), _la("x2", 0.60), _la("x1:x2", 0.001)]
+    mantidos, descartados = anova.selecionar_termos(tabela, alfa=0.05)
+    assert mantidos == ["x1", "x2", "x1:x2"]
+    assert descartados == []
+
+
+def test_hierarquia_mantem_linear_de_quadratico_significativo() -> None:
+    tabela = [_la("x1", 0.40), _la("x1^2", 0.001)]
+    mantidos, descartados = anova.selecionar_termos(tabela, alfa=0.05)
+    assert mantidos == ["x1", "x1^2"]
+    assert descartados == []
+
+
+def test_sem_hierarquia_descarta_linear_nao_significativo() -> None:
+    tabela = [_la("x1", 0.40), _la("x2", 0.60), _la("x1:x2", 0.001)]
+    mantidos, descartados = anova.selecionar_termos(
+        tabela, alfa=0.05, manter_hierarquia=False
+    )
+    assert mantidos == ["x1:x2"]
+    assert set(descartados) == {"x1", "x2"}
+
+
+def test_linha_de_residuo_e_ignorada() -> None:
+    tabela = [_la("x1", 0.001), _la("Resíduo", None)]
+    mantidos, descartados = anova.selecionar_termos(tabela)
+    assert "Resíduo" not in mantidos
+    assert "Resíduo" not in descartados
+    assert mantidos == ["x1"]
