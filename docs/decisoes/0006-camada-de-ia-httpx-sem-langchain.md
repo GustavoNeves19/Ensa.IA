@@ -1,4 +1,4 @@
-# 0005 — A camada de IA fala HTTP direto, sem LangChain
+# 0006 — A camada de IA fala HTTP direto, sem LangChain
 
 **Status:** Aceita · **Data:** 2026-10-02
 

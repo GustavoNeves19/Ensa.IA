@@ -16,4 +16,5 @@ Formato: contexto → decisão → consequências (inclusive as ruins).
 | [0002](0002-generalizacao-para-k-fatores.md) | Generalizar de 3 fatores fixos para k fatores | Aceita |
 | [0003](0003-criterio-de-significancia.md) | α = 0,05 em vez de p ≤ 0,10 | Aceita |
 | [0004](0004-casos-de-estudo-como-dados.md) | Casos de estudo são dados versionados, não código | Aceita |
-| [0005](0005-camada-de-ia-httpx-sem-langchain.md) | A camada de IA fala HTTP direto, sem LangChain | Aceita |
+| [0005](0005-anova-tipo-ii-encapsulada.md) | ANOVA Tipo II encapsulada em `AjusteOLS`, com autocheck em runtime | Aceita |
+| [0006](0006-camada-de-ia-httpx-sem-langchain.md) | A camada de IA fala HTTP direto, sem LangChain | Aceita |
