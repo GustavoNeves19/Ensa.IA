@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from scipy import stats
 
-from ensaia.core.model import AjusteOLS
+from ensaia.core.design import interpretar_termo
+from ensaia.core.model import RESIDUO, AjusteOLS
 from ensaia.core.results import FaltaDeAjuste, LinhaAnova
 from ensaia.core.table import Table
 
@@ -39,15 +40,38 @@ def selecionar_termos(
 ) -> tuple[list[str], list[str]]:
     """Separa os termos em (mantidos, descartados) por significância.
 
-    `manter_hierarquia=True` preserva o princípio hierárquico: se x1:x2 é
-    significativo, x1 e x2 ficam no modelo mesmo que individualmente não
-    sejam. Modelo não hierárquico deixa de ser invariante à mudança de escala
+    `manter_hierarquia=True` preserva o princípio hierárquico: se x1:x2 ou x1^2
+    é significativo, o termo linear x1 fica no modelo mesmo que individualmente
+    não seja. Modelo não hierárquico deixa de ser invariante à mudança de escala
     dos fatores — os coeficientes passam a depender de onde você pôs o zero, o
     que é indefensável em quimiometria.
 
-    TODO(#4): implementar.
+    Entra a tabela de ANOVA Tipo II (uma `LinhaAnova` por termo, mais a linha de
+    resíduo, que é ignorada). O Intercepto não aparece na tabela e é sempre
+    mantido pelo chamador — o modelo reduzido é `["Intercepto"] + mantidos`.
+    Devolve `(mantidos, descartados)` na ordem original dos termos.
     """
-    raise NotImplementedError("Ver issue #4 — ANOVA e seleção de termos.")
+    termos = [linha.fonte for linha in anova if linha.fonte != RESIDUO]
+    significativos = {
+        linha.fonte
+        for linha in anova
+        if linha.fonte != RESIDUO
+        and linha.valor_p is not None
+        and linha.valor_p < alfa
+    }
+
+    manter = set(significativos)
+    if manter_hierarquia:
+        for termo in significativos:
+            for fator, _potencia in interpretar_termo(termo):
+                # O termo linear de um fator usado num termo de ordem superior
+                # fica no modelo. O nome do termo linear é o próprio nome do fator.
+                if fator in termos:
+                    manter.add(fator)
+
+    mantidos = [t for t in termos if t in manter]
+    descartados = [t for t in termos if t not in manter]
+    return mantidos, descartados
 
 
 def teste_falta_ajuste(
