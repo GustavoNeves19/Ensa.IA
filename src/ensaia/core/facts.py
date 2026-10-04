@@ -15,10 +15,35 @@ foi calculado.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from ensaia.core.design import INTERCEPTO
-from ensaia.core.results import AjusteResposta
+from ensaia.core.results import AjusteResposta, AnalysisResult, TipoPlanejamento
 
 ALFA_PADRAO = 0.05
+
+# As seções do relatório que recebem fatos. A camada de IA faz uma chamada por
+# seção (spec §12.3), com contexto curto — só os fatos daquela seção. A
+# "conclusão" da spec NÃO está aqui de propósito: ela é síntese que o LLM
+# redige a partir das outras seções, não um fato determinístico novo.
+Secao = Literal["planejamento", "modelo", "anova", "diagnostico", "otimizacao"]
+
+SECOES: tuple[Secao, ...] = (
+    "planejamento",
+    "modelo",
+    "anova",
+    "diagnostico",
+    "otimizacao",
+)
+
+# Nome legível de cada tipo de delineamento, para a frase de planejamento.
+_TIPO_LEGIVEL: dict[TipoPlanejamento, str] = {
+    "fatorial_completo": "fatorial completo",
+    "fatorial_fracionado": "fatorial fracionado",
+    "composto_central": "delineamento composto central",
+    "box_behnken": "delineamento Box-Behnken",
+    "desconhecido": "delineamento não identificado",
+}
 
 
 def fatos_do_ajuste(ajuste: AjusteResposta, *, alfa: float = ALFA_PADRAO) -> list[str]:
@@ -26,12 +51,50 @@ def fatos_do_ajuste(ajuste: AjusteResposta, *, alfa: float = ALFA_PADRAO) -> lis
 
     Cobre significância dos termos, qualidade do modelo (R²) e o teste de falta
     de ajuste. Cada frase é rastreável a um campo do `AjusteResposta`.
+
+    É a visão achatada (todos os fatos de uma resposta numa lista só). Para o
+    relatório por seção, use `fatos_por_secao`.
     """
     fatos: list[str] = []
     fatos.extend(_fatos_significancia(ajuste, alfa))
     fatos.append(_fato_r2(ajuste))
     fatos.append(_fato_falta_ajuste(ajuste, alfa))
     return fatos
+
+
+def fatos_por_secao(
+    resultado: AnalysisResult, *, alfa: float = ALFA_PADRAO
+) -> dict[Secao, list[str]]:
+    """Fatos verificados do resultado inteiro, agrupados por seção do relatório.
+
+    Cada seção recebe só os fatos que lhe cabem, para a camada de IA fazer uma
+    chamada curta por seção (spec §12.3). Seções sem fato (ex.: otimização sem
+    ponto ótimo) vêm com lista vazia — a presença da chave é estável, o conteúdo
+    é que varia. Com mais de uma resposta, os fatos por resposta (modelo,
+    diagnóstico) são rotulados com o nome dela.
+    """
+    multi = len(resultado.ajustes) > 1
+
+    modelo: list[str] = []
+    anova: list[str] = []
+    diagnostico: list[str] = []
+    for ajuste in resultado.ajustes:
+        modelo.extend(
+            _rotular(_fatos_significancia(ajuste, alfa), ajuste.resposta, multi=multi)
+        )
+        # O fato de R² já cita a resposta; não precisa de rótulo extra.
+        anova.append(_fato_r2(ajuste))
+        diagnostico.extend(
+            _rotular([_fato_falta_ajuste(ajuste, alfa)], ajuste.resposta, multi=multi)
+        )
+
+    return {
+        "planejamento": _fatos_planejamento(resultado),
+        "modelo": modelo,
+        "anova": anova,
+        "diagnostico": diagnostico,
+        "otimizacao": _fatos_otimizacao(resultado),
+    }
 
 
 def _fatos_significancia(ajuste: AjusteResposta, alfa: float) -> list[str]:
@@ -78,6 +141,55 @@ def _fato_falta_ajuste(ajuste: AjusteResposta, alfa: float) -> str:
         f"Não há evidência de falta de ajuste "
         f"(p = {_num(falta.valor_p, 4)} ≥ {_num(alfa, 2)})."
     )
+
+
+def _fatos_planejamento(resultado: AnalysisResult) -> list[str]:
+    tipo = _TIPO_LEGIVEL.get(resultado.tipo_planejamento, resultado.tipo_planejamento)
+    n_fatores = len(resultado.fatores)
+    fatores = ", ".join(repr(f) for f in resultado.fatores)
+    respostas = ", ".join(repr(r) for r in resultado.respostas)
+    palavra_fator = "fator" if n_fatores == 1 else "fatores"
+    palavra_resp = "resposta" if len(resultado.respostas) == 1 else "respostas"
+
+    fatos = [
+        f"O delineamento é um {tipo} com {n_fatores} {palavra_fator} "
+        f"({fatores}) e {len(resultado.respostas)} {palavra_resp} ({respostas})."
+    ]
+    if resultado.ajustes:
+        n = resultado.ajustes[0].n_observacoes
+        fatos.append(f"A matriz experimental tem {n} ensaios.")
+    return fatos
+
+
+def _fatos_otimizacao(resultado: AnalysisResult) -> list[str]:
+    otimo = resultado.ponto_otimo
+    if otimo is None:
+        return []
+
+    coords = ", ".join(
+        f"{fator} = {_num(valor, 3)}" for fator, valor in otimo.coordenadas.items()
+    )
+    previstas = ", ".join(
+        f"{resp} = {_num(valor, 4)}"
+        for resp, valor in otimo.resposta_prevista.items()
+    )
+    d = _num(otimo.desejabilidade_global, 3)
+    return [
+        f"A condição ótima (em níveis codificados) é {coords}.",
+        f"Nessa condição, a resposta prevista é {previstas}.",
+        f"A desejabilidade global no ótimo é D = {d}.",
+    ]
+
+
+def _rotular(fatos: list[str], resposta: str, *, multi: bool) -> list[str]:
+    """Prefixa cada fato com o nome da resposta quando há mais de uma.
+
+    Com uma resposta só, o relatório inteiro é sobre ela e o rótulo seria ruído.
+    Com várias, sem o rótulo não dá para saber a que resposta cada fato pertence.
+    """
+    if not multi:
+        return fatos
+    return [f"Para a resposta {resposta!r}: {fato}" for fato in fatos]
 
 
 def _num(valor: float, casas: int) -> str:
