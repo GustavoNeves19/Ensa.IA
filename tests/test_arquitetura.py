@@ -19,8 +19,10 @@ import pytest
 RAIZ = Path(__file__).resolve().parent.parent / "src" / "ensaia"
 
 # A camada narrativa não pode tocar em ferramenta de cálculo. Se ela precisa
-# de um número, o número vem pronto no AnalysisResult.
-PROIBIDOS_EM_NARRATIVE = {"numpy", "pandas", "statsmodels", "scipy", "sklearn"}
+# de um número, o número vem pronto no AnalysisResult. Vale igual para a camada
+# `ai/`, que é redatora (ADR 0001/0006): pode falar HTTP (httpx) e montar
+# prompts (jinja2), mas não calcula nada.
+PROIBIDOS_NA_REDACAO = {"numpy", "pandas", "statsmodels", "scipy", "sklearn"}
 
 # O núcleo não pode depender da camada narrativa, nem de rede, nem de UI.
 # Um núcleo que importa `requests` deixou de ser reprodutível offline.
@@ -65,17 +67,19 @@ def _viola(importado: str, proibidos: set[str]) -> bool:
     return any(importado == p or importado.startswith(f"{p}.") for p in proibidos)
 
 
-@pytest.mark.parametrize("arquivo", _arquivos_de("narrative"), ids=lambda p: p.name)
-def test_narrative_nao_calcula(arquivo: Path) -> None:
+@pytest.mark.parametrize(
+    "arquivo",
+    _arquivos_de("narrative") + _arquivos_de("ai"),
+    ids=lambda p: f"{p.parent.name}/{p.name}",
+)
+def test_redacao_nao_calcula(arquivo: Path) -> None:
     """A camada de LLM não importa biblioteca de cálculo numérico."""
     violacoes = {
-        imp
-        for imp in _modulos_importados(arquivo)
-        if _viola(imp, PROIBIDOS_EM_NARRATIVE)
+        imp for imp in _modulos_importados(arquivo) if _viola(imp, PROIBIDOS_NA_REDACAO)
     }
     assert not violacoes, (
         f"{arquivo.relative_to(RAIZ)} importa {sorted(violacoes)}.\n"
-        f"A camada narrativa não calcula: se o relatório precisa desse número, "
+        f"A camada de redação não calcula: se o relatório precisa desse número, "
         f"ele deve vir pronto no AnalysisResult. Ver docs/decisoes/0001."
     )
 
