@@ -21,8 +21,14 @@ from ensaia.ai.client import (
     RespostaInvalida,
     RespostaModelo,
 )
+from ensaia.ai.prompts import (
+    PROMPT_VERSION,
+    montar_mensagens,
+    montar_texto_para_copiar,
+)
 
 __all__ = [
+    "PROMPT_VERSION",
     "ClienteModelo",
     "ConfiguracaoModelo",
     "ErroDeConexao",
@@ -31,4 +37,6 @@ __all__ = [
     "Mensagem",
     "RespostaInvalida",
     "RespostaModelo",
+    "montar_mensagens",
+    "montar_texto_para_copiar",
 ]
