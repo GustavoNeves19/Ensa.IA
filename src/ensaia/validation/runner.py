@@ -316,7 +316,40 @@ def gravar_resultados(caso: Path, resultado: dict[str, Any]) -> list[Path]:
         json.dumps(_metricas_para_dict(resultado), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    return [arquivo_analise, arquivo_metricas]
+    arquivos = [arquivo_analise, arquivo_metricas]
+
+    relatorio_md = _relatorio_m0_md(resultado)
+    if relatorio_md is not None:
+        arquivo_relatorio = destino / "relatorio_m0.md"
+        arquivo_relatorio.write_text(relatorio_md + "\n", encoding="utf-8")
+        arquivos.append(arquivo_relatorio)
+    return arquivos
+
+
+def _relatorio_m0_md(resultado: dict[str, Any]) -> str | None:
+    """Relatório textual do caso em Markdown, no modo M0, ou None sem a camada de IA.
+
+    M0 é determinístico e offline: o texto são os próprios fatos verificados do
+    núcleo, sem chamar modelo nenhum (ADR 0001, spec §12.2). Fica versionado
+    junto dos JSONs como evidência do fim-a-fim — dos números do código ao texto
+    — e é reproduzível byte a byte.
+
+    A camada de IA é um extra opcional (`ensaia[llm]`); num install só do núcleo
+    ela não existe, e aí a validação segue sem o relatório, em vez de quebrar.
+    """
+    try:
+        from ensaia.ai.report import gerar_relatorio
+    except ImportError:
+        return None
+
+    relatorio = gerar_relatorio(resultado["analise"], modo="m0")
+    cabecalho = (
+        f"# {resultado['caso']} — relatório textual (modo M0, sem IA)\n\n"
+        "> Texto gerado automaticamente a partir dos fatos verificados pelo "
+        "núcleo determinístico. É o modo M0 (sem IA): offline e sempre fiel — "
+        "nenhum número foi redigido por um modelo de linguagem.\n\n"
+    )
+    return cabecalho + relatorio.texto_completo()
 
 
 def _metricas_para_dict(resultado: dict[str, Any]) -> dict[str, Any]:

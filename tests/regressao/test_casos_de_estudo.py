@@ -100,10 +100,12 @@ def test_gravar_resultados_produz_jsons_validos(tmp_path) -> None:
     resultado = validar_caso(caso)
     arquivos = gravar_resultados(caso, resultado)
 
-    assert [a.name for a in arquivos] == [
-        "analysis_result.json",
-        "metricas_validacao.json",
-    ]
+    # Os dois JSONs de evidência saem sempre; o relatório M0 sai quando a camada
+    # de IA (extra [llm]) está instalada, como no ambiente de desenvolvimento.
+    nomes = [a.name for a in arquivos]
+    assert "analysis_result.json" in nomes
+    assert "metricas_validacao.json" in nomes
+    assert "relatorio_m0.md" in nomes
 
     analise = json.loads(
         (caso / "resultados" / "analysis_result.json").read_text("utf-8")
@@ -116,3 +118,7 @@ def test_gravar_resultados_produz_jsons_validos(tmp_path) -> None:
         (caso / "resultados" / "metricas_validacao.json").read_text("utf-8")
     )
     assert metricas["dentro_das_tolerancias"] is True
+
+    relatorio = (caso / "resultados" / "relatorio_m0.md").read_text("utf-8")
+    assert "modo M0" in relatorio
+    assert "## " in relatorio  # tem seções
