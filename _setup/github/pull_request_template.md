@@ -24,4 +24,4 @@ uv run pytest
 - [ ] Se mexi em `core/`: os testes de regressão dos casos de estudo continuam passando
 - [ ] Se mexi na fronteira núcleo/LLM: `tests/test_arquitetura.py` passa
 - [ ] Se mudei um limiar do §4.3: **o pré-projeto também precisa mudar** — combinado com a orientadora?
-- [ ] Se mudei o prompt: incrementei `PROMPT_VERSION` em `narrative/chain.py`
+- [ ] Se mudei o prompt (templates ou few-shot): incrementei `PROMPT_VERSION` em `ai/prompts.py`

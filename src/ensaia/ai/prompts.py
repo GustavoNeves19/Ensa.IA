@@ -138,6 +138,11 @@ _CONFIG: dict[Secao, _ConfigSecao] = {
 }
 
 
+def titulo_secao(secao: Secao) -> str:
+    """Título legível de uma seção, para o cabeçalho no relatório."""
+    return _CONFIG[secao].titulo
+
+
 @lru_cache(maxsize=1)
 def _ambiente() -> Environment:
     # autoescape desligado: a saída é texto puro (um prompt), não HTML; escapar

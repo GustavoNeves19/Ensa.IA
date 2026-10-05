@@ -2,7 +2,7 @@
 
 A tese do TCC depende de uma afirmação estrutural: o LLM narra, mas não
 calcula. Comentário em README não sustenta isso — daqui a três meses, no meio
-de uma correria de prazo, alguém importa `numpy` dentro de `narrative/` para
+de uma correria de prazo, alguém importa `numpy` dentro de `ai/` para
 "só formatar um percentualzinho" e a garantia evapora sem ninguém perceber.
 
 Estes testes falham o CI quando isso acontece. São a forma executável do
@@ -18,19 +18,18 @@ import pytest
 
 RAIZ = Path(__file__).resolve().parent.parent / "src" / "ensaia"
 
-# A camada narrativa não pode tocar em ferramenta de cálculo. Se ela precisa
-# de um número, o número vem pronto no AnalysisResult. Vale igual para a camada
-# `ai/`, que é redatora (ADR 0001/0006): pode falar HTTP (httpx) e montar
-# prompts (jinja2), mas não calcula nada.
+# A camada de IA (`ai/`) é redatora, não analista (ADR 0001/0006): pode falar
+# HTTP (httpx) e montar prompts (jinja2), mas não toca em ferramenta de cálculo.
+# Se ela precisa de um número, o número vem pronto no AnalysisResult.
 PROIBIDOS_NA_REDACAO = {"numpy", "pandas", "statsmodels", "scipy", "sklearn"}
 
-# O núcleo não pode depender da camada narrativa, nem de rede, nem de UI.
+# O núcleo não pode depender da camada de IA, nem de rede, nem de UI.
 # Um núcleo que importa `requests` deixou de ser reprodutível offline.
 # statsmodels e pandas ficam fora da produção (ADRs 0007 e 0008): ajuste e
 # ANOVA são em numpy puro sobre a estrutura `Table`; os dois só são permitidos
 # nos testes, como oráculo.
 PROIBIDOS_EM_CORE = {
-    "ensaia.narrative",
+    "ensaia.ai",
     "ensaia.ui",
     "langchain",
     "langchain_core",
@@ -69,11 +68,11 @@ def _viola(importado: str, proibidos: set[str]) -> bool:
 
 @pytest.mark.parametrize(
     "arquivo",
-    _arquivos_de("narrative") + _arquivos_de("ai"),
+    _arquivos_de("ai"),
     ids=lambda p: f"{p.parent.name}/{p.name}",
 )
 def test_redacao_nao_calcula(arquivo: Path) -> None:
-    """A camada de LLM não importa biblioteca de cálculo numérico."""
+    """A camada de IA não importa biblioteca de cálculo numérico."""
     violacoes = {
         imp for imp in _modulos_importados(arquivo) if _viola(imp, PROIBIDOS_NA_REDACAO)
     }
