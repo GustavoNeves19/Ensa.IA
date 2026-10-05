@@ -24,6 +24,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
+from ensaia.core.numeros import numero_rastreavel, numeros_no_texto
 from ensaia.core.results import AnalysisResult
 
 Classificacao = Literal["correta", "imprecisa", "nao_sustentada", "pendente"]
@@ -82,21 +83,6 @@ class RelatorioFidelidade:
         return contagens
 
 
-# Números em português: 1234,56 · 1.234,56 · 0,85 · 12 · -3,4 · 1.2e-5
-_PADRAO_NUMERO = re.compile(r"-?\d{1,3}(?:\.\d{3})*(?:,\d+)?|-?\d+(?:[.,]\d+)?")
-
-
-def _para_float(texto: str) -> float | None:
-    """Converte um número escrito em português para float."""
-    t = texto.strip()
-    if "," in t:
-        t = t.replace(".", "").replace(",", ".")
-    try:
-        return float(t)
-    except ValueError:
-        return None
-
-
 def segmentar_afirmacoes(relatorio: str) -> list[Afirmacao]:
     """Quebra o relatório em afirmações — uma sentença cada.
 
@@ -107,12 +93,11 @@ def segmentar_afirmacoes(relatorio: str) -> list[Afirmacao]:
     bruto = re.split(r"(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÀÇ])", relatorio.strip())
     afirmacoes: list[Afirmacao] = []
     for i, sentenca in enumerate(s.strip() for s in bruto if s.strip()):
-        numeros = [
-            n
-            for n in (_para_float(m.group()) for m in _PADRAO_NUMERO.finditer(sentenca))
-            if n is not None
-        ]
-        afirmacoes.append(Afirmacao(indice=i, texto=sentenca, numeros_citados=numeros))
+        afirmacoes.append(
+            Afirmacao(
+                indice=i, texto=sentenca, numeros_citados=numeros_no_texto(sentenca)
+            )
+        )
     return afirmacoes
 
 
@@ -157,12 +142,9 @@ def prechecar_numeros(
 
     for afirmacao in afirmacoes:
         for numero in afirmacao.numeros_citados:
-            escala = max(abs(numero), 1e-9)
-            achou = any(
-                abs(numero - d) <= tolerancia_relativa * max(escala, abs(d))
-                for d in disponiveis
-            )
-            if achou:
+            if numero_rastreavel(
+                numero, disponiveis, tolerancia_relativa=tolerancia_relativa
+            ):
                 afirmacao.numeros_encontrados_no_resultado.append(numero)
             else:
                 afirmacao.numeros_sem_correspondencia.append(numero)
