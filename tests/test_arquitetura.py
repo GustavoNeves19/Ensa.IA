@@ -23,7 +23,8 @@ RAIZ = Path(__file__).resolve().parent.parent / "src" / "ensaia"
 # Se ela precisa de um número, o número vem pronto no AnalysisResult.
 PROIBIDOS_NA_REDACAO = {"numpy", "pandas", "statsmodels", "scipy", "sklearn"}
 
-# O núcleo não pode depender da camada de IA, nem de rede, nem de UI.
+# O núcleo não pode depender da camada de IA, de rede, de UI nem da camada de
+# apresentação (`report/`): essas são camadas de cima, consomem o núcleo.
 # Um núcleo que importa `requests` deixou de ser reprodutível offline.
 # statsmodels e pandas ficam fora da produção (ADRs 0007 e 0008): ajuste e
 # ANOVA são em numpy puro sobre a estrutura `Table`; os dois só são permitidos
@@ -31,6 +32,7 @@ PROIBIDOS_NA_REDACAO = {"numpy", "pandas", "statsmodels", "scipy", "sklearn"}
 PROIBIDOS_EM_CORE = {
     "ensaia.ai",
     "ensaia.ui",
+    "ensaia.report",
     "langchain",
     "langchain_core",
     "langchain_google_genai",
