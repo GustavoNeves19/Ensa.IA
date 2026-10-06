@@ -37,9 +37,11 @@ langchain = [
     "langchain-core>=0.3",
     "langchain-google-genai>=2.0",
 ]
+# Interface web (spec seção 7.3): NiceGUI roda sobre FastAPI, o que permite um
+# único processo com a UI e o servidor MCP. Já traz FastAPI, Uvicorn, Pydantic,
+# Jinja2 e o ECharts — por isso não entram plotly nem streamlit (ver ADR 0011).
 ui = [
-    "streamlit>=1.38",
-    "plotly>=5.24",
+    "nicegui>=3.1",
 ]
 # Relatório PDF padronizado (spec §13): fpdf2 monta o PDF, matplotlib gera os
 # gráficos em memória (backend não interativo). Extra à parte: o núcleo e a
@@ -61,6 +63,8 @@ dev = [
     # Idem a camada de relatório (extra [report]).
     "fpdf2>=2.7",
     "matplotlib>=3.8",
+    # Idem a interface web (extra [ui]): os testes do processo único a exercem.
+    "nicegui>=3.1",
     # Oráculo de teste: o núcleo é conferido contra o statsmodels (ajuste e
     # ANOVA Tipo II); statsmodels e pandas NÃO entram em produção. ADRs 0007/0008.
     "statsmodels>=0.14",
@@ -69,6 +73,7 @@ dev = [
 
 [project.scripts]
 ensaia-validar = "ensaia.validation.runner:main"
+ensaia-ui = "ensaia.app.main:main"
 
 [build-system]
 requires = ["hatchling"]

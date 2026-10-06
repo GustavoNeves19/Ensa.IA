@@ -22,3 +22,4 @@ Formato: contexto → decisão → consequências (inclusive as ruins).
 | [0008](0008-table-dados-sem-pandas.md) | Contêiner de dados próprio (`Table`), remoção faseada do pandas | Aceita |
 | [0009](0009-contrato-em-pydantic.md) | Contrato `AnalysisResult` em Pydantic v2 | Aceita |
 | [0010](0010-camada-de-relatorio-pdf.md) | Camada de relatório PDF (fpdf2 + matplotlib), isolada e opcional | Aceita |
+| [0011](0011-interface-nicegui-processo-unico.md) | Interface web em NiceGUI, num processo único (migra do Streamlit) | Aceita |
