@@ -11,6 +11,7 @@ from __future__ import annotations
 from nicegui import ui
 
 from ensaia.ui.tema import ACENTO, CINZA, TINTA
+from ensaia.ui.upload import construir_upload
 
 # Os sete passos do fluxo (spec §4). Mostrados como uma trilha discreta — dão ao
 # visitante o mapa do caminho sem prometer nada que ainda não existe.
@@ -27,9 +28,10 @@ _PASSOS: tuple[tuple[str, str], ...] = (
 
 def construir_home() -> None:
     """Monta os elementos da página inicial."""
-    with ui.column().classes("w-full max-w-3xl mx-auto px-6 py-20 gap-10"):
+    with ui.column().classes("w-full max-w-3xl mx-auto px-6 py-16 gap-10"):
         _marca()
         _trilha()
+        construir_upload()
         _privacidade()
 
 
