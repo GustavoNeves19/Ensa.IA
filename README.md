@@ -47,7 +47,7 @@ texto compreensível.
          ┌───────┴───────────────┐
          ▼                       ▼
 ┌──────────────────┐   ┌───────────────────┐
-│ ensaia/narrative │   │ ensaia/validation │
+│    ensaia/ai     │   │ ensaia/validation │
 │   (LLM narra)    │   │   (§4.3 mede)     │
 │   não calcula    │   │                   │
 └──────────────────┘   └───────────────────┘
@@ -60,7 +60,7 @@ recebe um `AnalysisResult` congelado e nada mais.
 
 Isso não é convenção de código: está travado por teste automatizado em
 [`tests/test_arquitetura.py`](tests/test_arquitetura.py), que falha o CI se
-alguém importar `numpy` dentro de `narrative/` ou `langchain` dentro de
+alguém importar `numpy` dentro de `ai/` ou `langchain` dentro de
 `core/`. Ver [ADR 0001](docs/decisoes/0001-fronteira-deterministica-llm.md).
 
 ## Como rodar
@@ -73,7 +73,7 @@ pip e resolve o lockfile sozinho.
 curl -LsSf https://astral.sh/uv/install.sh | sh      # Linux/macOS
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"   # Windows
 
-# clonar e instalar
+# clonar e instalar (--all-extras traz interface, relatório, LLM e dev)
 git clone git@github.com:<org>/ensaia.git
 cd ensaia
 uv sync --all-extras
@@ -81,9 +81,18 @@ uv sync --all-extras
 # rodar os testes
 uv run pytest
 
-# subir a interface
-uv run streamlit run src/ensaia/ui/app.py
+# subir a interface web → abre em http://127.0.0.1:8080
+uv run ensaia-ui
 ```
+
+A interface é **NiceGUI sobre FastAPI**, servida por um único processo Uvicorn
+(spec seção 7.2; ver [ADR 0011](docs/decisoes/0011-interface-nicegui-processo-unico.md)).
+O entrypoint é `ensaia.app.main:main`, exposto como o script `ensaia-ui`.
+
+Ela depende do extra **`ui`**: o `uv sync --all-extras` acima já o instala. Se
+tiver sincronizado só o núcleo, `uv run ensaia-ui` falha com
+`ModuleNotFoundError: No module named 'fastapi'` — rode `uv sync --extra ui`
+(ou `--all-extras`) antes. Para parar o servidor, `Ctrl+C` no terminal.
 
 Para usar a camada de LLM, copie `.env.example` para `.env` e preencha a
 chave. **O `.env` nunca vai para o repositório.**
@@ -101,11 +110,16 @@ src/ensaia/
 │   ├── anova.py        ANOVA tipo II, seleção de termos, falta de ajuste
 │   ├── effects.py      Coeficientes, efeitos, intervalos de confiança
 │   ├── desirability.py Otimização de Derringer-Suich
+│   ├── table.py        Tabela de dados leve, em numpy, sem pandas (ADR 0008)
+│   ├── facts.py        Fatos interpretativos verificados a partir do ajuste
+│   ├── numeros.py      Extração/rastreio de números em português (utilidade)
 │   └── results.py      ★ AnalysisResult — o contrato da fronteira
-├── narrative/     Camada de LLM. Consome AnalysisResult, produz texto.
+├── ai/            Camada de LLM (HTTP direto, sem LangChain — ADR 0006). Consome AnalysisResult, produz texto.
 ├── validation/    Métricas do §4.3 do pré-projeto. É o instrumento de medida do TCC.
-├── io/            Leitura e validação dos dados de entrada
-└── ui/            Interface Streamlit
+├── report/        Relatório PDF (fpdf2 + matplotlib) a partir do resultado + texto (ADR 0010).
+├── io/            Leitura (CSV/XLSX → Table) e validação dos dados de entrada
+├── ui/            Interface web em NiceGUI: home, tema, upload
+└── app/           Processo único ASGI (FastAPI + Uvicorn). Entrypoint `ensaia-ui` (ADR 0011).
 
 casos_de_estudo/   Um diretório por caso, com dados + valores publicados
 docs/decisoes/     ADRs — por que cada decisão de arquitetura foi tomada
