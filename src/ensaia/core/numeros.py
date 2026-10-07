@@ -37,12 +37,22 @@ def _para_float(texto: str) -> float | None:
 
 
 def numeros_no_texto(texto: str) -> list[float]:
-    """Todos os números citados no texto, na ordem em que aparecem."""
-    return [
-        n
-        for n in (_para_float(m.group()) for m in _PADRAO_NUMERO.finditer(texto))
-        if n is not None
-    ]
+    """Todos os números citados no texto, na ordem em que aparecem.
+
+    Um número imediatamente seguido de '%' é lido como fração: "5%" é 0,05 e
+    "98,5%" é 0,985. Sem isso, porcentagem e decimal equivalentes contariam como
+    números diferentes e a checagem de fidelidade reprovaria uma paráfrase fiel —
+    o químico escreve "nível de 5%", o núcleo registra o α como "0,05".
+    """
+    numeros: list[float] = []
+    for m in _PADRAO_NUMERO.finditer(texto):
+        valor = _para_float(m.group())
+        if valor is None:
+            continue
+        if re.match(r"\s*%", texto[m.end() :]):
+            valor /= 100
+        numeros.append(valor)
+    return numeros
 
 
 def numero_rastreavel(

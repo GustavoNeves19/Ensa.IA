@@ -40,6 +40,14 @@ de ajuste. Alterar qualquer um exige alterar o pré-projeto — ver
    sinaliza números do texto sem correspondência no `AnalysisResult`. É
    triagem, não veredito.
 
+   A extração de números (`core.numeros.numeros_no_texto`) lê um valor seguido
+   de `%` como fração: "5%" é 0,05 e "98,5%" é 0,985. Sem essa regra, a
+   paráfrase fiel do químico — "significativo ao nível de 5%" — seria sinalizada
+   como divergente do α que o núcleo registra como "0,05", inflando a taxa de
+   falsos positivos. A mesma extração alimenta a checagem automática de
+   *fallback* em tempo de execução (`ai.fidelity`), então as duas enxergam
+   porcentagem e decimal equivalentes como o mesmo número.
+
 5. **Classificação manual (§4.3e).** Cada afirmação vira `correta`,
    `imprecisa` ou `nao_sustentada`, com justificativa. A planilha preenchida
    é dado bruto do TCC e vai versionada em `<caso>/resultados/`.
