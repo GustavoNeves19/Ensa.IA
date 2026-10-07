@@ -17,7 +17,7 @@ from nicegui import events, ui
 
 from ensaia.core.table import Table
 from ensaia.io.readers import ler_dados_de_bytes
-from ensaia.ui.tema import ACENTO, CINZA, TINTA
+from ensaia.ui.tema import CINZA, TINTA, VERDE_ESCURO
 
 # RF-01: aceita até 5 MB; acima disso o upload é recusado no próprio navegador.
 MAX_BYTES = 5 * 1024 * 1024
@@ -61,7 +61,7 @@ def construir_upload(ao_carregar: Callable[[Table, str], None] | None = None) ->
         max_files=1,
         auto_upload=True,
         label="Arraste sua planilha aqui ou clique para escolher",
-    ).props(f'accept="{_ACEITA}" flat bordered').classes("w-full")
+    ).props(f'accept="{_ACEITA}" flat').classes("ensaia-upload")
 
     ui.label("Formatos aceitos: CSV, TSV, TXT, XLSX, XLS · até 5 MB").style(
         f"color:{CINZA};font-size:0.8rem"
@@ -77,7 +77,7 @@ def _mostrar_previa(tabela: Table, nome: str) -> None:
     ui.label(
         f"{total} {'ensaio' if total == 1 else 'ensaios'} · "
         f"{len(tabela.colunas)} {'coluna' if len(tabela.colunas) == 1 else 'colunas'}"
-    ).style(f"color:{ACENTO};font-size:0.85rem;font-weight:600")
+    ).style(f"color:{VERDE_ESCURO};font-size:0.85rem;font-weight:600")
 
     colunas = [
         {"name": c, "label": c, "field": c, "align": "left"} for c in tabela.colunas
@@ -88,7 +88,7 @@ def _mostrar_previa(tabela: Table, nome: str) -> None:
     ]
     ui.table(columns=colunas, rows=linhas, row_key=tabela.colunas[0]).props(
         "flat bordered dense"
-    ).classes("w-full")
+    ).classes("ensaia-previa w-full")
 
     if total > _LIMITE_PREVIA:
         ui.label(

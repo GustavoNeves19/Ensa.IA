@@ -1,10 +1,12 @@
 """Identidade visual do relatório PDF — o ponto único de troca de marca.
 
 A spec §13 pede que logo, cores e fonte fiquem isolados aqui, para trocar
-quando o nome definitivo do produto sair. Por ora é um tema sóbrio e
-deliberado (não o visual padrão de nenhuma ferramenta): uma tinta carvão, um
-acento petróleo e cinzas neutros, com a DejaVu Sans (Unicode) carregando tanto
-o texto do PDF quanto os rótulos dos gráficos — uma só linguagem visual.
+quando o nome definitivo do produto sair. A paleta é a **oficial da Ufra**
+(Manual de Uso da Marca, 2022): o preto (#1D1D1B) como tinta e um verde-mata
+profundo como acento — da mesma família dos dois verdes do logotipo, porém
+escurecido para ler bem no papel. É a mesma língua visual da interface web
+(`ui/theme` → `ui/tema.py`), com cinzas quentes e a DejaVu Sans (Unicode)
+carregando tanto o texto do PDF quanto os rótulos dos gráficos.
 
 As cores são tuplas RGB 0–255 (o que o fpdf2 espera); `cor_mpl` as devolve
 normalizadas 0–1 para o matplotlib.
@@ -30,12 +32,13 @@ def cor_mpl(cor: Cor) -> tuple[float, float, float]:
 class Tema:
     """Cores, fontes e medidas do relatório. Trocar aqui muda o visual inteiro."""
 
-    # Paleta: uma tinta escura, um acento petróleo (escolhido — não o azul
-    # padrão), e cinzas para hierarquia. Nada de gradiente nem de cor berrante.
-    tinta: Cor = (31, 35, 40)
-    acento: Cor = (26, 95, 111)
-    cinza: Cor = (110, 118, 125)
-    cinza_claro: Cor = (228, 231, 234)
+    # Paleta oficial da Ufra: preto como tinta, verde-mata profundo como acento
+    # (a mesma família dos dois verdes do logotipo, escurecido para o papel) e
+    # cinzas quentes para hierarquia. Nada de gradiente nem de cor berrante.
+    tinta: Cor = (29, 29, 27)
+    acento: Cor = (14, 58, 38)
+    cinza: Cor = (94, 90, 78)
+    cinza_claro: Cor = (228, 226, 214)
     branco: Cor = (255, 255, 255)
 
     # Fontes Unicode (DejaVu, livre), embutidas no pacote. A regular e a negrito

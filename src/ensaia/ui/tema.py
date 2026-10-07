@@ -1,30 +1,291 @@
 """Identidade visual da interface — o ponto único de troca de marca da UI.
 
-A spec (seção 0) deixa a identidade definitiva para depois; aqui vai a primeira
-proposta, deliberada e não o visual padrão da NiceGUI. A paleta espelha a do
-relatório PDF (`report/theme.py`) — a mesma tinta carvão e o mesmo acento
-petróleo — para que a tela e o documento gerado falem a mesma língua.
+A paleta é a **oficial da Universidade Federal Rural da Amazônia** (Manual de
+Uso da Marca da Ufra, ASCOM/Ufra, 2022, p. 10): o logotipo é composto por dois
+verdes — verde (#40A551) e verde oliva (#9B921C) — mais o preto (#1D1D1B).
+Trabalhamos sobre esses três, acrescidos de um verde-mata profundo derivado
+(para profundidade e ações) e de um papel quente levemente oliva como fundo —
+nada do cinza neutro dos UI kits nem do creme genérico.
+
+A fonte de assinatura é a **Sentient** (Indian Type Foundry, licença livre
+Fontshare), uma serifada editorial com caráter — carrega a marca e os títulos.
+O corpo fica num neutro de sistema, que sabe se calar. Os arquivos da fonte e a
+licença vivem em `ui/static/fonts/`.
 
 Trocar a marca inteira é mexer só neste arquivo: as cores entram no tema do
-Quasar via `ui.colors` e o fundo da página via CSS.
+Quasar via `ui.colors` e todo o resto (fonte, fundo, atmosfera) via o CSS
+injetado em `aplicar_tema`.
 """
 
 from __future__ import annotations
 
-from nicegui import ui
+import contextlib
+from pathlib import Path
 
-# Mesma paleta do report/theme.py, em hexadecimal (o que o Quasar/CSS espera).
-TINTA = "#1f2328"  # texto e títulos
-ACENTO = "#1a5f6f"  # petróleo — ações e destaques
-ACENTO_CLARO = "#2b7e92"
-CINZA = "#6e767d"  # texto secundário
-FUNDO = "#f7f5f2"  # branco quente e escolhido, não o cinza neutro dos UI kits
+from nicegui import app, ui
+
+# --- Paleta oficial da Ufra + tons de apoio derivados --------------------------
+TINTA = "#1D1D1B"  # Ufra preto — texto e títulos
+VERDE = "#40A551"  # Ufra verde — acento vivo (a "IA", o ótimo, links, foco)
+OLIVA = "#9B921C"  # Ufra verde oliva — secundária (curvas de nível, detalhes)
+OLIVA_ESCURO = "#6E6713"  # oliva escurecido — texto pequeno legível (AA)
+VERDE_ESCURO = "#0E3A26"  # verde-mata profundo (derivado) — ações, superfícies escuras
+CINZA = "#5E5A4E"  # cinza quente/oliva — texto secundário (contraste ≥ 5:1 no papel)
+PAPEL = "#F3F2EA"  # papel quente, levemente oliva — fundo da página
+PAPEL_ALTO = "#FCFBF6"  # superfície elevada (painéis) — um tom acima do papel
+LINHA = "rgba(29,29,27,0.08)"  # borda auto-colorida, sentida mais que vista
+
+# Compat: `report/theme.py` e trechos antigos ainda falam em "acento".
+ACENTO = VERDE
+
+_STATIC = Path(__file__).parent / "static"
+# Rota estática servida uma única vez (nível de módulo roda no import). Serve as
+# fontes self-hosted sem depender de CDN — a interface roda offline (princípio
+# do núcleo), então a marca também não pode pedir rede. `suppress` cobre o
+# reimport em testes/reload, quando a rota já existe.
+with contextlib.suppress(Exception):
+    app.add_static_files("/ensaia-static", str(_STATIC))
+
+# Grão finíssimo (feTurbulence, dessaturado) em data-uri: quebra o achatado dos
+# fundos e remove banding. Fica ATRÁS do conteúdo, a 3,5% — sente-se, não se vê.
+_GRAO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/></svg>"  # noqa: E501
+
+
+def _css() -> str:
+    """Folha de estilo da marca: fontes, atmosfera, grão e o uploader."""
+    return f"""
+    <style>
+    /* Sentient — serifada de assinatura, variável (peso 200–800), self-hosted. */
+    @font-face {{
+      font-family: 'Sentient';
+      src: url('/ensaia-static/fonts/Sentient-Variable.woff2') format('woff2');
+      font-weight: 200 800; font-style: normal; font-display: swap;
+    }}
+    @font-face {{
+      font-family: 'Sentient';
+      src: url('/ensaia-static/fonts/Sentient-VariableItalic.woff2') format('woff2');
+      font-weight: 200 800; font-style: italic; font-display: swap;
+    }}
+
+    :root {{
+      --tinta: {TINTA};
+      --verde: {VERDE};
+      --oliva: {OLIVA};
+      --oliva-escuro: {OLIVA_ESCURO};
+      --verde-escuro: {VERDE_ESCURO};
+      --cinza: {CINZA};
+      --papel: {PAPEL};
+      --papel-alto: {PAPEL_ALTO};
+      --linha: {LINHA};
+      --fonte-titulo: 'Sentient', Georgia, 'Times New Roman', serif;
+      --fonte-corpo: system-ui, -apple-system, 'Segoe UI', Roboto,
+        Helvetica, Arial, sans-serif;
+    }}
+
+    /* O corpo fala o neutro de sistema; o fundo é papel quente com um grão
+       finíssimo (feTurbulence em data-uri) — sente-se, não se vê, e fica ATRÁS
+       de todo o conteúdo. Sem scroll horizontal, nunca. */
+    html, body {{ overflow-x: hidden; }}
+    body {{
+      background-color: var(--papel);
+      background-image:
+        radial-gradient(1100px 680px at 86% -8%,
+          rgba(64,165,81,0.10), transparent 60%),
+        url("{_GRAO}");
+      color: var(--tinta);
+      font-family: var(--fonte-corpo);
+      -webkit-font-smoothing: antialiased;
+    }}
+    .nicegui-content {{ padding: 0; }}
+
+    /* Tipografia de assinatura e utilitários da marca. */
+    .ea-serif {{ font-family: var(--fonte-titulo); }}
+    .ea-ital  {{ font-family: var(--fonte-titulo); font-style: italic; }}
+
+    /* --- Dropzone (Quasar QUploader) vestida com a marca --------------------- */
+    .ensaia-upload {{
+      width: 100%;
+      border: 1px dashed rgba(155,146,28,0.45);
+      border-radius: 14px;
+      background: var(--papel-alto);
+      box-shadow: none;
+      transition: border-color .18s ease, background-color .18s ease;
+    }}
+    .ensaia-upload:hover {{
+      border-color: var(--verde);
+      background: #F6FBF5;
+    }}
+    .ensaia-upload .q-uploader__header {{
+      background: var(--verde-escuro);
+      color: var(--papel);
+    }}
+    .ensaia-upload .q-uploader__title {{ font-weight: 600; line-height: 1.3; }}
+    /* Em repouso o Quasar mostra "0.0B / 0.00%" (progresso) — sem sentido aqui. */
+    .ensaia-upload .q-uploader__subtitle {{ display: none; }}
+    .ensaia-upload .q-uploader__dnd {{
+      background: rgba(64,165,81,0.06);
+      outline: none;
+    }}
+    .ensaia-upload .q-btn {{ color: var(--papel); }}
+
+    /* Tabela de prévia: linhas quietas, cabeçalho em tinta. */
+    .ensaia-previa thead th {{
+      background: #EFEEE4;
+      color: var(--tinta);
+      font-weight: 600;
+    }}
+    .ensaia-previa td, .ensaia-previa th {{ border-color: var(--linha) !important; }}
+
+    /* --- Composição da página ----------------------------------------------- */
+    .ea-page {{ position: relative; width: 100%; min-height: 100vh; overflow: hidden; }}
+    /* A superfície de resposta (assinatura) sangra pelo canto superior direito e
+       se dissolve no papel por uma máscara radial — sem emenda dura. */
+    .ea-atmosfera {{
+      position: absolute; top: -64px; right: -118px;
+      width: min(680px, 90vw); pointer-events: none; z-index: 0;
+      -webkit-mask-image:
+        radial-gradient(72% 70% at 60% 32%, #000 52%, transparent 100%);
+      mask-image:
+        radial-gradient(72% 70% at 60% 32%, #000 52%, transparent 100%);
+    }}
+    .ea-atmosfera svg {{ width: 100%; height: auto; display: block; }}
+    .ea-col {{
+      position: relative; z-index: 1; max-width: 1080px; margin: 0 auto;
+      padding: clamp(2.6rem, 6vw, 5.5rem) clamp(1.25rem, 5vw, 2.25rem) 3.25rem;
+    }}
+    .ea-main {{
+      max-width: 620px; display: flex; flex-direction: column;
+      gap: clamp(1.9rem, 4vw, 2.7rem);
+    }}
+
+    /* Marca e títulos. */
+    .ea-marca {{ font-family: var(--fonte-titulo); font-weight: 600;
+      font-size: clamp(2.6rem, 7vw, 3.4rem); line-height: 1;
+      letter-spacing: -0.015em; }}
+    .ea-colofao {{ color: var(--cinza); font-size: .82rem; margin-top: .55rem; }}
+    .ea-headline {{ font-family: var(--fonte-titulo); font-weight: 500;
+      font-size: clamp(1.9rem, 5vw, 2.85rem); line-height: 1.14;
+      color: var(--tinta); max-width: 19ch; }}
+    .ea-sub {{ color: var(--cinza); font-size: 1.02rem; line-height: 1.55;
+      max-width: 36rem; }}
+
+    /* Trilha dos sete passos — sem trilho nem seta; a ordem é a numeração. */
+    .ea-passos {{ display: flex; flex-wrap: wrap; gap: 1rem 1.7rem; }}
+    .ea-passo {{ display: flex; align-items: baseline; gap: .5rem; }}
+    .ea-passo .n {{ color: var(--oliva-escuro); font-weight: 700; font-size: .78rem;
+      font-variant-numeric: tabular-nums; min-width: .95rem; }}
+    .ea-passo .t {{ color: var(--tinta); font-weight: 600; font-size: .95rem; }}
+    .ea-passo .d {{ color: var(--cinza); font-size: .78rem; }}
+
+    /* Painel do envio: superfície elevada por tom (não por contraste de linha),
+       sombra curta e direcional tingida de verde, e UM canto chanfrado (geometria
+       própria). O conteúdo tem folga para não encostar no corte. */
+    .ea-painel {{
+      background: var(--papel-alto);
+      border: 1px solid var(--linha);
+      border-radius: 16px;
+      clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+      padding: clamp(1.5rem, 4vw, 1.9rem);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.75),
+        0 14px 30px -22px rgba(14,58,38,.6);
+      display: flex; flex-direction: column; gap: .8rem;
+    }}
+
+    /* Aviso de privacidade: ilha recuada, com folga em todos os lados — objeto
+       deliberado, não uma barra de acento colada na borda. */
+    .ea-privacidade {{
+      background: var(--papel-alto);
+      border: 1px solid var(--linha);
+      border-radius: 13px;
+      padding: 1rem 1.15rem;
+      display: flex; flex-direction: column; gap: .3rem;
+    }}
+    .ea-priv-titulo {{ color: var(--tinta); font-weight: 600; font-size: .95rem; }}
+    .ea-priv-texto {{ color: var(--cinza); font-size: .85rem; line-height: 1.5; }}
+
+    .ea-rodape {{ margin-top: 2.6rem; padding-top: 1.1rem;
+      border-top: 1px solid var(--linha); color: var(--cinza);
+      font-size: .8rem; line-height: 1.5; max-width: 620px; }}
+    .ea-rodape b {{ color: var(--tinta); font-weight: 600; }}
+
+    /* --- Fluxo de análise: mapear → analisar → resultados → relatório -------- */
+    .ea-analise {{ display: flex; flex-direction: column; gap: 1.6rem; }}
+    .ea-analise:empty {{ display: none; }}
+    .ea-slot:empty {{ display: none; }}
+    .ea-secao-titulo {{ font-family: var(--fonte-titulo); font-weight: 600;
+      font-size: 1.5rem; color: var(--tinta); }}
+    .ea-secao-sub {{ color: var(--cinza); font-size: .9rem; line-height: 1.5; }}
+    .ea-secao-sub b {{ color: var(--tinta); font-weight: 600; }}
+
+    .ea-mapear {{ display: flex; flex-direction: column; gap: .7rem; }}
+    .ea-mapa-grade {{ display: grid; gap: .7rem 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); }}
+    .ea-mapa-item {{ display: flex; flex-direction: column; gap: .25rem; }}
+    .ea-col-nome {{ font-weight: 600; font-size: .85rem; color: var(--tinta);
+      overflow-wrap: anywhere; }}
+
+    /* Um primário cheio (verde-mata) e uma ação secundária discreta em texto —
+       nunca o par cheio+contorno. Sem salto no hover, só mudança de tom. */
+    .ea-botao.q-btn {{ background: var(--verde-escuro) !important;
+      color: var(--papel); border-radius: 11px; font-weight: 600;
+      text-transform: none; letter-spacing: 0; padding: .5rem 1.15rem; }}
+    .ea-botao.q-btn:hover {{ filter: brightness(1.14); }}
+    .ea-botao-sec.q-btn {{ color: var(--verde-escuro); text-transform: none;
+      letter-spacing: 0; font-weight: 600; }}
+    .ea-acoes {{ display: flex; flex-wrap: wrap; gap: .3rem 1rem;
+      align-items: center; }}
+
+    .ea-resultado {{ display: flex; flex-direction: column; gap: .7rem;
+      padding: 1.1rem 1.15rem; background: var(--papel-alto);
+      border: 1px solid var(--linha); border-radius: 14px; }}
+    .ea-resp-nome {{ font-family: var(--fonte-titulo); font-weight: 600;
+      font-size: 1.15rem; color: var(--tinta); }}
+    .ea-r2 {{ font-size: 1rem; color: var(--cinza); }}
+    .ea-r2 b {{ color: var(--verde-escuro); font-variant-numeric: tabular-nums; }}
+    .ea-falta {{ font-size: .88rem; color: var(--cinza); line-height: 1.5; }}
+    .ea-aviso {{ font-size: .82rem; color: var(--oliva-escuro); line-height: 1.45; }}
+    .ea-tabela-rotulo {{ font-size: .8rem; font-weight: 600; color: var(--cinza);
+      margin-top: .15rem; }}
+
+    .ea-relatorio {{ display: flex; flex-direction: column; gap: 1rem; }}
+    .ea-rel-secao {{ display: flex; flex-direction: column; gap: .3rem; }}
+    .ea-rel-titulo {{ font-family: var(--fonte-titulo); font-weight: 600;
+      font-size: 1.1rem; color: var(--tinta); }}
+    .ea-rel-texto {{ color: var(--tinta); font-size: .98rem; line-height: 1.6; }}
+    /* Tag como texto, não chip: evita o pill e a caixa-atrás-do-rótulo. */
+    .ea-tag-ia {{ font-size: .7rem; font-weight: 700; color: var(--verde-escuro); }}
+    .ea-tag-m0 {{ font-size: .7rem; font-weight: 700; color: var(--cinza); }}
+    .ea-spinner {{ color: var(--verde-escuro) !important; }}
+
+    /* O ponto ótimo da superfície respira — decorativo, nunca esconde conteúdo. */
+    @keyframes ea-respira {{
+      0%, 100% {{ transform: scale(1); opacity: .9; }}
+      50%      {{ transform: scale(1.14); opacity: .55; }}
+    }}
+    .ea-otimo-halo {{ transform-box: fill-box; transform-origin: center;
+                      animation: ea-respira 4.8s ease-in-out infinite; }}
+    .ea-superficie {{ animation: ea-deriva 26s ease-in-out infinite; }}
+    @keyframes ea-deriva {{
+      0%, 100% {{ transform: translate3d(0,0,0); }}
+      50%      {{ transform: translate3d(-10px,8px,0); }}
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .ea-otimo-halo, .ea-superficie {{ animation: none; }}
+    }}
+    </style>
+    """
 
 
 def aplicar_tema() -> None:
-    """Aplica a paleta da marca ao Quasar e o fundo da página.
+    """Aplica a paleta da marca ao Quasar e injeta o CSS da identidade.
 
     Chamada no início de cada página, antes de montar os elementos.
     """
-    ui.colors(primary=ACENTO, secondary=TINTA, accent=ACENTO_CLARO)
-    ui.query("body").style(f"background-color: {FUNDO}")
+    ui.colors(
+        primary=VERDE_ESCURO,
+        secondary=TINTA,
+        accent=VERDE,
+        positive=VERDE,
+    )
+    ui.add_head_html(_css())
