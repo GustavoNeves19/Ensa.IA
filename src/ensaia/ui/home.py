@@ -51,11 +51,12 @@ def construir_home() -> None:
             # (mapear → analisar → resultados) quando uma planilha é lida.
             holder: dict[str, ui.column] = {}
 
-            def ao_carregar(tabela: Table, nome: str) -> None:
+            def ao_carregar(tabela: Table | None, nome: str) -> None:
                 destino = holder["analise"]
                 destino.clear()
-                with destino:
-                    construir_analise(tabela)
+                if tabela is not None:
+                    with destino:
+                        construir_analise(tabela)
 
             with ui.element("div").classes("ea-painel"):
                 construir_upload(ao_carregar=ao_carregar)
