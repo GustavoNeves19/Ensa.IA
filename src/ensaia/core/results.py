@@ -31,17 +31,28 @@ from pydantic import BaseModel, ConfigDict, Field
 # forma de AnalysisResult mudar de modo incompatível — os arquivos de resultado
 # guardados em resultados/ e os valores de referência dos casos de estudo
 # dependem disso para continuarem legíveis. A parte menor sobe quando só se
-# acrescentam campos opcionais (1.1: t crítico e diagnóstico por ensaio); um
-# JSON 1.0 continua sendo lido.
-SCHEMA_VERSION = "1.1"
+# acrescentam campos opcionais (1.1: t crítico e diagnóstico por ensaio; 1.2:
+# informações do planejamento); um JSON 1.0 continua sendo lido.
+SCHEMA_VERSION = "1.2"
 
 TipoPlanejamento = Literal[
     "fatorial_completo",
     "fatorial_fracionado",
     "composto_central",
     "box_behnken",
+    "fatorial_3k",
     "desconhecido",
 ]
+
+# Nome de cada tipo em português corrido, para frases, PDF e tela (fonte única).
+NOME_PLANEJAMENTO: dict[str, str] = {
+    "fatorial_completo": "fatorial completo",
+    "fatorial_fracionado": "fatorial fracionado",
+    "composto_central": "delineamento composto central",
+    "box_behnken": "delineamento Box-Behnken",
+    "fatorial_3k": "fatorial completo de 3 níveis (3^k)",
+    "desconhecido": "delineamento não identificado",
+}
 
 Sentido = Literal["maximizar", "minimizar", "alvo"]
 
@@ -154,6 +165,31 @@ class AjusteResposta(_Congelado):
     diagnostico: Diagnostico | None = None
 
 
+class FatorCodificado(_Congelado):
+    """Como um fator foi codificado: `x_cod = (x_real − centro) / passo`."""
+
+    nome: str
+    centro: float
+    passo: float
+    unidade: str = ""
+
+
+class InfoPlanejamento(_Congelado):
+    """A geometria do experimento (spec §10, seção `design`).
+
+    `alfa_axial` só existe no composto central (distância codificada dos pontos
+    axiais). `avisos` traz o que a identificação estranhou — níveis axiais
+    assimétricos, α fora do rotacional, fração irregular.
+    """
+
+    k: int
+    n_ensaios: int
+    n_pontos_centrais: int
+    alfa_axial: float | None = None
+    fatores: list[FatorCodificado]
+    avisos: list[str] = Field(default_factory=list)
+
+
 class MetadadosExecucao(_Congelado):
     """Tudo que é preciso para reproduzir esta análise.
 
@@ -186,6 +222,7 @@ class AnalysisResult(_Congelado):
     metadados: MetadadosExecucao
     ponto_otimo: PontoOtimo | None = None
     avisos: list[str] = Field(default_factory=list)
+    planejamento: InfoPlanejamento | None = None
 
     def ajuste(self, resposta: str) -> AjusteResposta:
         """Recupera o ajuste de uma resposta pelo nome."""

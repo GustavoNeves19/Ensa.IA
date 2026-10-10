@@ -21,10 +21,13 @@ from ensaia.core.anova import teste_falta_ajuste
 from ensaia.core.design import Planejamento
 from ensaia.core.diagnostico import diagnosticar
 from ensaia.core.effects import extrair_coeficientes, t_critico
+from ensaia.core.identificacao import contar_pontos_centrais
 from ensaia.core.model import AjusteOLS, ajustar_ols, matriz_modelo
 from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
+    FatorCodificado,
+    InfoPlanejamento,
     LinhaAnova,
     MetadadosExecucao,
 )
@@ -42,6 +45,7 @@ def analisar(
     versao_ensaia: str,
     alfa: float = ALFA_PADRAO,
     executado_em: str | None = None,
+    avisos_planejamento: Sequence[str] = (),
 ) -> AnalysisResult:
     """Ajusta o modelo a cada resposta e devolve o resultado congelado.
 
@@ -65,7 +69,7 @@ def analisar(
 
     matriz = matriz_modelo(tabela, planejamento, termos, codificar=True)
     ajustes: list[AjusteResposta] = []
-    avisos: list[str] = []
+    avisos: list[str] = list(avisos_planejamento)
     for resposta in respostas:
         resposta = str(resposta)
         y = tabela.coluna(resposta)
@@ -92,6 +96,32 @@ def analisar(
         ),
         ponto_otimo=None,
         avisos=avisos,
+        planejamento=info_planejamento(tabela, planejamento, avisos_planejamento),
+    )
+
+
+def info_planejamento(
+    tabela: Table, planejamento: Planejamento, avisos: Sequence[str] = ()
+) -> InfoPlanejamento:
+    """Seção `design` do contrato: geometria e codificação de cada fator."""
+    codificada = np.column_stack(
+        [
+            [f.codificar(float(v)) for v in tabela.coluna(f.nome)]
+            for f in planejamento.fatores
+        ]
+    )
+    return InfoPlanejamento(
+        k=planejamento.k,
+        n_ensaios=len(tabela),
+        n_pontos_centrais=contar_pontos_centrais(codificada),
+        alfa_axial=planejamento.alfa_axial,
+        fatores=[
+            FatorCodificado(
+                nome=f.nome, centro=f.centro, passo=f.amplitude / 2.0, unidade=f.unidade
+            )
+            for f in planejamento.fatores
+        ],
+        avisos=list(avisos),
     )
 
 
