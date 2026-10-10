@@ -188,7 +188,18 @@ def _secao_diagnostico(pdf: RelatorioPDF, ajuste: AjusteResposta) -> None:
 
 def _secao_interpretacao(pdf: RelatorioPDF, relatorio: RelatorioTextual) -> None:
     pdf.titulo_secao("Interpretação")
-    pdf.paragrafo(f"Texto gerado no modo {relatorio.modo.upper()}.", tamanho=9)
+    pdf.paragrafo(f"Texto escrito por: {relatorio.origem}.", tamanho=9)
+    fid = relatorio.fidelidade
+    if fid is not None and relatorio.modo != "m0":
+        pdf.paragrafo(f"Conferência dos números: {fid.resumo()}", tamanho=9)
+        if fid.nao_rastreaveis:
+            corpo = relatorio.corpo()
+            soltos = "; ".join(corpo[n.inicio : n.fim] for n in fid.nao_rastreaveis)
+            pdf.paragrafo(
+                f"Números sem correspondência nos resultados: {soltos}.", tamanho=9
+            )
+        for contradicao in fid.contradicoes:
+            pdf.paragrafo(f"Aviso: {contradicao.descricao()}", tamanho=9)
     for aviso in relatorio.avisos:
         pdf.paragrafo(f"Aviso: {aviso}", tamanho=9)
     for secao in relatorio.secoes:

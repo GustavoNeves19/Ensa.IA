@@ -155,6 +155,19 @@ def test_erro_de_conexao_cai_para_m0() -> None:
     assert all("não foi possível falar com o modelo" in a for a in rel.avisos)
 
 
+def test_sem_conexao_desiste_das_demais_secoes_com_um_aviso_so() -> None:
+    chamadas = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas["n"] += 1
+        return httpx.Response(401, json={"error": "chave recusada"})
+
+    rel = gerar_relatorio(_resultado(), modo="m3", cliente=_cliente(handler))
+    assert chamadas["n"] == 1
+    assert len(rel.avisos) == 1 and "401" in rel.avisos[0]
+    assert all(not s.com_ia for s in rel.secoes)
+
+
 def test_texto_completo_junta_titulos_e_secoes() -> None:
     rel = gerar_relatorio(_resultado(), modo="m0")
     completo = rel.texto_completo()

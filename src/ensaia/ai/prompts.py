@@ -29,13 +29,14 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from ensaia.ai.client import Mensagem
-from ensaia.core.facts import SECOES, Secao
+from ensaia.core.facts import SECOES, Secao, fatos_por_secao
+from ensaia.core.results import AnalysisResult
 
 # Versionar o prompt é obrigatório: a métrica de fidelidade (§4.3(e)/§12.5) mede
 # o desempenho de UM prompt sobre UM modelo. Se o prompt mudar depois da coleta,
 # os números da monografia deixam de corresponder ao sistema descrito. Toda
 # mudança de texto em templates/ ou nos exemplos abaixo sobe esta etiqueta.
-PROMPT_VERSION = "2026.10.1"
+PROMPT_VERSION = "2026.10.2"
 
 # Teto de palavras por seção (spec §12.3, regra 4): parágrafos curtos cabem no
 # contexto de modelos pequenos e reduzem a chance de alucinação.
@@ -207,6 +208,28 @@ def montar_texto_para_copiar(
         f"Agora escreva o parágrafo para estes fatos.\n"
         f"{_bloco_fatos(fatos)}"
     )
+
+
+def montar_prompt_completo(
+    resultado: AnalysisResult,
+    *,
+    max_palavras: int = MAX_PALAVRAS_PADRAO,
+) -> str:
+    """O pedido do relatório inteiro num texto só, para o modo M1.
+
+    O usuário copia, cola numa IA de sua escolha (ChatGPT, Gemini, LM Studio…) e
+    traz a resposta de volta para a checagem de fidelidade. Modelos grandes de
+    conversa não precisam do exemplo resolvido por seção; um pedido único, com
+    as seções na ordem, poupa o usuário de colar cinco vezes.
+    """
+    por_secao = fatos_por_secao(resultado, alfa=resultado.metadados.alfa)
+    secoes = [
+        {"titulo": titulo_secao(s), "fatos": por_secao[s]}
+        for s in SECOES
+        if por_secao[s]
+    ]
+    modelo = _ambiente().get_template("completo.j2")
+    return modelo.render(secoes=secoes, max_palavras=max_palavras).strip()
 
 
 # Garantia de que nenhuma seção ficou sem configuração: se SECOES crescer e

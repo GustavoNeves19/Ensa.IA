@@ -129,6 +129,17 @@ def test_grava_em_destino(tmp_path) -> None:
     assert destino.read_bytes() == retorno
 
 
+def test_pdf_com_texto_colado_leva_a_conferencia() -> None:
+    from ensaia.ai.report import relatorio_colado
+
+    res = _resultado()
+    texto = "O modelo explicou 99,2% da variação.\nNenhum termo foi significativo."
+    rel = relatorio_colado(res, texto)
+    assert rel.fidelidade is not None and not rel.fidelidade.fiel
+    pdf = gerar_pdf(res, rel, gerado_em="10/10/2026")
+    assert pdf[:5] == b"%PDF-"
+
+
 def test_multirresposta_gera_sem_erro() -> None:
     res = _resultado([_ajuste("rendimento"), _ajuste("pureza")])
     pdf = gerar_pdf(res, gerar_relatorio(res, modo="m0"))
