@@ -73,13 +73,22 @@ dev = [
     # ANOVA Tipo II); statsmodels e pandas NÃO entram em produção. ADRs 0007/0008.
     "statsmodels>=0.14",
     "pandas>=2.2",
+    # Idem o servidor MCP (extra [mcp]).
+    "mcp>=2.3,<3",
     # Medição de memória (RNF-01, spec §16.2): scripts/measure_memory.py lê o
     # RSS dos processos. Só desenvolvimento/CI; não entra na imagem Docker.
     "psutil>=5.9",
 ]
+# Servidor MCP (spec §11): SDK oficial v2. Importado só sob demanda no
+# servidor web (memória ociosa, RNF-01); no stdio, é o próprio processo.
+mcp = [
+    "mcp>=2.3,<3",
+]
 
 [project.scripts]
 ensaia-validar = "ensaia.validation.runner:main"
+# Servidor MCP por stdio (spec §11.1): `uvx ensaia-mcp` num assistente de IA.
+ensaia-mcp = "ensaia.mcp_server.server:main"
 ensaia-ui = "ensaia.app.main:main"
 
 [build-system]

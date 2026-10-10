@@ -141,10 +141,44 @@ app é um processo só, basta um serviço:
    uma IA pronta aos usuários (com `ENSAIA_IA_URL` e `ENSAIA_IA_MODELO`; o
    padrão é a OpenAI com `gpt-4o-mini`). Sem ela, cada usuário usa a própria
    chave ou copia o pedido para a IA que preferir.
-5. Faça o deploy e confira `https://<seu-domínio>/health`.
+5. Para assistentes de IA usarem o EnsaIA pela internet, defina também
+   `ENSAIA_HOSTS` com o domínio público (ex.: `ensaia.exemplo.com`; vários,
+   separados por vírgula). Sem ela, o `/api/mcp` só aceita chamadas de
+   localhost (proteção do SDK do MCP contra *DNS rebinding*).
+6. Faça o deploy e confira `https://<seu-domínio>/health`.
 
 Não é preciso volume: o app não grava nada em disco; a planilha enviada fica só
 na memória da sessão.
+
+## Usar com assistentes de IA (MCP)
+
+O EnsaIA também é um servidor **MCP** (*Model Context Protocol*): assistentes
+como Claude, ChatGPT e LM Studio usam as análises como ferramentas, com os
+mesmos números da tela. O assistente orquestra e escreve; quem calcula é o
+núcleo do EnsaIA. Ferramentas: `read_table`, `detect_design`, `fit_model`,
+`compute_effects`, `check_residuals`, `find_stationary_point`, `optimize`,
+`run_full_analysis`, `render_pdf` e `verify_text` (confere cada número de um
+texto contra o resultado). Recursos: `doe://glossario`,
+`doe://guia-interpretacao`, `doe://catalogo` e `doe://exemplos/{nome}`.
+
+**Local e privado (stdio).** No Claude Desktop, no LM Studio (`mcp.json`) e em
+clientes compatíveis:
+
+```json
+{ "mcpServers": { "ensaia": { "command": "uvx", "args": ["--from", "ensaia[mcp,report]", "ensaia-mcp"] } } }
+```
+
+Num clone deste repositório, `uv run --extra mcp --extra report ensaia-mcp`
+sobe o mesmo servidor.
+
+**Pela internet (HTTP).** O servidor web já atende em
+`https://<seu-domínio>/api/mcp` (modo sem estado), para assistentes em nuvem
+com conectores MCP remotos. Ele só é carregado na primeira chamada, para não
+pesar na memória de quem usa apenas a tela. Configure `ENSAIA_HOSTS` (ver
+EasyPanel acima).
+
+**Ollama.** O Ollama não fala MCP sozinho: use um cliente intermediário (por
+exemplo `ollmcp` ou MCPHost) apontando para o `ensaia-mcp`.
 
 ## Estrutura
 

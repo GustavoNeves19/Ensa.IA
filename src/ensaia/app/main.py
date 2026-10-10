@@ -19,8 +19,10 @@ Então este arquivo é o ponto onde tudo se junta:
 - `ui.run_with(app, ...)` **acopla** a NiceGUI a este mesmo `app` em vez de subir
   um servidor próprio — é isso que mantém tudo num processo só.
 
-O servidor MCP entra na fase F9 (a última), montado em `/api`, no ponto marcado
-abaixo. Não se monta o MCP em `/` para não encobrir as páginas da interface.
+O servidor MCP fica em `/api/mcp` (assistentes de IA usam as análises como
+ferramentas). Ele é carregado só na primeira chamada, para não pesar na memória
+de quem só usa a tela, e não fica em `/` para não encobrir as páginas da
+interface.
 
 ## Como subir
 
@@ -31,13 +33,32 @@ abaixo. Não se monta o MCP em `/` para não encobrir as páginas da interface.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from importlib.util import find_spec
+
 from fastapi import FastAPI
 from nicegui import ui
 
+from ensaia.mcp_server.montagem import MCPSobDemanda
 from ensaia.ui.home import construir_home
 from ensaia.ui.tema import aplicar_tema
 
-app = FastAPI(title="EnsaIA")
+# O servidor MCP só é importado na primeira chamada a /api/mcp (montagem.py):
+# parado, o processo não paga a memória do SDK. Sem o extra [mcp] instalado,
+# a rota simplesmente não existe.
+mcp_http = MCPSobDemanda() if find_spec("mcp") is not None else None
+
+
+@asynccontextmanager
+async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
+    """Na saída, fecha o gerenciador de sessões do MCP, se ele foi ligado."""
+    yield
+    if mcp_http is not None:
+        await mcp_http.encerrar()
+
+
+app = FastAPI(title="EnsaIA", lifespan=ciclo_de_vida)
 
 
 @app.get("/health")
@@ -53,8 +74,10 @@ def pagina_inicial() -> None:
     construir_home()
 
 
-# TODO(fase F9): montar o servidor MCP em "/api" aqui (ensaia.mcp_server),
-# iniciando o gerenciador de sessões no lifespan do app. Ver spec, seção 7.2.
+# Servidor MCP em /api (endpoint final: /api/mcp). Montado ANTES da NiceGUI,
+# que ocupa "/" e encobriria qualquer rota registrada depois (spec §7.2).
+if mcp_http is not None:
+    app.mount("/api", mcp_http)
 
 # Acopla a NiceGUI a este app (sem storage_secret: nada é persistido em disco —
 # princípio P1; usamos apenas o estado em memória da sessão).
