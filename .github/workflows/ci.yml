@@ -46,15 +46,8 @@ jobs:
         run: uv run --no-sync mypy src --python-version 3.12
         continue-on-error: true
 
-      # Um teste fica de fora até o núcleo ser corrigido: desde o PR #39, no
-      # Linux, o modelo exato do teste deixa resíduo 0,0 e a ANOVA divide por
-      # zero (ZeroDivisionError em AjusteOLS.tabela_tipo2, core/model.py). No
-      # Windows o resíduo sai ~1e-30 e o teste passa. Apagar o --deselect
-      # quando a correção entrar no main.
       - name: Testes
-        run: >-
-          uv run --no-sync pytest
-          --deselect tests/unit/test_pipeline.py::test_analisar_monta_resultado_coerente
+        run: uv run --no-sync pytest
 
       # RNF-01 (spec §16.2): ocioso ≤ 150 MB e pico ≤ 300 MB com análise + PDF.
       # Ver o método e as limitações no docstring de scripts/measure_memory.py.
