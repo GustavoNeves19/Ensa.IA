@@ -364,6 +364,47 @@ def _css() -> str:
     .ea-colar {{ width: 100%; }}
     .ea-campo-longo {{ min-width: 16rem; max-width: 100%; }}
     .ea-link {{ color: var(--verde-escuro); font-weight: 600; font-size: .85rem; }}
+    /* "o que é?" (US-16): ajuda como texto pontilhado, não ícone em caixa. */
+    .ea-titulo-linha {{ display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: .1rem .6rem; }}
+    .ea-ajuda.q-btn {{ color: var(--cinza); font-size: .75rem; font-weight: 500;
+      padding: 0 .1rem; min-height: 1.2rem; text-transform: none; letter-spacing: 0;
+      text-decoration: underline dotted; text-underline-offset: 3px; }}
+    .ea-ajuda .q-focus-helper {{ display: none; }}
+    .ea-ajuda.q-btn:hover {{ color: var(--tinta); }}
+    .ea-ajuda-pop {{ max-width: 22rem; padding: .75rem .95rem;
+      background: var(--papel-alto); border-radius: 10px; }}
+    .ea-ajuda-titulo {{ font-family: var(--fonte-titulo); font-weight: 600;
+      color: var(--tinta); font-size: .98rem; margin-bottom: .2rem; }}
+    .ea-ajuda-texto {{ color: var(--tinta); font-size: .85rem; line-height: 1.5; }}
+    /* Indicativos (US-06): o valor em destaque e o sinal como palavra colorida. */
+    .ea-indicativos {{ display: grid; gap: .9rem 1.6rem; margin: .5rem 0 .9rem;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }}
+    .ea-ind {{ display: flex; flex-direction: column; gap: .1rem; min-width: 0; }}
+    .ea-ind-rotulo {{ display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: 0 .4rem; font-size: .8rem; color: var(--cinza); }}
+    .ea-ind-valor {{ font-family: var(--fonte-titulo); font-size: 1.45rem;
+      color: var(--tinta); font-variant-numeric: tabular-nums; line-height: 1.2; }}
+    .ea-ind-sit {{ font-size: .78rem; font-weight: 700; }}
+    .ea-ind-ok .ea-ind-sit {{ color: var(--verde-escuro); }}
+    .ea-ind-atencao .ea-ind-sit {{ color: var(--oliva-escuro); }}
+    .ea-ind-atencao .ea-ind-valor {{ color: var(--oliva-escuro); }}
+    .ea-ind-leitura {{ font-size: .78rem; color: var(--cinza); line-height: 1.4; }}
+    /* Próximos passos (US-17): frases curtas, uma por linha. */
+    .ea-passos-sugeridos {{ display: flex; flex-direction: column; gap: .45rem;
+      max-width: 44rem; }}
+    .ea-passo-sugerido {{ color: var(--tinta); font-size: .95rem; line-height: 1.5; }}
+    /* Glossário (US-18): janela de leitura, largura de texto. */
+    .ea-glossario {{ width: min(44rem, 94vw); max-height: 86vh;
+      background: var(--papel-alto); border-radius: 14px; }}
+    .ea-glossario-texto {{ max-height: 62vh; overflow-y: auto;
+      background: transparent; }}
+    .ea-glossario-texto h1 {{ font-family: var(--fonte-titulo); font-size: 1.3rem;
+      margin: 0 0 .6rem; }}
+    .ea-glossario-texto h2 {{ font-family: var(--fonte-titulo); font-size: 1.05rem;
+      margin: .9rem 0 .3rem; }}
+    .ea-glossario-texto p {{ font-size: .9rem; line-height: 1.55; margin: 0 0 .55rem; }}
+    .ea-glossario-link.q-btn {{ align-self: flex-start; padding-left: 0; }}
     .ea-link:hover {{ color: var(--tinta); }}
     /* Tag como texto, não chip: evita o pill e a caixa-atrás-do-rótulo. */
     .ea-tag-ia {{ font-size: .7rem; font-weight: 700; color: var(--verde-escuro); }}

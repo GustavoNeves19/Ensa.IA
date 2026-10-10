@@ -18,6 +18,7 @@ from __future__ import annotations
 from nicegui import ui
 
 from ensaia.core.table import Table
+from ensaia.ui.ajuda import botao_glossario
 from ensaia.ui.analise import construir_analise
 from ensaia.ui.tema import TINTA, VERDE
 from ensaia.ui.upload import construir_upload
@@ -46,6 +47,7 @@ def construir_home() -> None:
             _marca()
             _headline()
             _trilha()
+            botao_glossario()
 
             # O container da análise vive abaixo do painel; o upload o preenche
             # (mapear → analisar → resultados) quando uma planilha é lida.
