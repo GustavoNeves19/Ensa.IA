@@ -17,6 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ensaia.core.anova import anova_regressao, erro_puro, teste_falta_ajuste
+from ensaia.core.catalogo import IDS
 from ensaia.core.descritiva import estatistica_descritiva
 from ensaia.core.design import Planejamento
 from ensaia.core.desirability import metas_padrao, otimizar
@@ -59,6 +60,7 @@ def analisar(
     tipo_modelo: TipoModelo | None = None,
     objetivos: Mapping[str, Sentido] | None = None,
     coluna_ordem: str | None = None,
+    analises: Sequence[str] | None = None,
     alvos: Mapping[str, float] | None = None,
 ) -> AnalysisResult:
     """Ajusta o modelo a cada resposta e devolve o resultado congelado.
@@ -72,6 +74,8 @@ def analisar(
     - `reduzir=True` aplica a eliminação backward por resposta (cada resposta
       pode terminar com termos diferentes).
     - `tipo_modelo` só é registrado nos metadados (os termos já chegam prontos).
+    - `analises` são os IDs marcados (spec §9; padrão: todos). Só registram a
+      escolha: o que é barato é calculado sempre.
     - `coluna_ordem` (opcional) é a ordem de execução dos ensaios, para o
       gráfico de resíduos × ordem (spec §9, D3).
     - `objetivos` (maximizar, minimizar ou alvo por resposta; `alvos` traz o
@@ -83,6 +87,11 @@ def analisar(
     na interface.
     """
     fatores = planejamento.nomes_fatores
+    desconhecidas = sorted(set(analises or ()) - set(IDS))
+    if desconhecidas:
+        raise ValueError(
+            f"Análises desconhecidas: {desconhecidas}. Use os IDs {list(IDS)}."
+        )
     exigidas = set(fatores) | set(respostas)
     ausentes = sorted(exigidas - set(tabela.colunas))
     if ausentes:
@@ -161,6 +170,7 @@ def analisar(
             tipo_modelo=tipo_modelo,
             termo_erro=termo_erro,
             reducao_backward=reduzir,
+            analises=list(analises) if analises is not None else list(IDS),
         ),
         ponto_otimo=ponto_otimo,
         avisos=avisos,

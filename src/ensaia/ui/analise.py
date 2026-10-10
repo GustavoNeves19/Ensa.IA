@@ -39,6 +39,7 @@ from nicegui.events import EChartPointClickEventArguments
 from ensaia import __version__
 from ensaia.ai.client import ClienteModelo, ConfiguracaoModelo, ErroDeIA
 from ensaia.ai.report import RelatorioTextual, gerar_relatorio
+from ensaia.core.catalogo import CATALOGO, GRUPOS, IDS, disponibilidade
 from ensaia.core.descritiva import matriz_codificada
 from ensaia.core.design import (
     INTERCEPTO,
@@ -56,6 +57,7 @@ from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
     Diagnostico,
+    EfeitosFatorial,
     LinhaAnova,
     PontoOtimo,
     Sentido,
@@ -131,6 +133,7 @@ def construir_analise(tabela: Table) -> None:
                         sel.disable()  # coluna de texto só pode ser ignorada
                     selects[coluna] = sel
 
+    painel_analises = _PainelAnalises(tabela, selects)
     opcoes = _Opcoes()
     _painel_opcoes(opcoes)
 
@@ -151,7 +154,12 @@ def construir_analise(tabela: Table) -> None:
             return
         try:
             analise, planejamento, candidatos = _rodar_analise(
-                tabela, fatores, respostas, opcoes, ordens[0] if ordens else None
+                tabela,
+                fatores,
+                respostas,
+                opcoes,
+                ordens[0] if ordens else None,
+                painel_analises.marcadas(),
             )
         except ValueError as erro:
             ui.notify(str(erro), type="negative", position="top", timeout=9000)
@@ -177,6 +185,78 @@ def construir_analise(tabela: Table) -> None:
     ui.button("Analisar", on_click=ao_analisar).props("unelevated").classes("ea-botao")
     # Os resultados aparecem ABAIXO do botão, na ordem de leitura.
     resultado = ui.column().classes("w-full ea-slot")
+
+
+class _PainelAnalises:
+    """As caixas de seleção das análises, agrupadas como na spec (§9).
+
+    A disponibilidade depende do mapeamento (quantos fatores, se há ordem, se há
+    réplicas…), então é recalculada a cada mudança nele. Compatíveis vêm
+    marcadas; incompatíveis ficam desabilitadas com o motivo no tooltip.
+    """
+
+    def __init__(self, tabela: Table, selects: dict[str, ui.select]) -> None:
+        self.tabela = tabela
+        self.selects = selects
+        self.caixas: dict[str, ui.checkbox] = {}
+        self.dicas: dict[str, ui.tooltip] = {}
+        self.expansao = (
+            ui.expansion("Análises").classes("ea-opcoes w-full").props(
+                "dense switch-toggle-side"
+            )
+        )
+        with self.expansao:
+            ui.html(
+                '<div class="ea-ler">As compatíveis com os seus dados já vêm '
+                "marcadas; as cinzas não se aplicam (passe o mouse para ver o "
+                "motivo). O que ficar desmarcado sai da tela e do PDF.</div>"
+            )
+            with ui.element("div").classes("ea-grupos"):
+                for grupo, titulo in GRUPOS.items():
+                    with ui.element("div").classes("ea-grupo"):
+                        ui.html(f'<div class="ea-grupo-titulo">{escape(titulo)}</div>')
+                        for analise in (a for a in CATALOGO if a.grupo == grupo):
+                            caixa = ui.checkbox(f"{analise.id} · {analise.nome}").props(
+                                "dense"
+                            )
+                            with caixa:
+                                self.dicas[analise.id] = ui.tooltip("")
+                            caixa.on_value_change(lambda _: self._rotular())
+                            self.caixas[analise.id] = caixa
+        for sel in selects.values():
+            sel.on_value_change(lambda _: self.atualizar())
+        self.atualizar()
+
+    def _colunas(self, papel: str) -> list[str]:
+        return [c for c, s in self.selects.items() if s.value == papel]
+
+    def atualizar(self) -> None:
+        fatores = {
+            c: [float(v) for v in self.tabela.coluna(c)] for c in self._colunas("Fator")
+        }
+        disponivel = disponibilidade(
+            fatores,
+            n_respostas=len(self._colunas("Resposta")),
+            tem_ordem=bool(self._colunas("Ordem")),
+        )
+        for id_, motivo in disponivel.items():
+            caixa = self.caixas[id_]
+            caixa.set_value(motivo is None)
+            if motivo is None:
+                caixa.enable()
+                self.dicas[id_].set_text("Compatível com os seus dados.")
+            else:
+                caixa.disable()
+                self.dicas[id_].set_text(f"Não se aplica: {motivo}.")
+        self._rotular()
+
+    def _rotular(self) -> None:
+        marcadas = len(self.marcadas())
+        habilitadas = sum(1 for c in self.caixas.values() if c.enabled)
+        self.expansao.props(f'label="Análises ({marcadas} de {habilitadas} marcadas)"')
+
+    def marcadas(self) -> list[str]:
+        return [id_ for id_, c in self.caixas.items() if c.value and c.enabled]
 
 
 def _painel_opcoes(opcoes: _Opcoes) -> None:
@@ -221,6 +301,7 @@ def _rodar_analise(
     respostas: list[str],
     opcoes: _Opcoes,
     coluna_ordem: str | None = None,
+    analises: list[str] | None = None,
 ) -> tuple[AnalysisResult, Planejamento, list[str]]:
     """Reconhece o planejamento, escolhe os termos e roda o núcleo.
 
@@ -254,6 +335,7 @@ def _rodar_analise(
         tipo_modelo=selecao.tipo_modelo,
         avisos_planejamento=[*identificacao.avisos, *selecao.avisos],
         coluna_ordem=coluna_ordem,
+        analises=analises,
     )
     return analise, planejamento, candidatos
 
@@ -281,18 +363,21 @@ def _mostrar_resultados(
     ui.html('<div class="ea-secao-titulo">Resultados</div>')
     ui.html(f'<div class="ea-secao-sub">{escape(" · ".join(partes))}</div>')
     _ajustar_modelo(candidatos, opcoes, reanalisar)
-    _dados_experimento(analise, planejamento, tabela)
+    sel = _marcadas(analise)
+    if sel & {"A1", "A3"}:
+        _dados_experimento(analise, planejamento, tabela, sel)
 
     for ajuste in analise.ajustes:
         with ui.element("div").classes("ea-resultado"):
             ui.html(f'<div class="ea-resp-nome">{escape(ajuste.resposta)}</div>')
-            r2 = (
-                f"R² = <b>{_fmt(ajuste.r2, 3)}</b> · "
-                f"R² ajustado = <b>{_fmt(ajuste.r2_ajustado, 3)}</b>"
-            )
-            if ajuste.r2_predicao is not None:
-                r2 += f" · R² de predição = <b>{_fmt(ajuste.r2_predicao, 3)}</b>"
-            ui.html(f'<div class="ea-r2">{r2}</div>')
+            if "C3" in sel:
+                r2 = (
+                    f"R² = <b>{_fmt(ajuste.r2, 3)}</b> · "
+                    f"R² ajustado = <b>{_fmt(ajuste.r2_ajustado, 3)}</b>"
+                )
+                if ajuste.r2_predicao is not None:
+                    r2 += f" · R² de predição = <b>{_fmt(ajuste.r2_predicao, 3)}</b>"
+                ui.html(f'<div class="ea-r2">{r2}</div>')
             notas = []
             if ajuste.termo_erro == "erro_puro":
                 notas.append("Testes feitos com o erro puro das réplicas.")
@@ -303,13 +388,16 @@ def _mostrar_resultados(
                 notas.append(f"Removidos pela redução: {removidos}.")
             if notas:
                 ui.html(f'<div class="ea-ler">{escape(" ".join(notas))}</div>')
-            _abas_resposta(ajuste, planejamento.fatores, alfa=analise.metadados.alfa)
+            _abas_resposta(
+                ajuste, planejamento.fatores, alfa=analise.metadados.alfa, sel=sel
+            )
 
     for aviso in analise.avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
 
     sessao = _Sessao(analise)
-    _bloco_otimizacao(sessao, planejamento)
+    if sel & {"E4", "E5"}:
+        _bloco_otimizacao(sessao, planejamento)
 
     relatorio = ui.column().classes("w-full ea-slot")
     with ui.element("div").classes("ea-acoes"):
@@ -324,14 +412,22 @@ def _mostrar_resultados(
     _bloco_baixar(sessao)
 
 
+def _marcadas(analise: AnalysisResult) -> frozenset[str]:
+    """Análises marcadas; um resultado antigo sem a lista mostra tudo."""
+    return frozenset(analise.metadados.analises or IDS)
+
+
 def _dados_experimento(
-    analise: AnalysisResult, planejamento: Planejamento, tabela: Table
+    analise: AnalysisResult,
+    planejamento: Planejamento,
+    tabela: Table,
+    sel: frozenset[str],
 ) -> None:
     """Estatística descritiva (A1) e matriz real × codificada (A3), recolhidas."""
     with ui.expansion("Dados do experimento").classes("ea-opcoes w-full").props(
         "dense switch-toggle-side"
     ):
-        if analise.descritiva:
+        if analise.descritiva and "A1" in sel:
             ui.html('<div class="ea-tabela-rotulo">Estatística descritiva</div>')
             colunas = [
                 {
@@ -366,6 +462,8 @@ def _dados_experimento(
                 "flat bordered dense hide-bottom"
             ).classes("ensaia-previa w-full")
 
+        if "A3" not in sel:
+            return
         ui.html(
             '<div class="ea-tabela-rotulo">Matriz do planejamento '
             "(real e, entre parênteses, codificado)</div>"
@@ -630,8 +728,20 @@ _ABA_DIAGNOSTICO = "Diagnóstico"
 _ABA_SUPERFICIE = "Superfície"
 
 
+_POR_ABA = {
+    _ABA_EFEITOS: {"B1", "B2", "B3", "B4", "B5", "C1", "C5"},
+    _ABA_ANOVA: {"C2", "C4"},
+    _ABA_DIAGNOSTICO: {"C6", "D1", "D2", "D3", "D4"},
+    _ABA_SUPERFICIE: {"E1", "E2", "E3"},
+}
+
+
 def _abas_resposta(
-    ajuste: AjusteResposta, fatores: list[Fator], *, alfa: float
+    ajuste: AjusteResposta,
+    fatores: list[Fator],
+    *,
+    alfa: float,
+    sel: frozenset[str] = frozenset(IDS),
 ) -> None:
     """Abas de uma resposta, cada uma montada só na primeira vez que é aberta.
 
@@ -639,10 +749,14 @@ def _abas_resposta(
     efeito para a forma da resposta): uma interação a × b abre a superfície com
     a e b nos eixos.
     """
-    nomes = [_ABA_EFEITOS, _ABA_ANOVA, _ABA_DIAGNOSTICO]
-    tem_superficie = len(fatores) >= 2
-    if tem_superficie:
-        nomes.append(_ABA_SUPERFICIE)
+    tem_superficie = len(fatores) >= 2 and bool(sel & _POR_ABA[_ABA_SUPERFICIE])
+    nomes = [
+        nome
+        for nome in (_ABA_EFEITOS, _ABA_ANOVA, _ABA_DIAGNOSTICO, _ABA_SUPERFICIE)
+        if sel & _POR_ABA[nome] and (nome != _ABA_SUPERFICIE or tem_superficie)
+    ]
+    if not nomes:
+        return
 
     abas = (
         ui.tabs()
@@ -656,7 +770,7 @@ def _abas_resposta(
         for nome in nomes:
             ui.tab(nome)
     caixas: dict[str, ui.column] = {}
-    with ui.tab_panels(abas, value=_ABA_EFEITOS, animated=False).classes(
+    with ui.tab_panels(abas, value=nomes[0], animated=False).classes(
         "w-full ea-paineis"
     ):
         for nome in nomes:
@@ -672,13 +786,15 @@ def _abas_resposta(
         montadas.add(nome)
         with caixas[nome]:
             if nome == _ABA_EFEITOS:
-                _aba_efeitos(ajuste, alfa, ao_clicar_termo if tem_superficie else None)
+                _aba_efeitos(
+                    ajuste, alfa, ao_clicar_termo if tem_superficie else None, sel
+                )
             elif nome == _ABA_ANOVA:
-                _aba_anova(ajuste, alfa)
+                _aba_anova(ajuste, alfa, sel)
             elif nome == _ABA_DIAGNOSTICO:
-                _aba_diagnostico(ajuste, alfa)
+                _aba_diagnostico(ajuste, alfa, sel)
             else:
-                painel["superficie"] = _PainelSuperficie(ajuste, fatores)
+                painel["superficie"] = _PainelSuperficie(ajuste, fatores, sel)
 
     def ao_clicar_termo(termo: str) -> None:
         envolvidos = list(dict.fromkeys(n for n, _ in interpretar_termo(termo)))
@@ -687,7 +803,7 @@ def _abas_resposta(
         painel["superficie"].focar(envolvidos)
 
     abas.on_value_change(lambda e: abrir(e.value))
-    abrir(_ABA_EFEITOS)
+    abrir(nomes[0])
 
 
 def _grafico(
@@ -703,6 +819,23 @@ def _grafico(
 
 
 def _aba_efeitos(
+    ajuste: AjusteResposta,
+    alfa: float,
+    ao_clicar: Callable[[str], None] | None,
+    sel: frozenset[str] = frozenset(IDS),
+) -> None:
+    if "B2" in sel:
+        _pareto(ajuste, alfa, ao_clicar)
+    if ajuste.efeitos_fatorial is not None:
+        _bloco_fatorial(ajuste, alfa, sel)
+    if "C1" in sel:
+        ui.html('<div class="ea-tabela-rotulo">Coeficientes (escala codificada)</div>')
+        _tabela_coeficientes(ajuste)
+    if "C5" in sel:
+        _equacao(ajuste)
+
+
+def _pareto(
     ajuste: AjusteResposta, alfa: float, ao_clicar: Callable[[str], None] | None
 ) -> None:
     ui.html('<div class="ea-grafico-titulo">Pareto dos efeitos padronizados</div>')
@@ -732,18 +865,26 @@ def _aba_efeitos(
         '<div class="ea-ler">Quanto maior a barra, mais o termo mexe na resposta. '
         f"{corte}{dica}</div>"
     )
-    if ajuste.efeitos_fatorial is not None:
-        _bloco_fatorial(ajuste, alfa)
-    ui.html('<div class="ea-tabela-rotulo">Coeficientes (escala codificada)</div>')
-    _tabela_coeficientes(ajuste)
-    _equacao(ajuste)
 
 
-def _bloco_fatorial(ajuste: AjusteResposta, alfa: float) -> None:
-    """Efeitos, meio-normal (Lenth), efeitos principais, interação e curvatura."""
+def _bloco_fatorial(
+    ajuste: AjusteResposta, alfa: float, sel: frozenset[str] = frozenset(IDS)
+) -> None:
+    """Efeitos (B1), meio-normal (B3), efeito e interação (B4) e curvatura (B5)."""
     ef = ajuste.efeitos_fatorial
     assert ef is not None
+    if "B1" in sel:
+        _tabela_efeitos(ef)
+    if ef.lenth is not None and "B3" in sel:
+        _meio_normal(ef)
+    if "B4" in sel:
+        _efeitos_principais(ef)
+        _interacao(ef)
+    if "B5" in sel:
+        ui.html(f'<div class="ea-ler">{_texto_curvatura(ef.curvatura, alfa)}</div>')
 
+
+def _tabela_efeitos(ef: EfeitosFatorial) -> None:
     ui.html('<div class="ea-tabela-rotulo">Efeitos (de −1 a +1)</div>')
     colunas = [
         {"name": "termo", "label": "Termo", "field": "termo", "align": "left"},
@@ -766,54 +907,60 @@ def _bloco_fatorial(ajuste: AjusteResposta, alfa: float) -> None:
         "flat bordered dense hide-bottom"
     ).classes("ensaia-previa w-full")
 
-    if ef.lenth is not None:
-        ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
-        ui.html('<div class="ea-grafico-titulo">Gráfico meio-normal dos efeitos</div>')
-        _grafico(
-            graficos.opcoes_meio_normal(
-                pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
-            ),
-            300,
-        )
-        ui.html(
-            '<div class="ea-ler">Efeitos que são só ruído se alinham perto da origem; '
-            "os que se afastam para a direita da <b>linha tracejada</b> (margem de "
-            f"Lenth, ME = {_fmt(ef.lenth.me, 3)}) são ativos. Útil quando não há "
-            "réplicas para estimar o erro.</div>"
-        )
 
-    if ef.medias_principais:
-        todas = [v for m in ef.medias_principais for v in m.medias]
-        baixo, alto = min(todas), max(todas)
-        folga = (alto - baixo) * 0.12 or 1.0
-        ui.html('<div class="ea-grafico-titulo">Efeitos principais</div>')
-        with ui.element("div").classes("ea-multiplos"):
-            for m in ef.medias_principais:
-                _grafico(graficos.opcoes_medias(m, baixo - folga, alto + folga), 200)
-        ui.html(
-            '<div class="ea-ler">Média da resposta em cada nível, na mesma escala: '
-            "quanto mais inclinada a linha, maior o efeito do fator.</div>"
-        )
+def _meio_normal(ef: EfeitosFatorial) -> None:
+    assert ef.lenth is not None
+    ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
+    ui.html('<div class="ea-grafico-titulo">Gráfico meio-normal dos efeitos</div>')
+    _grafico(
+        graficos.opcoes_meio_normal(
+            pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
+        ),
+        300,
+    )
+    ui.html(
+        '<div class="ea-ler">Efeitos que são só ruído se alinham perto da origem; '
+        "os que se afastam para a direita da <b>linha tracejada</b> (margem de "
+        f"Lenth, ME = {_fmt(ef.lenth.me, 3)}) são ativos. Útil quando não há "
+        "réplicas para estimar o erro.</div>"
+    )
 
-    if ef.medias_interacoes:
-        efeito_de = {e.termo: abs(e.efeito) for e in ef.efeitos}
-        mais_forte = max(
-            ef.medias_interacoes,
-            key=lambda m: efeito_de.get(f"{m.fator_a}:{m.fator_b}", 0.0),
-        )
-        ui.html(
-            '<div class="ea-grafico-titulo">Interação '
-            f"{escape(nome_legivel(mais_forte.fator_a))} × "
-            f"{escape(nome_legivel(mais_forte.fator_b))}</div>"
-        )
-        _grafico(graficos.opcoes_interacao(mais_forte), 280)
-        ui.html(
-            '<div class="ea-ler">A interação mais forte do modelo. Linhas paralelas: '
-            "os fatores agem cada um por si; linhas que se abrem ou se cruzam: o "
-            "efeito de um depende do nível do outro.</div>"
-        )
 
-    ui.html(f'<div class="ea-ler">{_texto_curvatura(ef.curvatura, alfa)}</div>')
+def _efeitos_principais(ef: EfeitosFatorial) -> None:
+    if not ef.medias_principais:
+        return
+    todas = [v for m in ef.medias_principais for v in m.medias]
+    baixo, alto = min(todas), max(todas)
+    folga = (alto - baixo) * 0.12 or 1.0
+    ui.html('<div class="ea-grafico-titulo">Efeitos principais</div>')
+    with ui.element("div").classes("ea-multiplos"):
+        for m in ef.medias_principais:
+            _grafico(graficos.opcoes_medias(m, baixo - folga, alto + folga), 200)
+    ui.html(
+        '<div class="ea-ler">Média da resposta em cada nível, na mesma escala: '
+        "quanto mais inclinada a linha, maior o efeito do fator.</div>"
+    )
+
+
+def _interacao(ef: EfeitosFatorial) -> None:
+    if not ef.medias_interacoes:
+        return
+    efeito_de = {e.termo: abs(e.efeito) for e in ef.efeitos}
+    mais_forte = max(
+        ef.medias_interacoes,
+        key=lambda m: efeito_de.get(f"{m.fator_a}:{m.fator_b}", 0.0),
+    )
+    ui.html(
+        '<div class="ea-grafico-titulo">Interação '
+        f"{escape(nome_legivel(mais_forte.fator_a))} × "
+        f"{escape(nome_legivel(mais_forte.fator_b))}</div>"
+    )
+    _grafico(graficos.opcoes_interacao(mais_forte), 280)
+    ui.html(
+        '<div class="ea-ler">A interação mais forte do modelo. Linhas paralelas: '
+        "os fatores agem cada um por si; linhas que se abrem ou se cruzam: o "
+        "efeito de um depende do nível do outro.</div>"
+    )
 
 
 def _texto_curvatura(curvatura: TesteCurvatura, alfa: float) -> str:
@@ -845,9 +992,11 @@ def _equacao(ajuste: AjusteResposta) -> None:
     )
 
 
-def _aba_anova(ajuste: AjusteResposta, alfa: float) -> None:
+def _aba_anova(
+    ajuste: AjusteResposta, alfa: float, sel: frozenset[str] = frozenset(IDS)
+) -> None:
     reg = ajuste.anova_regressao
-    if reg is not None:
+    if reg is not None and "C2" in sel:
         ui.html('<div class="ea-tabela-rotulo">ANOVA da regressão</div>')
         _tabela_anova(reg.linhas)
         if reg.razao_f is not None and reg.f_tabelado is not None:
@@ -861,19 +1010,25 @@ def _aba_anova(ajuste: AjusteResposta, alfa: float) -> None:
                 f"<b>{_fmt(reg.razao_f, 2)}</b> (F tabelado = "
                 f"{_fmt(reg.f_tabelado, 2)} a α = {_fmt(alfa, 2)}), {leitura}.</div>"
             )
-    if ajuste.anova:
-        ui.html(
-            '<div class="ea-tabela-rotulo">Efeito de cada termo (ANOVA Tipo II)</div>'
-        )
-        _tabela_anova(ajuste.anova)
-    else:
-        ui.html(
-            '<div class="ea-ler">ANOVA Tipo II indisponível para este modelo.</div>'
-        )
-    ui.html(f'<div class="ea-falta">{escape(_texto_falta(ajuste))}</div>')
+    if "C2" in sel:
+        if ajuste.anova:
+            ui.html(
+                '<div class="ea-tabela-rotulo">Efeito de cada termo '
+                "(ANOVA Tipo II)</div>"
+            )
+            _tabela_anova(ajuste.anova)
+        else:
+            ui.html(
+                '<div class="ea-ler">ANOVA Tipo II indisponível para este modelo.'
+                "</div>"
+            )
+    if "C4" in sel:
+        ui.html(f'<div class="ea-falta">{escape(_texto_falta(ajuste))}</div>')
 
 
-def _aba_diagnostico(ajuste: AjusteResposta, alfa: float) -> None:
+def _aba_diagnostico(
+    ajuste: AjusteResposta, alfa: float, sel: frozenset[str] = frozenset(IDS)
+) -> None:
     d = ajuste.diagnostico
     if d is None:
         ui.html(
@@ -882,21 +1037,25 @@ def _aba_diagnostico(ajuste: AjusteResposta, alfa: float) -> None:
         )
         return
 
-    ui.html('<div class="ea-grafico-titulo">Previsto × observado</div>')
-    _grafico(graficos.opcoes_preditos_observados(ajuste), 300)
-    ui.html(
-        '<div class="ea-ler">Ponto sobre a linha <b>y = x</b> é ensaio que o modelo '
-        "acerta; quanto mais longe da linha, maior o erro naquele ensaio.</div>"
-    )
+    if "C6" in sel:
+        ui.html('<div class="ea-grafico-titulo">Previsto × observado</div>')
+        _grafico(graficos.opcoes_preditos_observados(ajuste), 300)
+        ui.html(
+            '<div class="ea-ler">Ponto sobre a linha <b>y = x</b> é ensaio que o '
+            "modelo acerta; quanto mais longe da linha, maior o erro naquele "
+            "ensaio.</div>"
+        )
 
-    ui.html('<div class="ea-grafico-titulo">Resíduos × previsto</div>')
-    _grafico(graficos.opcoes_residuos_preditos(ajuste), 280)
-    ui.html(
-        '<div class="ea-ler">Os pontos devem se espalhar ao acaso em torno do zero. '
-        "Funil, curva ou tendência indicam algo que o modelo deixou de fora.</div>"
-    )
+    if "D1" in sel:
+        ui.html('<div class="ea-grafico-titulo">Resíduos × previsto</div>')
+        _grafico(graficos.opcoes_residuos_preditos(ajuste), 280)
+        ui.html(
+            '<div class="ea-ler">Os pontos devem se espalhar ao acaso em torno do '
+            "zero. Funil, curva ou tendência indicam algo que o modelo deixou de "
+            "fora.</div>"
+        )
 
-    if d.ordem is not None:
+    if d.ordem is not None and "D3" in sel:
         ui.html('<div class="ea-grafico-titulo">Resíduos × ordem de execução</div>')
         _grafico(graficos.opcoes_residuos_ordem(ajuste), 260)
         ui.html(
@@ -905,11 +1064,13 @@ def _aba_diagnostico(ajuste: AjusteResposta, alfa: float) -> None:
             "equipamento, do reagente ou do operador ao longo do tempo.</div>"
         )
 
-    ui.html('<div class="ea-grafico-titulo">Normalidade dos resíduos (Q-Q)</div>')
-    _grafico(graficos.opcoes_qq(pontos_qq(d.residuos)), 280)
-    ui.html(f'<div class="ea-ler">{_texto_normalidade(ajuste, alfa)}</div>')
+    if "D2" in sel:
+        ui.html('<div class="ea-grafico-titulo">Normalidade dos resíduos (Q-Q)</div>')
+        _grafico(graficos.opcoes_qq(pontos_qq(d.residuos)), 280)
+        ui.html(f'<div class="ea-ler">{_texto_normalidade(ajuste, alfa)}</div>')
 
-    ui.html(f'<div class="ea-ler">{_texto_influencia(d)}</div>')
+    if "D4" in sel:
+        ui.html(f'<div class="ea-ler">{_texto_influencia(d)}</div>')
     ui.html('<div class="ea-tabela-rotulo">Valores por ensaio</div>')
     colunas = [
         {"name": "n", "label": "Ensaio", "field": "n", "align": "left"},
@@ -1003,9 +1164,18 @@ class _PainelSuperficie:
     carrega a echarts-gl só quando pedido (spec RNF-11: primeira carga leve).
     """
 
-    def __init__(self, ajuste: AjusteResposta, fatores: list[Fator]) -> None:
+    def __init__(
+        self,
+        ajuste: AjusteResposta,
+        fatores: list[Fator],
+        sel: frozenset[str] = frozenset(IDS),
+    ) -> None:
         self.ajuste = ajuste
         self.fatores = fatores
+        candidatas = (("contorno", "Contorno", "E2"), ("3d", "3D", "E1"))
+        formas = {chave: rotulo for chave, rotulo, id_ in candidatas if id_ in sel} or {
+            "contorno": "Contorno"
+        }
         self.fixos: dict[str, float] = {f.nome: f.centro for f in fatores}
         nomes = [f.nome for f in fatores]
         x, y = _par_inicial(ajuste, nomes)
@@ -1021,14 +1191,16 @@ class _PainelSuperficie:
                 "dense outlined"
             )
             self.forma = (
-                ui.toggle({"contorno": "Contorno", "3d": "3D"}, value="contorno")
+                ui.toggle(formas, value=next(iter(formas)))
                 .props(
                     "no-caps unelevated dense color=white text-color=primary "
                     "toggle-color=primary toggle-text-color=white"
                 )
                 .classes("ea-forma")
             )
-        self.estacionario = ajuste.ponto_estacionario
+        if len(formas) == 1:
+            self.forma.set_visibility(False)  # só uma forma marcada: sem escolha
+        self.estacionario = ajuste.ponto_estacionario if "E3" in sel else None
         if self.estacionario is not None:
             self._linha_estacionario()
         self.area_fixos = ui.element("div").classes("ea-controles")

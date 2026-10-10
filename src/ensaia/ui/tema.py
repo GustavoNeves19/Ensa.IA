@@ -307,6 +307,14 @@ def _css() -> str:
     .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
       gap: .55rem; padding: .35rem 0 .6rem; }}
     .ea-ajustar {{ margin: .2rem 0 .4rem; }}
+    /* Catálogo de análises: um bloco por grupo da spec, lado a lado. */
+    .ea-grupos {{ display: grid; gap: .9rem 1.4rem; width: 100%;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }}
+    .ea-grupo {{ display: flex; flex-direction: column; gap: .1rem; }}
+    .ea-grupo-titulo {{ font-weight: 600; font-size: .85rem; color: var(--tinta);
+      margin-bottom: .15rem; }}
+    .ea-grupo .q-checkbox__label {{ font-size: .85rem; color: var(--tinta); }}
+    .ea-grupo .q-checkbox.disabled .q-checkbox__label {{ color: var(--cinza); }}
     /* Pequenos múltiplos (efeitos principais): mesma escala, lado a lado. */
     .ea-multiplos {{ display: grid; gap: .25rem .75rem; width: 100%;
       grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }}
