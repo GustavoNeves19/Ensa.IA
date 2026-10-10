@@ -39,6 +39,36 @@ def test_analisar_monta_resultado_coerente() -> None:
     assert resultado.ponto_otimo is None
 
 
+def test_analisar_preenche_t_critico_e_diagnostico() -> None:
+    from scipy import stats
+
+    # Resposta com ruído, para sobrar resíduo de verdade.
+    tabela = _tabela_linear()
+    ruido = [0.3, -0.2, 0.1, -0.4, 0.2, 0.1, -0.3, 0.2]
+    y = [v + e for v, e in zip(tabela.coluna("y"), ruido, strict=True)]
+    tabela = Table.de_colunas(
+        {"x1": list(tabela.coluna("x1")), "x2": list(tabela.coluna("x2")), "y": y}
+    )
+    termos = termos_do_modelo(["x1", "x2"], incluir_quadraticos=False, grau_interacao=2)
+    resultado = analisar(tabela, _planejamento(), termos, ["y"], versao_ensaia="t")
+    ajuste = resultado.ajustes[0]
+
+    gl = ajuste.graus_liberdade_residuo
+    assert ajuste.t_critico == pytest.approx(stats.t.ppf(0.975, df=gl))
+    # O limiar do Pareto concorda com a marcação de significância: |t| > t_crit ⇔ p < α.
+    for c in ajuste.coeficientes:
+        assert (abs(c.valor_t) > ajuste.t_critico) == c.significativo
+
+    d = ajuste.diagnostico
+    assert d is not None
+    assert d.observados == pytest.approx(y)
+    assert [o - p for o, p in zip(d.observados, d.preditos, strict=True)] == (
+        pytest.approx(d.residuos)
+    )
+    assert sum(d.residuos) == pytest.approx(0.0, abs=1e-9)  # modelo com intercepto
+    assert d.shapiro_p is not None
+
+
 def test_analisar_coluna_ausente_falha_claro() -> None:
     plan = Planejamento(
         tipo="fatorial_completo",

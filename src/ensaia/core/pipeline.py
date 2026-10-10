@@ -19,7 +19,8 @@ import numpy as np
 
 from ensaia.core.anova import teste_falta_ajuste
 from ensaia.core.design import Planejamento
-from ensaia.core.effects import extrair_coeficientes
+from ensaia.core.diagnostico import diagnosticar
+from ensaia.core.effects import extrair_coeficientes, t_critico
 from ensaia.core.model import AjusteOLS, ajustar_ols, matriz_modelo
 from ensaia.core.results import (
     AjusteResposta,
@@ -107,8 +108,9 @@ def _ajuste_resposta(
     """Empacota um ajuste OLS no contrato congelado `AjusteResposta`.
 
     A extração de coeficientes é delegada a `effects.extrair_coeficientes` (fonte
-    única da tradução termo→coeficiente/significância) e a falta de ajuste a
-    `anova.teste_falta_ajuste`, que precisa dos dados crus para achar réplicas.
+    única da tradução termo→coeficiente/significância), a falta de ajuste a
+    `anova.teste_falta_ajuste`, que precisa dos dados crus para achar réplicas, e
+    os valores por ensaio + normalidade a `diagnostico.diagnosticar`.
     """
     return AjusteResposta(
         resposta=resposta,
@@ -120,6 +122,10 @@ def _ajuste_resposta(
         n_observacoes=ajuste.n_observacoes,
         graus_liberdade_residuo=ajuste.gl_residuo,
         termos_incluidos=list(termos),
+        t_critico=t_critico(alfa, ajuste.gl_residuo),
+        diagnostico=diagnosticar(
+            dados.coluna(resposta), ajuste.valores_ajustados, alfa=alfa
+        ),
     )
 
 
