@@ -300,6 +300,17 @@ def _css() -> str:
       align-items: flex-end; }}
     .ea-controles .q-field {{ min-width: 150px; }}
     .ea-forma {{ border: 1px solid var(--linha); border-radius: 10px; }}
+    /* Opções do modelo: recolhidas, sem caixa; o cabeçalho fala baixo. */
+    .ea-opcoes {{ color: var(--cinza); }}
+    .ea-opcoes .q-item {{ padding-left: 0; min-height: 36px; }}
+    .ea-opcoes .q-item__label {{ font-weight: 600; font-size: .9rem; }}
+    .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
+      gap: .55rem; padding: .35rem 0 .6rem; }}
+    .ea-ajustar {{ margin: .2rem 0 .4rem; }}
+    .ea-fora {{ min-width: 260px; flex: 1; max-width: 520px; }}
+    /* Equação: texto de dado, em tinta, quebrando onde precisar. */
+    .ea-equacao {{ font-size: .95rem; line-height: 1.65; color: var(--tinta);
+      overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }}
     .ea-forma .q-btn {{ border-radius: 9px; font-weight: 600; letter-spacing: 0;
       padding: .25rem .8rem; }}
     .ea-fixo {{ display: flex; flex-direction: column; gap: .1rem;

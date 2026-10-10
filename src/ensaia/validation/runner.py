@@ -21,7 +21,12 @@ import yaml
 from ensaia import __version__
 from ensaia.core.design import Fator, Planejamento, termos_do_modelo
 from ensaia.core.pipeline import analisar
-from ensaia.core.results import SCHEMA_VERSION, AnalysisResult, TipoPlanejamento
+from ensaia.core.results import (
+    SCHEMA_VERSION,
+    AnalysisResult,
+    TermoErro,
+    TipoPlanejamento,
+)
 from ensaia.io.readers import ler_dados
 from ensaia.validation import metrics
 
@@ -85,6 +90,10 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
             versao_ensaia=__version__,
             alfa=ALFA,
             executado_em=executado_em,
+            # Reproduzir o termo de erro do artigo é essencial para comparar os
+            # testes t (spec §9): Statistica e artigos brasileiros costumam usar
+            # o erro puro; o padrão segue o resíduo.
+            termo_erro=_termo_erro(referencia),
         )
     except ValueError as erro:
         raise ValueError(f"{caso.name}: {erro}") from erro
@@ -198,6 +207,15 @@ def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
         fatores.append(Fator(nome, minimo, maximo, str(faixa.get("unidade", ""))))
 
     return Planejamento(tipo=cast(TipoPlanejamento, tipo), fatores=fatores)
+
+
+def _termo_erro(referencia: dict[str, Any]) -> TermoErro:
+    termo = referencia.get("termo_erro", "residuo")
+    if termo not in get_args(TermoErro):
+        raise ValueError(
+            f"termo_erro inválido: {termo!r}. Use 'residuo' ou 'erro_puro'."
+        )
+    return cast(TermoErro, termo)
 
 
 def _termos_publicados(referencia: dict[str, Any], fatores: list[str]) -> list[str]:

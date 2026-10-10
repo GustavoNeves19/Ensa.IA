@@ -12,8 +12,8 @@ O termo 'dose_adsorvente' é significativo (p = 0,0003 < 0,05). O termo 'tempo_m
 
 ## Qualidade do ajuste (ANOVA e R²)
 
-O modelo explica 98,5% da variação da resposta 'remocao_mnz' (R² = 0,985; R² ajustado = 0,959).
+O modelo explica 98,5% da variação da resposta 'remocao_mnz' (R² = 0,985; R² ajustado = 0,959). A regressão é significativa (p = 0,0005 < 0,05): F calculado = 37,27, F tabelado = 4,77, razão = 7,81. O R² de predição é 0,786.
 
 ## Diagnóstico do modelo
 
-Não há evidência de falta de ajuste (p = 0,1547 ≥ 0,05).
+Não há evidência de falta de ajuste (p = 0,1547 ≥ 0,05). O teste de Shapiro-Wilk não indica desvio da normalidade dos resíduos (W = 0,942; p = 0,4113 ≥ 0,05).

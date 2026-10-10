@@ -26,10 +26,11 @@ from __future__ import annotations
 import math
 import os
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 from html import escape
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from nicegui import run, ui
 from nicegui.events import EChartPointClickEventArguments
@@ -42,16 +43,41 @@ from ensaia.core.design import (
     Fator,
     Planejamento,
     interpretar_termo,
-    termos_do_modelo,
 )
 from ensaia.core.diagnostico import pontos_qq
-from ensaia.core.identificacao import Identificacao, identificar_planejamento
+from ensaia.core.identificacao import identificar_planejamento
 from ensaia.core.pipeline import analisar
-from ensaia.core.results import NOME_PLANEJAMENTO, AjusteResposta, AnalysisResult
+from ensaia.core.results import (
+    NOME_PLANEJAMENTO,
+    AjusteResposta,
+    AnalysisResult,
+    LinhaAnova,
+    TermoErro,
+    TipoModelo,
+)
 from ensaia.core.surface import PONTOS_PADRAO, grade_superficie
 from ensaia.core.table import Table
+from ensaia.core.termos import NOME_MODELO, escolher_termos, termos_do_tipo
 from ensaia.ui import graficos
 from ensaia.ui.graficos import nome_legivel
+
+_MODELOS = {
+    "auto": "Automático (pelo planejamento)",
+    "linear": "Linear",
+    "interacoes": "Com interações",
+    "quadratico": "Quadrático",
+}
+
+
+@dataclass
+class _Opcoes:
+    """Escolhas do usuário sobre o modelo (spec §4, opções avançadas)."""
+
+    tipo_modelo: str = "auto"
+    termo_erro: str = "residuo"
+    alfa: float = 0.05
+    reduzir: bool = False
+    excluidos: list[str] = field(default_factory=list)
 
 
 def construir_analise(tabela: Table) -> None:
@@ -87,7 +113,10 @@ def construir_analise(tabela: Table) -> None:
                         sel.disable()  # coluna de texto só pode ser ignorada
                     selects[coluna] = sel
 
-    def ao_analisar() -> None:
+    opcoes = _Opcoes()
+    _painel_opcoes(opcoes)
+
+    def analisar_e_mostrar() -> None:
         fatores = [c for c, s in selects.items() if s.value == "Fator"]
         respostas = [c for c, s in selects.items() if s.value == "Resposta"]
         if not fatores:
@@ -97,7 +126,9 @@ def construir_analise(tabela: Table) -> None:
             ui.notify("Escolha ao menos uma coluna como Resposta.", type="warning")
             return
         try:
-            analise, planejamento = _rodar_analise(tabela, fatores, respostas)
+            analise, planejamento, candidatos = _rodar_analise(
+                tabela, fatores, respostas, opcoes
+            )
         except ValueError as erro:
             ui.notify(str(erro), type="negative", position="top", timeout=9000)
             return
@@ -111,60 +142,92 @@ def construir_analise(tabela: Table) -> None:
             return
         resultado.clear()
         with resultado:
-            _mostrar_resultados(analise, planejamento)
+            _mostrar_resultados(
+                analise, planejamento, candidatos, opcoes, analisar_e_mostrar
+            )
+
+    def ao_analisar() -> None:
+        opcoes.excluidos.clear()  # nova análise parte do modelo completo
+        analisar_e_mostrar()
 
     ui.button("Analisar", on_click=ao_analisar).props("unelevated").classes("ea-botao")
     # Os resultados aparecem ABAIXO do botão, na ordem de leitura.
     resultado = ui.column().classes("w-full ea-slot")
 
 
-def _rodar_analise(
-    tabela: Table, fatores: list[str], respostas: list[str]
-) -> tuple[AnalysisResult, Planejamento]:
-    """Monta o delineamento a partir dos dados e roda o núcleo.
+def _painel_opcoes(opcoes: _Opcoes) -> None:
+    """Opções avançadas, recolhidas: o padrão já serve a quem está começando."""
+    with ui.expansion("Opções do modelo").classes("ea-opcoes w-full").props(
+        "dense switch-toggle-side"
+    ):
+        with ui.element("div").classes("ea-controles"):
+            ui.select(_MODELOS, label="Modelo").props("dense outlined").bind_value(
+                opcoes, "tipo_modelo"
+            )
+            ui.toggle({"residuo": "Resíduo", "erro_puro": "Erro puro"}).props(
+                "no-caps unelevated dense color=white text-color=primary "
+                "toggle-color=primary toggle-text-color=white"
+            ).classes("ea-forma").bind_value(opcoes, "termo_erro")
+            ui.toggle({0.05: "α = 0,05", 0.10: "α = 0,10"}).props(
+                "no-caps unelevated dense color=white text-color=primary "
+                "toggle-color=primary toggle-text-color=white"
+            ).classes("ea-forma").bind_value(opcoes, "alfa")
+        ui.checkbox("Remover termos não significativos e reajustar").bind_value(
+            opcoes, "reduzir"
+        )
+        ui.html(
+            '<div class="ea-ler">Para reproduzir um artigo, use o mesmo termo de '
+            "erro dele: o Minitab costuma usar o <b>resíduo</b>; o Statistica e "
+            "muitos artigos brasileiros, o <b>erro puro</b> (exige réplicas, "
+            "como os pontos centrais).</div>"
+        )
 
-    Devolve também o `Planejamento`: a superfície precisa das faixas dos fatores
-    para converter a grade codificada em unidades reais.
+
+def _rodar_analise(
+    tabela: Table, fatores: list[str], respostas: list[str], opcoes: _Opcoes
+) -> tuple[AnalysisResult, Planejamento, list[str]]:
+    """Reconhece o planejamento, escolhe os termos e roda o núcleo.
+
+    Devolve também o `Planejamento` (a superfície precisa das faixas dos fatores)
+    e os termos candidatos do modelo, para o usuário escolher o que excluir.
     """
     identificacao = identificar_planejamento(
         {nome: [float(v) for v in tabela.coluna(nome)] for nome in fatores}
     )
     planejamento = identificacao.planejamento
-    termos = _escolher_termos(fatores, identificacao, len(tabela))
+    pedido = None if opcoes.tipo_modelo == "auto" else opcoes.tipo_modelo
+    selecao = escolher_termos(
+        tabela,
+        planejamento,
+        tipo_modelo=cast(TipoModelo | None, pedido),
+        excluidos=opcoes.excluidos,
+    )
+    niveis = {f.fator.nome: len(f.niveis) for f in identificacao.fatores}
+    candidatos = [
+        t for t in termos_do_tipo(niveis, selecao.tipo_modelo) if t != INTERCEPTO
+    ]
     analise = analisar(
         tabela,
         planejamento,
-        termos,
+        selecao.termos,
         respostas,
         versao_ensaia=__version__,
-        avisos_planejamento=identificacao.avisos,
+        alfa=opcoes.alfa,
+        termo_erro=cast(TermoErro, opcoes.termo_erro),
+        reduzir=opcoes.reduzir,
+        tipo_modelo=selecao.tipo_modelo,
+        avisos_planejamento=[*identificacao.avisos, *selecao.avisos],
     )
-    return analise, planejamento
+    return analise, planejamento, candidatos
 
 
-def _escolher_termos(
-    fatores: list[str], identificacao: Identificacao, n_obs: int
-) -> list[str]:
-    """Escolhe os termos do modelo, degradando para caber nos graus de liberdade.
-
-    Planejamento de 2 níveis não tem como estimar curvatura (quadráticos), então
-    entram só lineares + interações. Para os demais, tenta o modelo quadrático
-    completo; se não houver observações suficientes (precisa sobrar grau de
-    liberdade para o resíduo), cai para sem-quadráticos e, no limite, só lineares.
-    """
-    quadraticos = all(len(f.niveis) >= 3 for f in identificacao.fatores)
-    candidatos = [
-        termos_do_modelo(fatores, incluir_quadraticos=quadraticos, grau_interacao=2),
-        termos_do_modelo(fatores, incluir_quadraticos=False, grau_interacao=2),
-        termos_do_modelo(fatores, incluir_quadraticos=False, grau_interacao=1),
-    ]
-    for termos in candidatos:
-        if len(termos) < n_obs:
-            return termos
-    return candidatos[-1]  # ainda que aperte, deixa o núcleo decidir e avisar
-
-
-def _mostrar_resultados(analise: AnalysisResult, planejamento: Planejamento) -> None:
+def _mostrar_resultados(
+    analise: AnalysisResult,
+    planejamento: Planejamento,
+    candidatos: list[str],
+    opcoes: _Opcoes,
+    reanalisar: Callable[[], None],
+) -> None:
     tipo = NOME_PLANEJAMENTO.get(analise.tipo_planejamento, analise.tipo_planejamento)
     primeiro = analise.ajustes[0]
     partes = [tipo[:1].upper() + tipo[1:], f"{primeiro.n_observacoes} ensaios"]
@@ -174,17 +237,33 @@ def _mostrar_resultados(analise: AnalysisResult, planejamento: Planejamento) -> 
             partes[-1] += f" ({info.n_pontos_centrais} no ponto central)"
         if info.alfa_axial is not None:
             partes.append(f"α axial = {_fmt(info.alfa_axial, 3)}")
-    partes.append(f"modelo com {len(primeiro.termos_incluidos)} termos")
+    modelo = analise.metadados.tipo_modelo
+    nome_modelo = f"modelo {NOME_MODELO[modelo]}" if modelo else "modelo"
+    partes.append(f"{nome_modelo} com {len(primeiro.termos_incluidos)} termos")
     ui.html('<div class="ea-secao-titulo">Resultados</div>')
     ui.html(f'<div class="ea-secao-sub">{escape(" · ".join(partes))}</div>')
+    _ajustar_modelo(candidatos, opcoes, reanalisar)
 
     for ajuste in analise.ajustes:
         with ui.element("div").classes("ea-resultado"):
             ui.html(f'<div class="ea-resp-nome">{escape(ajuste.resposta)}</div>')
-            ui.html(
-                f'<div class="ea-r2">R² = <b>{_fmt(ajuste.r2, 3)}</b> · '
-                f"R² ajustado = <b>{_fmt(ajuste.r2_ajustado, 3)}</b></div>"
+            r2 = (
+                f"R² = <b>{_fmt(ajuste.r2, 3)}</b> · "
+                f"R² ajustado = <b>{_fmt(ajuste.r2_ajustado, 3)}</b>"
             )
+            if ajuste.r2_predicao is not None:
+                r2 += f" · R² de predição = <b>{_fmt(ajuste.r2_predicao, 3)}</b>"
+            ui.html(f'<div class="ea-r2">{r2}</div>')
+            notas = []
+            if ajuste.termo_erro == "erro_puro":
+                notas.append("Testes feitos com o erro puro das réplicas.")
+            if ajuste.termos_descartados:
+                removidos = ", ".join(
+                    nome_legivel(t) for t in ajuste.termos_descartados
+                )
+                notas.append(f"Removidos pela redução: {removidos}.")
+            if notas:
+                ui.html(f'<div class="ea-ler">{escape(" ".join(notas))}</div>')
             _abas_resposta(ajuste, planejamento.fatores, alfa=analise.metadados.alfa)
 
     for aviso in analise.avisos:
@@ -273,6 +352,31 @@ def _baixar_json(analise: AnalysisResult) -> None:
     )
 
 
+def _ajustar_modelo(
+    candidatos: list[str], opcoes: _Opcoes, reanalisar: Callable[[], None]
+) -> None:
+    """Tirar termos do modelo e reajustar, vendo os indicadores mudarem (RF-09)."""
+    with ui.element("div").classes("ea-controles ea-ajustar"):
+        fora = (
+            ui.select(
+                {t: nome_legivel(t) for t in candidatos},
+                multiple=True,
+                value=[t for t in opcoes.excluidos if t in candidatos],
+                label="Termos fora do modelo",
+            )
+            .props("dense outlined")
+            .classes("ea-fora")
+        )
+
+        def reajustar() -> None:
+            opcoes.excluidos[:] = list(fora.value or [])
+            reanalisar()
+
+        ui.button("Reajustar", on_click=reajustar).props("flat").classes(
+            "ea-botao-sec"
+        )
+
+
 _ABA_EFEITOS = "Efeitos"
 _PONTOS_CONTORNO = 61
 _ABA_ANOVA = "ANOVA"
@@ -324,7 +428,7 @@ def _abas_resposta(
             if nome == _ABA_EFEITOS:
                 _aba_efeitos(ajuste, alfa, ao_clicar_termo if tem_superficie else None)
             elif nome == _ABA_ANOVA:
-                _aba_anova(ajuste)
+                _aba_anova(ajuste, alfa)
             elif nome == _ABA_DIAGNOSTICO:
                 _aba_diagnostico(ajuste, alfa)
             else:
@@ -384,12 +488,45 @@ def _aba_efeitos(
     )
     ui.html('<div class="ea-tabela-rotulo">Coeficientes (escala codificada)</div>')
     _tabela_coeficientes(ajuste)
+    _equacao(ajuste)
 
 
-def _aba_anova(ajuste: AjusteResposta) -> None:
+def _equacao(ajuste: AjusteResposta) -> None:
+    eq = ajuste.equacao
+    if eq is None:
+        return
+    legenda = ", ".join(f"{s} = {nome_legivel(n)}" for s, n in eq.variaveis.items())
+    ui.html('<div class="ea-tabela-rotulo">Equação do modelo</div>')
+    ui.html(f'<div class="ea-equacao">{escape(eq.codificada)}</div>')
+    ui.html(f'<div class="ea-ler">Variáveis codificadas ({escape(legenda)}).</div>')
+    ui.html(f'<div class="ea-equacao">{escape(eq.real.replace("_", " "))}</div>')
+    ui.html(
+        '<div class="ea-ler">A mesma equação em unidades reais: use direto os '
+        "valores do laboratório.</div>"
+    )
+
+
+def _aba_anova(ajuste: AjusteResposta, alfa: float) -> None:
+    reg = ajuste.anova_regressao
+    if reg is not None:
+        ui.html('<div class="ea-tabela-rotulo">ANOVA da regressão</div>')
+        _tabela_anova(reg.linhas)
+        if reg.razao_f is not None and reg.f_tabelado is not None:
+            leitura = (
+                "maior que 1: a regressão é significativa"
+                if reg.regressao_significativa
+                else "menor que 1: a regressão não é significativa"
+            )
+            ui.html(
+                '<div class="ea-ler">F calculado / F tabelado = '
+                f"<b>{_fmt(reg.razao_f, 2)}</b> (F tabelado = "
+                f"{_fmt(reg.f_tabelado, 2)} a α = {_fmt(alfa, 2)}), {leitura}.</div>"
+            )
     if ajuste.anova:
-        ui.html('<div class="ea-tabela-rotulo">ANOVA (Tipo II)</div>')
-        _tabela_anova(ajuste)
+        ui.html(
+            '<div class="ea-tabela-rotulo">Efeito de cada termo (ANOVA Tipo II)</div>'
+        )
+        _tabela_anova(ajuste.anova)
     else:
         ui.html(
             '<div class="ea-ler">ANOVA Tipo II indisponível para este modelo.</div>'
@@ -654,10 +791,16 @@ def _fmt_curto(valor: float) -> str:
 
 
 def _fmt_p(valor: float | None) -> str:
-    if valor is None:
+    """p-valor para texto em HTML (o "<" vai escapado)."""
+    return escape(_fmt_p_tabela(valor))
+
+
+def _fmt_p_tabela(valor: float | None) -> str:
+    """p-valor em texto puro (célula de tabela): '< 0,0001' em vez de '0,0000'."""
+    if valor is None or (isinstance(valor, float) and math.isnan(valor)):
         return "—"
     if valor < 0.0001:
-        return "&lt; 0,0001"
+        return "< 0,0001"
     return _fmt(valor, 4)
 
 
@@ -676,7 +819,7 @@ def _tabela_coeficientes(ajuste: AjusteResposta) -> None:
             "est": _fmt(c.estimativa, 4),
             "ep": _fmt(c.erro_padrao, 4),
             "t": _fmt(c.valor_t, 2),
-            "p": _fmt(c.valor_p, 4),
+            "p": _fmt_p_tabela(c.valor_p),
             "sig": "sim" if c.significativo else "—",
         }
         for c in ajuste.coeficientes
@@ -686,7 +829,7 @@ def _tabela_coeficientes(ajuste: AjusteResposta) -> None:
     ).classes("ensaia-previa w-full")
 
 
-def _tabela_anova(ajuste: AjusteResposta) -> None:
+def _tabela_anova(linhas_anova: list[LinhaAnova]) -> None:
     colunas = [
         {"name": "fonte", "label": "Fonte", "field": "fonte", "align": "left"},
         {"name": "sq", "label": "SQ", "field": "sq", "align": "right"},
@@ -702,9 +845,9 @@ def _tabela_anova(ajuste: AjusteResposta) -> None:
             "gl": str(linha.graus_liberdade),
             "qm": _fmt(linha.quadrado_medio, 3),
             "f": _fmt(linha.valor_f, 2),
-            "p": _fmt(linha.valor_p, 4),
+            "p": _fmt_p_tabela(linha.valor_p),
         }
-        for linha in ajuste.anova
+        for linha in linhas_anova
     ]
     ui.table(columns=colunas, rows=linhas, row_key="fonte").props(
         "flat bordered dense"

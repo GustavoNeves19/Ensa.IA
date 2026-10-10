@@ -12,8 +12,8 @@ O termo 'dose_catalisador' é significativo (p < 0,0001). O termo 'concentracao_
 
 ## Qualidade do ajuste (ANOVA e R²)
 
-O modelo explica 97,1% da variação da resposta 'eficiencia_fotodegradacao' (R² = 0,971; R² ajustado = 0,949).
+O modelo explica 97,1% da variação da resposta 'eficiencia_fotodegradacao' (R² = 0,971; R² ajustado = 0,949). A regressão é significativa (p < 0,0001): F calculado = 44,36, F tabelado = 3,58, razão = 12,39. O R² de predição é 0,911.
 
 ## Diagnóstico do modelo
 
-Não há evidência de falta de ajuste (p = 0,9055 ≥ 0,05).
+Não há evidência de falta de ajuste (p = 0,9055 ≥ 0,05). O teste de Shapiro-Wilk não indica desvio da normalidade dos resíduos (W = 0,953; p = 0,5787 ≥ 0,05).

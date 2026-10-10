@@ -151,7 +151,7 @@ class AjusteOLS:
         self._erros = np.sqrt(np.diag(self._sigma2 * self._cov_nao_escalada))
 
         self._motivo_sem_tipo2: str | None = None
-        self._tipo2: list[LinhaAnova] | None = None
+        self._sq_tipo2: list[tuple[str, float]] | None = None
         self._construir_tipo2()
 
     @property
@@ -178,16 +178,69 @@ class AjusteOLS:
         t = self._beta / self._erros
         return self._mapa(2.0 * stats.t.sf(np.abs(t), df=self._gl_residuo))
 
-    def intervalo_confianca(self, alfa: float = 0.05) -> dict[str, tuple[float, float]]:
+    def _erro(
+        self, qm_erro: float | None, gl_erro: int | None
+    ) -> tuple[NDArray[np.float64], int]:
+        """Erros-padrão e gl para o termo de erro escolhido (resíduo por padrão)."""
+        if qm_erro is None or gl_erro is None:
+            return self._erros, self._gl_residuo
+        return np.sqrt(np.diag(qm_erro * self._cov_nao_escalada)), gl_erro
+
+    def estatisticas_t(
+        self, qm_erro: float | None = None, gl_erro: int | None = None
+    ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+        """(erros-padrão, t, p) de cada coeficiente com o termo de erro dado.
+
+        Sem argumentos usa o quadrado médio do resíduo (comportamento tipo
+        Minitab). Com `qm_erro`/`gl_erro` do erro puro, reproduz a opção comum no
+        Statistica e em artigos brasileiros (spec §9, grupo C). A estimativa dos
+        coeficientes não muda; mudam o erro-padrão, o t e o p.
+        """
+        erros, gl = self._erro(qm_erro, gl_erro)
+        t = self._beta / erros
+        p = 2.0 * stats.t.sf(np.abs(t), df=gl)
+        return self._mapa(erros), self._mapa(t), self._mapa(p)
+
+    def intervalo_confianca(
+        self,
+        alfa: float = 0.05,
+        qm_erro: float | None = None,
+        gl_erro: int | None = None,
+    ) -> dict[str, tuple[float, float]]:
         """IC de (1 − alfa) por coeficiente: termo -> (inferior, superior)."""
-        t_critico = float(stats.t.ppf(1.0 - alfa / 2.0, df=self._gl_residuo))
-        margem = t_critico * self._erros
+        erros, gl = self._erro(qm_erro, gl_erro)
+        t_critico = float(stats.t.ppf(1.0 - alfa / 2.0, df=gl))
+        margem = t_critico * erros
         inferior = self._beta - margem
         superior = self._beta + margem
         return {
             t: (float(inferior[i]), float(superior[i]))
             for i, t in enumerate(self._termos)
         }
+
+    @property
+    def alavancagem(self) -> NDArray[np.float64]:
+        """hᵢᵢ: diagonal da matriz chapéu X(XᵀX)⁻¹Xᵀ (o peso de cada ensaio)."""
+        h: NDArray[np.float64] = np.einsum(
+            "ij,jk,ik->i", self._X, self._cov_nao_escalada, self._X
+        )
+        return h
+
+    @property
+    def r2_predicao(self) -> float | None:
+        """R² de predição: 1 − PRESS / SQ_total (spec §9, C3).
+
+        PRESS soma o erro de prever cada ensaio com o modelo ajustado SEM ele,
+        `(eᵢ / (1 − hᵢᵢ))²`. Mede o poder de prever pontos novos, que um R² alto
+        com termos demais não garante. Quando algum ensaio tem hᵢᵢ = 1 (o modelo
+        passa obrigatoriamente por ele), a previsão sem ele não existe e o valor
+        fica indefinido (None).
+        """
+        folga = 1.0 - self.alavancagem
+        if np.any(folga < 1e-10):
+            return None
+        press = float(np.sum((self._residuos / folga) ** 2))
+        return 1.0 - press / self._sst
 
     @property
     def r2(self) -> float:
@@ -225,16 +278,43 @@ class AjusteOLS:
     def valores_ajustados(self) -> NDArray[np.float64]:
         return self._ajustados
 
-    def tabela_tipo2(self) -> list[LinhaAnova]:
+    def tabela_tipo2(
+        self, qm_erro: float | None = None, gl_erro: int | None = None
+    ) -> list[LinhaAnova]:
         """ANOVA Tipo II como lista de `LinhaAnova`, com a linha "Resíduo" no fim.
+
+        O F de cada termo divide a soma de quadrados dele pelo quadrado médio do
+        termo de erro: o do resíduo por padrão, ou o do erro puro quando
+        `qm_erro`/`gl_erro` são dados (a linha "Resíduo" continua a mesma).
 
         Só existe para modelos hierárquicos (todo fator com termo linear); num
         modelo sem o termo linear de algum fator, a soma de quadrados Tipo II
         perde o sentido e isto falha alto em vez de inventar a tabela.
         """
-        if self._tipo2 is None:
+        if self._sq_tipo2 is None:
             raise ValueError(self._motivo_sem_tipo2)
-        return list(self._tipo2)
+        qm = self._sigma2 if qm_erro is None else qm_erro
+        gl = self._gl_residuo if gl_erro is None else gl_erro
+        linhas = [
+            LinhaAnova(
+                fonte=t,
+                soma_quadrados=sq,
+                graus_liberdade=1,
+                quadrado_medio=sq,
+                valor_f=sq / qm,
+                valor_p=float(stats.f.sf(sq / qm, 1, gl)),
+            )
+            for t, sq in self._sq_tipo2
+        ]
+        linhas.append(
+            LinhaAnova(
+                fonte=RESIDUO,
+                soma_quadrados=self._ssr,
+                graus_liberdade=self._gl_residuo,
+                quadrado_medio=self._ssr / self._gl_residuo,
+            )
+        )
+        return linhas
 
     def _rss(self, termos: list[str]) -> float:
         """Soma de quadrados residual de um submodelo só com estes termos."""
@@ -270,34 +350,13 @@ class AjusteOLS:
         # mesma noção de fatores atômicos do patsy: x1:x2 contém x1, mas x1^2 NÃO
         # contém x1 (é fator atômico distinto). Reproduz o anova_lm(typ=2).
         assinatura = {t: _assinatura_fatores(t) for t in termos}
-        linhas: list[LinhaAnova] = []
+        somas: list[tuple[str, float]] = []
         for t in termos:
             contem_t = {u for u in termos if u != t and assinatura[t] < assinatura[u]}
             completo = [u for u in self._termos if u not in contem_t]
             reduzido = [u for u in completo if u != t]
-            sq = self._rss(reduzido) - self._rss(completo)
-            f = (sq / 1) / self._sigma2
-            p = float(stats.f.sf(f, 1, self._gl_residuo))
-            linhas.append(
-                LinhaAnova(
-                    fonte=t,
-                    soma_quadrados=sq,
-                    graus_liberdade=1,
-                    quadrado_medio=sq,
-                    valor_f=f,
-                    valor_p=p,
-                )
-            )
-
-        linhas.append(
-            LinhaAnova(
-                fonte=RESIDUO,
-                soma_quadrados=self._ssr,
-                graus_liberdade=self._gl_residuo,
-                quadrado_medio=self._ssr / self._gl_residuo,
-            )
-        )
-        self._tipo2 = linhas
+            somas.append((t, self._rss(reduzido) - self._rss(completo)))
+        self._sq_tipo2 = somas
 
 
 def _assinatura_fatores(termo: str) -> frozenset[str]:
@@ -344,7 +403,7 @@ def _validar_entrada(X: Table, y: NDArray[np.float64]) -> None:
         raise ValueError(
             f"A matriz do modelo é singular: posto {posto} para {n_termos} termos. "
             f"Termos que não acrescentam informação (combinação linear dos "
-            f"anteriores): {_termos_redundantes(X)}. Causas comuns: termo "
+            f"anteriores): {termos_redundantes(X)}. Causas comuns: termo "
             "quadrático num fatorial 2^k sem pontos centrais ou axiais, ou menos "
             "ensaios do que termos no modelo."
         )
@@ -356,7 +415,8 @@ def _validar_entrada(X: Table, y: NDArray[np.float64]) -> None:
         )
 
 
-def _termos_redundantes(X: Table) -> list[str]:
+def termos_redundantes(X: Table) -> list[str]:
+    """Colunas da matriz que são combinação linear das anteriores (na ordem)."""
     redundantes: list[str] = []
     posto_atual = 0
     acumulado: list[NDArray[np.float64]] = []

@@ -72,12 +72,23 @@ def fatos_por_secao(
     diagnostico: list[str] = []
     for ajuste in resultado.ajustes:
         modelo.extend(
-            _rotular(_fatos_significancia(ajuste, alfa), ajuste.resposta, multi=multi)
+            _rotular(
+                _fatos_significancia(ajuste, alfa) + _fatos_termo_erro(ajuste),
+                ajuste.resposta,
+                multi=multi,
+            )
         )
         # O fato de R² já cita a resposta; não precisa de rótulo extra.
         anova.append(_fato_r2(ajuste))
+        anova.extend(
+            _rotular(_fatos_regressao(ajuste, alfa), ajuste.resposta, multi=multi)
+        )
         diagnostico.extend(
-            _rotular([_fato_falta_ajuste(ajuste, alfa)], ajuste.resposta, multi=multi)
+            _rotular(
+                [_fato_falta_ajuste(ajuste, alfa), *_fatos_normalidade(ajuste, alfa)],
+                ajuste.resposta,
+                multi=multi,
+            )
         )
 
     return {
@@ -115,6 +126,52 @@ def _fato_r2(ajuste: AjusteResposta) -> str:
         f"{ajuste.resposta!r} (R² = {_num(ajuste.r2, 3)}; "
         f"R² ajustado = {_num(ajuste.r2_ajustado, 3)})."
     )
+
+
+def _fatos_termo_erro(ajuste: AjusteResposta) -> list[str]:
+    if ajuste.termo_erro != "erro_puro":
+        return []
+    return ["Os testes de significância usaram o erro puro como termo de erro."]
+
+
+def _fatos_regressao(ajuste: AjusteResposta, alfa: float) -> list[str]:
+    """F da regressão contra o F tabelado (critério da literatura brasileira)."""
+    fatos: list[str] = []
+    anova = ajuste.anova_regressao
+    if anova is not None and anova.razao_f is not None and anova.f_tabelado:
+        regressao = anova.linhas[0]
+        assert regressao.valor_f is not None and regressao.valor_p is not None
+        if anova.regressao_significativa:
+            fatos.append(
+                f"A regressão é significativa ({_sig(regressao.valor_p, alfa)}): "
+                f"F calculado = {_num(regressao.valor_f, 2)}, F tabelado = "
+                f"{_num(anova.f_tabelado, 2)}, razão = {_num(anova.razao_f, 2)}."
+            )
+        else:
+            fatos.append(
+                f"A regressão não é significativa (p = {_num(regressao.valor_p, 4)} "
+                f"≥ {_num(alfa, 2)}): F calculado = {_num(regressao.valor_f, 2)} "
+                f"não supera o F tabelado = {_num(anova.f_tabelado, 2)}."
+            )
+    if ajuste.r2_predicao is not None:
+        fatos.append(f"O R² de predição é {_num(ajuste.r2_predicao, 3)}.")
+    return fatos
+
+
+def _fatos_normalidade(ajuste: AjusteResposta, alfa: float) -> list[str]:
+    d = ajuste.diagnostico
+    if d is None or d.shapiro_p is None or d.shapiro_w is None:
+        return []
+    teste = f"W = {_num(d.shapiro_w, 3)}; p = {_num(d.shapiro_p, 4)}"
+    if d.normalidade_rejeitada:
+        return [
+            f"O teste de Shapiro-Wilk indica que os resíduos não seguem uma "
+            f"distribuição normal ({teste} < {_num(alfa, 2)})."
+        ]
+    return [
+        f"O teste de Shapiro-Wilk não indica desvio da normalidade dos resíduos "
+        f"({teste} ≥ {_num(alfa, 2)})."
+    ]
 
 
 def _fato_falta_ajuste(ajuste: AjusteResposta, alfa: float) -> str:
