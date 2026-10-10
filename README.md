@@ -100,6 +100,41 @@ chave. **O `.env` nunca vai para o repositório.**
 O núcleo estatístico funciona sem chave nenhuma e sem internet — isso é
 proposital e é testado.
 
+## Rodar com Docker
+
+A imagem traz o que o app usa em produção (interface, relatório PDF e camada de
+IA) e sobe **um único processo**: o Uvicorn com 1 worker, na porta **8080**.
+
+```bash
+docker compose up --build        # abre em http://localhost:8080
+```
+
+- `GET /health` responde `{"status": "ok"}` quando o servidor está de pé. É a
+  sonda que o `HEALTHCHECK` da imagem e o painel de hospedagem usam para saber
+  se o app já pode receber acessos.
+- A narração por IA lê a variável `OPENAI_API_KEY`. No `docker compose` ela vem
+  do `.env`, se ele existir; sem a chave, o app funciona normalmente com o texto
+  fiel (sem IA).
+- O `docker-compose.yml` limita o contêiner a 512 MB de RAM, o mesmo orçamento
+  da hospedagem (spec §16), e traz comentado um serviço `ollama` para IA local.
+
+### Publicar no EasyPanel
+
+O EasyPanel é um painel para VPS que constrói e roda contêineres Docker. Como o
+app é um processo só, basta um serviço:
+
+1. Crie um serviço do tipo **App** apontando para este repositório (branch
+   `main`).
+2. Em **Build**, escolha **Dockerfile** (o arquivo `Dockerfile` da raiz).
+3. Em **Domains**, aponte o domínio para a porta **8080** do contêiner. Se o
+   painel definir a variável `PORT`, o app escuta nela.
+4. Em **Environment**, defina `OPENAI_API_KEY` para a narração por IA funcionar
+   (opcional: `ENSAIA_MODELO_OPENAI`, padrão `gpt-4o-mini`).
+5. Faça o deploy e confira `https://<seu-domínio>/health`.
+
+Não é preciso volume: o app não grava nada em disco; a planilha enviada fica só
+na memória da sessão.
+
 ## Estrutura
 
 ```
