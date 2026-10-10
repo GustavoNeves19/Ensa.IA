@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualidade:
+    name: Lint, tipos, testes e memória
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Python 3.12, o mesmo da imagem Docker (o .python-version local é 3.11;
+      # o python-version abaixo vira UV_PYTHON e tem precedência sobre ele).
+      - name: Instalar uv e Python 3.12
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # O extra dev já traz o que os testes exercitam (ui, report, llm),
+      # o oráculo (statsmodels/pandas) e o psutil da medição de memória.
+      - name: Instalar dependências
+        run: uv sync --locked --extra dev
+
+      - name: Lint (ruff)
+        run: uv run --no-sync ruff check src tests scripts
+
+      # O mypy roda, mas não reprova o CI: há 2 erros conhecidos em
+      # src/ensaia/io/schemas.py (anotações faltando), que ficam para o PR
+      # de quem mexe no núcleo. Quando zerarem, apagar o continue-on-error.
+      # O --python-version 3.12 é necessário porque os stubs do numpy travado
+      # para 3.12 usam a sintaxe `type X = ...`, que o mypy recusa com o
+      # python_version = "3.11" do pyproject (e aí não checa nada).
+      - name: Tipos (mypy)
+        run: uv run --no-sync mypy src --python-version 3.12
+        continue-on-error: true
+
+      - name: Testes
+        run: uv run --no-sync pytest
+
+      # RNF-01 (spec §16.2): ocioso ≤ 150 MB e pico ≤ 300 MB com análise + PDF.
+      # Ver o método e as limitações no docstring de scripts/measure_memory.py.
+      - name: Memória (RNF-01)
+        run: uv run --no-sync python scripts/measure_memory.py
+
+  nucleo-sem-extras:
+    name: Núcleo instala e roda sem extras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # Verificação prática do ADR 0001: sem nenhum extra (sem NiceGUI, sem
+      # camada de IA, sem matplotlib), o núcleo determinístico importa.
+      - name: Instalar só o núcleo
+        run: uv sync --locked
+
+      - name: Importar o núcleo
+        run: >-
+          uv run --no-sync python -c
+          "import ensaia, ensaia.core.pipeline, ensaia.io.readers;
+          print('ensaia', ensaia.__version__)"
+
+  imagem:
+    name: Imagem Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Construir a imagem
+        run: docker build -t ensaia:ci .
+
+      # RNF-10: tamanho da imagem. Mostra o tamanho em disco (descompactado) e o
+      # de transferência (camadas compactadas com gzip, como num registry).
+      - name: Tamanho da imagem (RNF-10)
+        run: |
+          disco=$(docker image inspect ensaia:ci --format '{{.Size}}')
+          transferencia=$(docker save ensaia:ci | gzip -c | wc -c)
+          printf 'Em disco: %d MB\nCompactada (gzip): %d MB\n' \
+            $((disco / 1000000)) $((transferencia / 1000000))
+          {
+            echo "### Imagem Docker"
+            echo "| Medida | MB |"
+            echo "|---|---|"
+            echo "| Em disco (descompactada) | $((disco / 1000000)) |"
+            echo "| Compactada (gzip) | $((transferencia / 1000000)) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Sobe como na hospedagem (512 MB de RAM). O --health-interval só encurta
+      # a espera aqui; o comando da sonda é o mesmo do HEALTHCHECK da imagem.
+      - name: Subir o contêiner e esperar a sonda de saúde
+        run: |
+          inicio=$(date +%s%N)
+          docker run -d --name ensaia -p 8080:8080 --memory 512m \
+            --health-interval 2s ensaia:ci
+          until curl -fsS http://127.0.0.1:8080/health; do
+            if [ "$(docker inspect -f '{{.State.Running}}' ensaia)" != "true" ]; then
+              echo "o contêiner parou"; exit 1
+            fi
+            if (( ($(date +%s%N) - inicio) / 1000000000 > 60 )); then
+              echo "/health não respondeu em 60 s"; exit 1
+            fi
+            sleep 0.2
+          done
+          echo
+          echo "Pronto em $(( ($(date +%s%N) - inicio) / 1000000 )) ms (inclui o docker run)"
+          for _ in $(seq 1 30); do
+            estado=$(docker inspect -f '{{.State.Health.Status}}' ensaia)
+            [ "$estado" = "healthy" ] && break
+            sleep 1
+          done
+          echo "HEALTHCHECK: $estado"
+          test "$estado" = "healthy"
+          curl -fsS -o /dev/null http://127.0.0.1:8080/
+          echo "UID no contêiner: $(docker exec ensaia id -u)"
+          test "$(docker exec ensaia id -u)" != "0"
+
+      - name: Memória dentro da imagem (informativo)
+        run: |
+          sleep 3
+          ocioso_kb=$(docker exec ensaia awk '/^VmRSS/ {print $2}' /proc/1/status)
+          carga=$(docker run --rm -v "$PWD:/work:ro" -w /work ensaia:ci \
+            python scripts/measure_memory.py --carga | tail -n 1)
+          echo "Servidor ocioso (PID 1): $((ocioso_kb / 1024)) MiB"
+          echo "Carga (análise + PDF) na imagem: $carga"
+          pico=$(echo "$carga" | python3 -c 'import json,sys; print(json.load(sys.stdin)["pico"] // 1048576)')
+          {
+            echo "### Memória na imagem"
+            echo "| Medida | MiB | Meta |"
+            echo "|---|---|---|"
+            echo "| Servidor ocioso | $((ocioso_kb / 1024)) | ≤ 150 |"
+            echo "| Pico: análise completa + PDF | $pico | ≤ 300 |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Logs do contêiner
+        if: always()
+        run: docker logs ensaia || true

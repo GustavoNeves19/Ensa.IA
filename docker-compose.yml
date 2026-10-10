@@ -1,0 +1,35 @@
+# Uso local: `docker compose up --build` e abrir http://localhost:8080
+# (spec §16.3). Em produção (EasyPanel), basta o Dockerfile; ver README.
+
+services:
+  ensaia:
+    build: .
+    image: ensaia:local
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    # A chave da IA (OPENAI_API_KEY) vem do .env, se ele existir. Sem o .env o
+    # app sobe do mesmo jeito: a análise e o texto fiel (sem IA) funcionam.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: "8080"
+    # Simula a hospedagem de 512 MB da spec (§16): se estourar aqui, estoura lá.
+    mem_limit: 512m
+
+  # IA local com Ollama (modo M2, spec §12.2): só faz sentido rodando na sua
+  # máquina, porque um servidor hospedado não enxerga o Ollama do usuário.
+  # Para usar, descomente este serviço e o volume no fim do arquivo.
+  # Atenção: hoje a interface narra só pela OpenAI (M3); a ligação da tela com
+  # o Ollama (http://ollama:11434/v1) entra junto com a camada de IA (fase F7).
+  # ollama:
+  #   image: ollama/ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama:/root/.ollama
+  #   restart: unless-stopped
+
+# volumes:
+#   ollama:
