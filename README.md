@@ -94,8 +94,16 @@ tiver sincronizado só o núcleo, `uv run ensaia-ui` falha com
 `ModuleNotFoundError: No module named 'fastapi'` — rode `uv sync --extra ui`
 (ou `--all-extras`) antes. Para parar o servidor, `Ctrl+C` no terminal.
 
-Para usar a camada de LLM, copie `.env.example` para `.env` e preencha a
-chave. **O `.env` nunca vai para o repositório.**
+O texto do relatório pode ser escrito de quatro jeitos, escolhidos na tela:
+sem IA (sempre disponível), copiando o pedido para qualquer IA e colando a
+resposta de volta, com o Ollama local (só quando o EnsaIA roda no seu
+computador) ou com uma IA em nuvem usando a chave do próprio usuário (Gemini,
+Groq, OpenAI). Em todos os casos com IA, cada número do texto é conferido contra
+os resultados e o que não bate fica marcado em amarelo.
+
+Quem hospeda pode oferecer uma IA pronta, sem o usuário precisar de chave:
+copie `.env.example` para `.env` e preencha `ENSAIA_IA_CHAVE`. **O `.env` nunca
+vai para o repositório.**
 
 O núcleo estatístico funciona sem chave nenhuma e sem internet — isso é
 proposital e é testado.
@@ -112,9 +120,10 @@ docker compose up --build        # abre em http://localhost:8080
 - `GET /health` responde `{"status": "ok"}` quando o servidor está de pé. É a
   sonda que o `HEALTHCHECK` da imagem e o painel de hospedagem usam para saber
   se o app já pode receber acessos.
-- A narração por IA lê a variável `OPENAI_API_KEY`. No `docker compose` ela vem
-  do `.env`, se ele existir; sem a chave, o app funciona normalmente com o texto
-  fiel (sem IA).
+- A IA oferecida pelo servidor lê `ENSAIA_IA_CHAVE` (ou `OPENAI_API_KEY`). No
+  `docker compose` ela vem do `.env`, se ele existir; sem a chave, o app
+  funciona normalmente: o texto sem IA, o "copiar para a sua IA" e a chave do
+  próprio usuário continuam disponíveis.
 - O `docker-compose.yml` limita o contêiner a 512 MB de RAM, o mesmo orçamento
   da hospedagem (spec §16), e traz comentado um serviço `ollama` para IA local.
 
@@ -128,8 +137,10 @@ app é um processo só, basta um serviço:
 2. Em **Build**, escolha **Dockerfile** (o arquivo `Dockerfile` da raiz).
 3. Em **Domains**, aponte o domínio para a porta **8080** do contêiner. Se o
    painel definir a variável `PORT`, o app escuta nela.
-4. Em **Environment**, defina `OPENAI_API_KEY` para a narração por IA funcionar
-   (opcional: `ENSAIA_MODELO_OPENAI`, padrão `gpt-4o-mini`).
+4. Em **Environment**, opcionalmente, defina `ENSAIA_IA_CHAVE` para oferecer
+   uma IA pronta aos usuários (com `ENSAIA_IA_URL` e `ENSAIA_IA_MODELO`; o
+   padrão é a OpenAI com `gpt-4o-mini`). Sem ela, cada usuário usa a própria
+   chave ou copia o pedido para a IA que preferir.
 5. Faça o deploy e confira `https://<seu-domínio>/health`.
 
 Não é preciso volume: o app não grava nada em disco; a planilha enviada fica só

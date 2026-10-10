@@ -13,9 +13,8 @@ Depois que `ui/upload.py` lê a planilha numa `Table`, esta tela:
    Diagnóstico (preditos × observados, resíduos, Q-Q) e Superfície (contorno e
    3D com os demais fatores ajustáveis). Cada aba só é montada quando aberta
    (spec §7.3: a NiceGUI guarda no servidor a árvore de cada aba aberta).
-4. **Relatório** — em texto fiel (modo M0, offline) ou narrado por IA (modo M3,
-   com a chave da OpenAI lida do `.env`). A IA roda fora da thread da interface
-   (`run.io_bound`) para a tela não congelar enquanto o modelo responde.
+4. **Relatório** — o texto (sem IA, colado de uma IA qualquer, Ollama local ou
+   nuvem; ver `ui/narrar.py`) e os downloads de PDF e JSON.
 
 Nada é calculado aqui: a conta é toda do núcleo; esta camada só coleta escolhas,
 chama o pipeline e desenha o resultado.
@@ -24,21 +23,18 @@ chama o pipeline e desenha o resultado.
 from __future__ import annotations
 
 import math
-import os
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from html import escape
-from pathlib import Path
 from typing import Any, cast
 
 from nicegui import run, ui
 from nicegui.events import EChartPointClickEventArguments
 
 from ensaia import __version__
-from ensaia.ai.client import ClienteModelo, ConfiguracaoModelo, ErroDeIA
-from ensaia.ai.report import RelatorioTextual, gerar_relatorio
+from ensaia.ai.report import gerar_relatorio
 from ensaia.core.catalogo import CATALOGO, GRUPOS, IDS, disponibilidade
 from ensaia.core.descritiva import matriz_codificada
 from ensaia.core.design import (
@@ -70,6 +66,8 @@ from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO, escolher_termos, termos_do_tipo
 from ensaia.ui import graficos
 from ensaia.ui.graficos import nome_legivel
+from ensaia.ui.narrar import construir_narracao
+from ensaia.ui.sessao import Sessao
 
 # Nomes usuais da coluna de ordem/número do ensaio (spec §8.3).
 _NOME_ORDEM = re.compile(
@@ -395,22 +393,13 @@ def _mostrar_resultados(
     for aviso in analise.avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
 
-    sessao = _Sessao(analise)
+    sessao = Sessao(analise)
     if sel & {"E4", "E5"}:
         _bloco_otimizacao(sessao, planejamento)
     if "C1" in sel:
         _bloco_prever(analise, planejamento)
 
-    relatorio = ui.column().classes("w-full ea-slot")
-    with ui.element("div").classes("ea-acoes"):
-        ui.button(
-            "Narrar com IA", on_click=lambda: _gerar_ia(sessao, relatorio)
-        ).props("unelevated").classes("ea-botao")
-        ui.button(
-            "ou ver o texto fiel (sem IA)",
-            on_click=lambda: _gerar_m0(sessao, relatorio),
-        ).props("flat").classes("ea-botao-sec")
-
+    construir_narracao(sessao)
     _bloco_baixar(sessao)
 
 
@@ -496,19 +485,6 @@ def _dados_experimento(
         ).props("flat bordered dense").classes("ensaia-previa w-full")
 
 
-@dataclass
-class _Sessao:
-    """O que os botões finais usam: a análise atual e o último texto mostrado.
-
-    A análise pode ganhar o ponto ótimo depois (bloco "Melhor condição"); por
-    isso PDF, JSON e texto leem daqui no momento do clique, não de uma cópia
-    capturada quando a tela foi montada.
-    """
-
-    analise: AnalysisResult
-    texto: RelatorioTextual | None = None
-
-
 _SENTIDOS = {
     "maximizar": "Maximizar",
     "minimizar": "Minimizar",
@@ -517,7 +493,7 @@ _SENTIDOS = {
 }
 
 
-def _bloco_otimizacao(sessao: _Sessao, planejamento: Planejamento) -> None:
+def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
     """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo."""
     analise = sessao.analise
     with ui.element("div").classes("ea-otimizacao"):
@@ -568,8 +544,10 @@ def _bloco_otimizacao(sessao: _Sessao, planejamento: Planejamento) -> None:
             except ValueError as erro:
                 ui.notify(str(erro), type="negative", position="top", timeout=9000)
                 return
-            sessao.analise = analise.model_copy(
-                update={"ponto_otimo": ponto, "avisos": [*analise.avisos, *avisos]}
+            sessao.trocar_analise(
+                analise.model_copy(
+                    update={"ponto_otimo": ponto, "avisos": [*analise.avisos, *avisos]}
+                )
             )
             area.clear()
             with area:
@@ -686,7 +664,7 @@ def _mostrar_otimo(
     )
 
 
-def _bloco_baixar(sessao: _Sessao) -> None:
+def _bloco_baixar(sessao: Sessao) -> None:
     """Passo 7 do fluxo (spec §4): baixar o relatório em PDF e os resultados em JSON."""
     with ui.element("div").classes("ea-baixar"):
         with ui.element("div").classes("ea-acoes"):
@@ -707,7 +685,7 @@ def _bloco_baixar(sessao: _Sessao) -> None:
     botao_pdf.on_click(lambda: _baixar_pdf(sessao, botao_pdf))
 
 
-async def _baixar_pdf(sessao: _Sessao, botao: ui.button) -> None:
+async def _baixar_pdf(sessao: Sessao, botao: ui.button) -> None:
     try:
         from ensaia.report import gerar_pdf  # extra [report]: fpdf2 + matplotlib
     except ImportError:
@@ -1545,80 +1523,6 @@ def _texto_falta(ajuste: AjusteResposta) -> str:
     return f"Sem evidência de falta de ajuste (p = {_fmt(falta.valor_p, 4)})."
 
 
-def _gerar_m0(sessao: _Sessao, destino: ui.column) -> None:
-    texto = gerar_relatorio(sessao.analise, modo="m0")
-    sessao.texto = texto
-    destino.clear()
-    with destino:
-        _mostrar_relatorio(texto)
-
-
-async def _gerar_ia(sessao: _Sessao, destino: ui.column) -> None:
-    analise = sessao.analise
-    cfg = _config_openai()
-    if cfg is None:
-        ui.notify(
-            "Configure OPENAI_API_KEY no arquivo .env para narrar com IA. "
-            "Mostrando o texto fiel (sem IA).",
-            type="warning",
-            position="top",
-            timeout=9000,
-        )
-        _gerar_m0(sessao, destino)
-        return
-
-    destino.clear()
-    with destino:
-        ui.spinner(size="lg").classes("ea-spinner")
-        ui.html('<div class="ea-secao-sub">Narrando com IA…</div>')
-
-    def trabalho() -> RelatorioTextual:
-        with ClienteModelo(cfg) as cliente:
-            return gerar_relatorio(analise, modo="m3", cliente=cliente)
-
-    try:
-        relatorio = await run.io_bound(trabalho)
-    except ErroDeIA as erro:
-        destino.clear()
-        ui.notify(
-            f"Falha ao falar com o modelo: {erro}. Mostrando o texto fiel (sem IA).",
-            type="negative",
-            position="top",
-            timeout=9000,
-        )
-        _gerar_m0(sessao, destino)
-        return
-
-    destino.clear()
-    if relatorio is None:  # o servidor encerrou no meio da chamada
-        return
-    sessao.texto = relatorio
-    with destino:
-        _mostrar_relatorio(relatorio)
-
-
-def _mostrar_relatorio(relatorio: RelatorioTextual) -> None:
-    origem = (
-        f"narrado por IA ({relatorio.modelo_usado})"
-        if relatorio.modo == "m3"
-        else "texto fiel, gerado pelo núcleo (sem IA)"
-    )
-    with ui.element("div").classes("ea-relatorio"):
-        ui.html('<div class="ea-secao-titulo">Relatório</div>')
-        ui.html(f'<div class="ea-secao-sub">{escape(origem)}</div>')
-        for secao in relatorio.secoes:
-            tag_classe = "ea-tag-ia" if secao.com_ia else "ea-tag-m0"
-            tag_texto = "IA" if secao.com_ia else "texto fiel"
-            ui.html(
-                '<div class="ea-rel-secao">'
-                f'<div class="ea-rel-titulo">{escape(secao.titulo)} '
-                f'<span class="{tag_classe}">· {tag_texto}</span></div>'
-                f'<div class="ea-rel-texto">{escape(secao.texto)}</div></div>'
-            )
-        for aviso in relatorio.avisos:
-            ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
-
-
 def _fmt(valor: object, casas: int = 4) -> str:
     """Número no padrão brasileiro (vírgula decimal) ou '—' quando ausente."""
     if valor is None:
@@ -1630,29 +1534,3 @@ def _fmt(valor: object, casas: int = 4) -> str:
     if math.isnan(f):
         return "—"
     return f"{f:.{casas}f}".replace(".", ",")
-
-
-def _carregar_env(caminho: Path) -> None:
-    if not caminho.exists():
-        return
-    for linha in caminho.read_text(encoding="utf-8").splitlines():
-        linha = linha.strip()
-        if not linha or linha.startswith("#") or "=" not in linha:
-            continue
-        chave, _, valor = linha.partition("=")
-        os.environ.setdefault(chave.strip(), valor.strip().strip('"').strip("'"))
-
-
-def _config_openai() -> ConfiguracaoModelo | None:
-    """Config da OpenAI a partir do `.env` do projeto, ou None se não houver chave."""
-    raiz = Path(__file__).resolve().parents[3]  # src/ensaia/ui/ → raiz do projeto
-    _carregar_env(raiz / ".env")
-    chave = os.environ.get("OPENAI_API_KEY")
-    if not chave:
-        return None
-    return ConfiguracaoModelo(
-        url_base="https://api.openai.com/v1",
-        modelo=os.environ.get("ENSAIA_MODELO_OPENAI", "gpt-4o-mini"),
-        chave_api=chave,
-        temperatura=0.0,
-    )

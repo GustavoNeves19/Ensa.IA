@@ -303,6 +303,7 @@ def _css() -> str:
     .ea-forma {{ border: 1px solid var(--linha); border-radius: 10px; }}
     /* Opções do modelo: recolhidas, sem caixa; o cabeçalho fala baixo. */
     .ea-opcoes {{ color: var(--cinza); }}
+    .ea-opcoes .q-focus-helper {{ display: none; }}
     .ea-opcoes .q-item {{ padding-left: 0; min-height: 36px; }}
     .ea-opcoes .q-item__label {{ font-weight: 600; font-size: .9rem; }}
     .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
@@ -347,7 +348,23 @@ def _css() -> str:
     .ea-rel-secao {{ display: flex; flex-direction: column; gap: .3rem; }}
     .ea-rel-titulo {{ font-family: var(--fonte-titulo); font-weight: 600;
       font-size: 1.1rem; color: var(--tinta); }}
-    .ea-rel-texto {{ color: var(--tinta); font-size: .98rem; line-height: 1.6; }}
+    .ea-rel-texto {{ color: var(--tinta); font-size: .98rem; line-height: 1.6;
+      white-space: pre-line; overflow-wrap: anywhere; }}
+    /* Conferência dos números (spec §12.5): o que não bate fica em amarelo,
+       um tom claro do oliva da Ufra, com a tinta por cima (contraste alto). */
+    .ea-destaque-fid {{ background: #F1E7A3; color: var(--tinta); border-radius: 3px;
+      padding: 0 .15em; }}
+    .ea-conferido {{ font-size: .9rem; font-weight: 600; color: var(--verde-escuro); }}
+    .ea-nao-conferido {{ font-size: .9rem; font-weight: 600;
+      color: var(--oliva-escuro); }}
+    /* Pedido do modo M1: texto para copiar, rolável, na fonte do corpo. */
+    .ea-pedido {{ white-space: pre-wrap; font-size: .82rem; line-height: 1.5;
+      color: var(--cinza); max-height: 18rem; overflow-y: auto; width: 100%;
+      background: var(--papel); border-radius: 10px; padding: .7rem .9rem; }}
+    .ea-colar {{ width: 100%; }}
+    .ea-campo-longo {{ min-width: 16rem; max-width: 100%; }}
+    .ea-link {{ color: var(--verde-escuro); font-weight: 600; font-size: .85rem; }}
+    .ea-link:hover {{ color: var(--tinta); }}
     /* Tag como texto, não chip: evita o pill e a caixa-atrás-do-rótulo. */
     .ea-tag-ia {{ font-size: .7rem; font-weight: 700; color: var(--verde-escuro); }}
     .ea-tag-m0 {{ font-size: .7rem; font-weight: 700; color: var(--cinza); }}
