@@ -10,11 +10,15 @@ processo.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from ensaia.core.design import Planejamento
-from ensaia.core.model import AjusteOLS
-from ensaia.core.results import PontoOtimo, Sentido
+import numpy as np
+from numpy.typing import NDArray
+
+from ensaia.core.design import Fator
+from ensaia.core.results import AjusteResposta, PontoOtimo, Sentido
+from ensaia.core.surface import prever
 
 # Abaixo deste R², o modelo não descreve os dados bem o bastante para que
 # otimizar sobre ele signifique alguma coisa. O protótipo usava 0,50; o valor
@@ -156,36 +160,179 @@ def desejabilidade_global(individuais: list[float], pesos: list[float]) -> float
     return math.exp(log_medio)
 
 
+def desejabilidade_vetor(
+    valores: NDArray[np.float64], alvo: AlvoResposta
+) -> NDArray[np.float64]:
+    """`desejabilidade_individual` aplicada a muitos pontos de uma vez (numpy).
+
+    Mesmas formas e mesma saturação; existe para a busca do ótimo avaliar a
+    malha inteira sem laço em Python.
+    """
+    y = np.asarray(valores, dtype=float)
+    inf, sup, s = alvo.limite_inferior, alvo.limite_superior, alvo.s
+    if alvo.sentido == "maximizar":
+        return np.clip((y - inf) / (sup - inf), 0.0, 1.0) ** s
+    if alvo.sentido == "minimizar":
+        return np.clip((sup - y) / (sup - inf), 0.0, 1.0) ** s
+    pico = alvo.alvo
+    assert pico is not None
+    subida = np.clip((y - inf) / (pico - inf), 0.0, 1.0) ** s
+    descida = np.clip((sup - y) / (sup - pico), 0.0, 1.0) ** s
+    return np.where((y < inf) | (y > sup), 0.0, np.where(y <= pico, subida, descida))
+
+
+def metas_padrao(
+    ajustes: Sequence[AjusteResposta],
+    sentidos: Mapping[str, Sentido],
+    alvos: Mapping[str, float] | None = None,
+) -> list[AlvoResposta]:
+    """Metas com os limites usuais: o menor e o maior valor observado.
+
+    É o padrão de softwares como o Design-Expert: a desejabilidade vai de 0 no
+    pior valor observado a 1 no melhor. Respostas fora de `sentidos` ficam de
+    fora da otimização.
+    """
+    alvos = alvos or {}
+    metas: list[AlvoResposta] = []
+    for ajuste in ajustes:
+        sentido = sentidos.get(ajuste.resposta)
+        if sentido is None or ajuste.diagnostico is None:
+            continue
+        observados = ajuste.diagnostico.observados
+        baixo, alto = min(observados), max(observados)
+        if alto <= baixo:
+            continue
+        metas.append(
+            AlvoResposta(
+                resposta=ajuste.resposta,
+                sentido=sentido,
+                limite_inferior=baixo,
+                limite_superior=alto,
+                alvo=alvos.get(ajuste.resposta),
+            )
+        )
+    return metas
+
+
 def otimizar(
-    ajustes: dict[str, AjusteOLS],
-    planejamento: Planejamento,
-    alvos: list[AlvoResposta],
+    ajustes: Sequence[AjusteResposta],
+    fatores: Sequence[Fator],
+    metas: Sequence[AlvoResposta],
     *,
-    pontos_por_fator: int = 15,
+    limite_codificado: float = 1.0,
     r2_minimo: float = R2_MINIMO_PARA_OTIMIZAR,
 ) -> tuple[PontoOtimo | None, list[str]]:
-    """Busca a condição que maximiza a desejabilidade global.
+    """Busca a melhor condição dentro da região experimental (spec §9, E4/E5).
 
-    Devolve `(ponto_otimo, avisos)`. `ponto_otimo` vem None quando a
-    otimização foi bloqueada — R² insuficiente, por exemplo — e o motivo vai
-    nos avisos, que sobem para o `AnalysisResult` e de lá para o relatório.
+    - **Uma resposta a maximizar ou minimizar (E4):** otimiza a própria
+      resposta prevista. A desejabilidade satura em 1 e deixaria o ótimo
+      indefinido no platô; a resposta não satura.
+    - **Várias respostas, ou uma com alvo (E5):** maximiza a desejabilidade
+      global de Derringer e Suich.
 
-    Busca em malha (`pontos_por_fator` por dimensão) seguida de refinamento
-    local. A malha sozinha não basta: com 15 pontos por fator e 3 fatores são
-    3.375 avaliações e o ótimo cai na resolução da grade. Mas malha pura é
-    determinística e serve de ponto de partida reprodutível para o refinamento
-    — e reprodutibilidade aqui vale mais que o último decimal, porque o §4.3(d)
-    compara essa coordenada com a publicada.
+    A região é a caixa [−limite, +limite] na escala codificada (±1 no fatorial
+    e no Box-Behnken, ±α no composto central). Busca determinística: malha
+    regular (ou amostra fixa quando há muitos fatores) e refinamento local a
+    partir dos 5 melhores pontos dela; o resultado se repete byte a byte, o que
+    o §4.3(d) exige para comparar com o artigo.
 
-    Atenção à explosão combinatória: 15^k avaliações cresce rápido. Para k > 4,
-    trocar a malha por amostragem por hipercubo latino + refinamento.
-
-    TODO(#6): implementar. Depende de duas decisões ainda em aberto, por tocarem
-    o contrato congelado e uma regra de negócio: (1) como registrar método, nº de
-    pontos e semente no `AnalysisResult` (reprodutibilidade do §4.3(d)); e (2) o
-    critério de custo que separa os cenários econômico/intermediário/alta
-    performance, que a issue #6 define como "definido pelo usuário". As funções
-    puras `desejabilidade_individual`/`desejabilidade_global` acima já estão
-    prontas e são a base desta busca.
+    Devolve `(ponto, avisos)`. Com R² abaixo de `r2_minimo` numa resposta
+    usada, a otimização é recusada e o motivo vai nos avisos.
     """
-    raise NotImplementedError("Ver issue #6 — busca do ótimo (design em aberto).")
+    # Importação tardia (spec §16.2): o scipy.optimize pesa na memória ociosa do
+    # servidor e só é preciso quando alguém pede o ótimo.
+    from scipy.optimize import minimize
+
+    avisos: list[str] = []
+    por_nome = {a.resposta: a for a in ajustes}
+    metas = [m for m in metas if m.resposta in por_nome]
+    if not metas:
+        return None, avisos
+    fracos = [m.resposta for m in metas if por_nome[m.resposta].r2 < r2_minimo]
+    if fracos:
+        avisos.append(
+            "Otimização não feita: o modelo de "
+            f"{', '.join(fracos)} tem R² abaixo de {r2_minimo:.2f}".replace(".", ",")
+            + " e não descreve os dados bem o bastante para apontar um ótimo."
+        )
+        return None, avisos
+
+    nomes = [f.nome for f in fatores]
+    k = len(nomes)
+    direto = len(metas) == 1 and metas[0].sentido != "alvo"
+
+    def respostas(pontos: NDArray[np.float64]) -> dict[str, NDArray[np.float64]]:
+        colunas = {n: pontos[:, j] for j, n in enumerate(nomes)}
+        return {m.resposta: prever(por_nome[m.resposta], colunas) for m in metas}
+
+    def custo(pontos: NDArray[np.float64]) -> NDArray[np.float64]:
+        previstas = respostas(pontos)
+        if direto:
+            y = previstas[metas[0].resposta]
+            return -y if metas[0].sentido == "maximizar" else y
+        individuais = np.column_stack(
+            [desejabilidade_vetor(previstas[m.resposta], m) for m in metas]
+        )
+        pesos = np.array([m.peso for m in metas])
+        # Média geométrica ponderada; o piso evita log(0), e o veto (algum
+        # d = 0 ⇒ D = 0) é aplicado à parte, como em desejabilidade_global.
+        log_d = np.log(np.maximum(individuais, 1e-300))
+        global_ = np.exp((log_d * pesos).sum(axis=1) / pesos.sum())
+        return -np.where(np.any(individuais == 0, axis=1), 0.0, global_)
+
+    malha = _malha(k, limite_codificado)
+    valores = custo(malha)
+    ordem = np.argsort(valores, kind="stable")[:5]
+    limites = [(-limite_codificado, limite_codificado)] * k
+    melhor_x, melhor_v = malha[ordem[0]], float(valores[ordem[0]])
+    for indice in ordem:
+        resultado = minimize(
+            lambda x: float(custo(x.reshape(1, -1))[0]),
+            malha[indice],
+            method="L-BFGS-B" if direto else "Powell",
+            bounds=limites,
+        )
+        x = np.clip(resultado.x, -limite_codificado, limite_codificado)
+        v = float(custo(x.reshape(1, -1))[0])
+        if v < melhor_v - 1e-12:
+            melhor_x, melhor_v = x, v
+
+    previstas = respostas(melhor_x.reshape(1, -1))
+    individuais = {
+        m.resposta: float(desejabilidade_vetor(previstas[m.resposta], m)[0])
+        for m in metas
+    }
+    global_d = desejabilidade_global(
+        list(individuais.values()), [m.peso for m in metas]
+    )
+    if not direto and global_d == 0.0:
+        avisos.append(
+            "Nenhuma condição da região atende a todas as metas ao mesmo tempo "
+            "(desejabilidade global = 0)."
+        )
+    ponto = PontoOtimo(
+        coordenadas={
+            f.nome: float(f.decodificar(v))
+            for f, v in zip(fatores, melhor_x, strict=True)
+        },
+        coordenadas_codificadas={
+            n: float(v) for n, v in zip(nomes, melhor_x, strict=True)
+        },
+        resposta_prevista={r: float(v[0]) for r, v in previstas.items()},
+        desejabilidade_global=global_d,
+        desejabilidades_individuais=individuais,
+        metas={m.resposta: m.sentido for m in metas},
+        metodo="resposta_unica" if direto else "desejabilidade",
+        limite_codificado=limite_codificado,
+    )
+    return ponto, avisos
+
+
+def _malha(k: int, limite: float) -> NDArray[np.float64]:
+    """Pontos de partida: malha regular até 4 fatores; amostra fixa acima disso."""
+    if k <= 4:
+        por_fator = {1: 201, 2: 41, 3: 21, 4: 11}[k]
+        eixo = np.linspace(-limite, limite, por_fator)
+        return np.array(np.meshgrid(*([eixo] * k), indexing="ij")).reshape(k, -1).T
+    rng = np.random.default_rng(20261010)  # semente fixa: busca reprodutível
+    return rng.uniform(-limite, limite, size=(4000, k))

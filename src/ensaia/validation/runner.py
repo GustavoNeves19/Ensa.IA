@@ -24,6 +24,7 @@ from ensaia.core.pipeline import analisar
 from ensaia.core.results import (
     SCHEMA_VERSION,
     AnalysisResult,
+    Sentido,
     TermoErro,
     TipoPlanejamento,
 )
@@ -94,6 +95,7 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
             # testes t (spec §9): Statistica e artigos brasileiros costumam usar
             # o erro puro; o padrão segue o resíduo.
             termo_erro=_termo_erro(referencia),
+            objetivos=_objetivos(referencia),
         )
     except ValueError as erro:
         raise ValueError(f"{caso.name}: {erro}") from erro
@@ -207,6 +209,22 @@ def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
         fatores.append(Fator(nome, minimo, maximo, str(faixa.get("unidade", ""))))
 
     return Planejamento(tipo=cast(TipoPlanejamento, tipo), fatores=fatores)
+
+
+def _objetivos(referencia: dict[str, Any]) -> dict[str, Sentido] | None:
+    """Sentido da otimização por resposta, para comparar o ótimo (§4.3 d)."""
+    bruto = (referencia.get("condicao_otima") or {}).get("objetivos")
+    if not bruto:
+        return None
+    validos = get_args(Sentido)
+    objetivos: dict[str, Sentido] = {}
+    for resposta, sentido in bruto.items():
+        if sentido not in validos:
+            raise ValueError(
+                f"Objetivo inválido para {resposta!r}: {sentido!r}. Use {validos}."
+            )
+        objetivos[str(resposta)] = cast(Sentido, sentido)
+    return objetivos
 
 
 def _termo_erro(referencia: dict[str, Any]) -> TermoErro:
@@ -387,6 +405,19 @@ def main(argv: list[str] | None = None) -> int:
         todos_ok = todos_ok and ok
         veredito = "dentro das tolerâncias" if ok else "FORA — ver JSON"
         print(f"§4.3 (a,b,c): {veredito}")
+        condicao = resultado["condicao_otima"]
+        if condicao.aplicavel:
+            # (d) não tem tolerância na spec: é registrado e discutido.
+            partes = [
+                f"{d.fator} {d.valor_ensaia:.4g} vs {d.valor_referencia:.4g}"
+                + (
+                    f" ({d.diferenca_pct_faixa:.1f}% da faixa)"
+                    if d.diferenca_pct_faixa is not None
+                    else ""
+                )
+                for d in condicao.diferencas
+            ]
+            print("§4.3 (d) condição ótima: " + "; ".join(partes))
         arquivos = gravar_resultados(caso, resultado)
         print("Gravado: " + ", ".join(str(a.relative_to(caso)) for a in arquivos))
 

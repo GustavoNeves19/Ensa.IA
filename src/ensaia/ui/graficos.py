@@ -392,7 +392,9 @@ def _rotulo_eixo(valor: float) -> str:
     return texto.replace(".", ",")
 
 
-def opcoes_contorno(grade: GradeSuperficie) -> Opcoes:
+def opcoes_contorno(
+    grade: GradeSuperficie, *, destaque: tuple[float, float, str] | None = None
+) -> Opcoes:
     """Mapa de contorno preenchido: a resposta prevista em faixas de cor.
 
     Faixas discretas (7, da rampa) leem como curvas de nível: cada mudança de
@@ -473,6 +475,9 @@ def opcoes_contorno(grade: GradeSuperficie) -> Opcoes:
         }
     )
     opcoes["visualMap"]["dimension"] = 2
+    opcoes["visualMap"]["seriesIndex"] = 0  # a escala de cor é só do mapa
+    if destaque is not None:
+        opcoes["series"].append(_marcador(grade, destaque))
     # Tela estreita (celular): a legenda sai da direita e vira uma fileira de
     # amostras com "menor"/"maior" nas pontas, devolvendo a largura ao mapa.
     opcoes["media"] = [
@@ -496,6 +501,46 @@ def opcoes_contorno(grade: GradeSuperficie) -> Opcoes:
         }
     ]
     return opcoes
+
+
+def _marcador(
+    grade: GradeSuperficie, destaque: tuple[float, float, str]
+) -> Opcoes:
+    """Anel com rótulo sobre o contorno (ex.: o ponto estacionário).
+
+    Os eixos do contorno são categorias (uma por ponto da grade); a posição do
+    ponto vira um índice fracionário, interpolado entre as categorias vizinhas.
+    """
+    x, y, rotulo = destaque
+
+    def indice(valor: float, eixo: list[float]) -> float:
+        return (valor - eixo[0]) / (eixo[-1] - eixo[0]) * (len(eixo) - 1)
+
+    ix = indice(x, grade.valores_x)
+    # Perto da borda direita, o rótulo vai para a esquerda do anel.
+    lado = "left" if ix > 0.7 * (len(grade.valores_x) - 1) else "right"
+    return {
+        "type": "scatter",
+        "name": rotulo,
+        "silent": True,
+        "z": 5,
+        "symbol": "circle",
+        "symbolSize": 16,
+        "itemStyle": {"color": "transparent", "borderColor": PAPEL_ALTO,
+                      "borderWidth": 3},
+        "label": {
+            "show": True,
+            "position": lado,
+            "formatter": rotulo,
+            "color": PAPEL_ALTO,
+            "fontWeight": 600,
+            "fontSize": 12,
+            "textBorderColor": TINTA,
+            "textBorderWidth": 2,
+        },
+        "tooltip": {"show": False},
+        "data": [[ix, indice(y, grade.valores_y)]],
+    }
 
 
 _CELULA_JS = (

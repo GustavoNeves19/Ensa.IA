@@ -17,3 +17,7 @@ O modelo explica 98,5% da variação da resposta 'remocao_mnz' (R² = 0,985; R²
 ## Diagnóstico do modelo
 
 Não há evidência de falta de ajuste (p = 0,1547 ≥ 0,05). O teste de Shapiro-Wilk não indica desvio da normalidade dos resíduos (W = 0,942; p = 0,4113 ≥ 0,05).
+
+## Otimização
+
+O ponto estacionário da superfície é um máximo em dose_adsorvente = 0,893, tempo_mistura = 55,579, ph = 7,434, dentro da região experimental, com resposta prevista 99,3655. A condição ótima (em unidades reais) é dose_adsorvente = 0,893, tempo_mistura = 55,579, ph = 7,434. Nessa condição, a resposta prevista é remocao_mnz = 99,3655.

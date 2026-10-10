@@ -55,6 +55,9 @@ respostas:
     alfa_usado_no_artigo: 0.05
 
 condicao_otima:
+  # Objetivo da otimização no artigo: a condição publicada é a de máxima eficiência de fotodegradação.
+  objetivos:
+    eficiencia_fotodegradacao: maximizar
   coordenadas:
     dose_catalisador: 1.5
     concentracao_levofloxacino: 4.0

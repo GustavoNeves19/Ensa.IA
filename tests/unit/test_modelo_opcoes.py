@@ -225,3 +225,11 @@ def test_fatos_trazem_regressao_r2_predicao_e_normalidade() -> None:
     assert "regressão é significativa" in anova_txt and "F tabelado" in anova_txt
     assert "R² de predição" in anova_txt
     assert any("Shapiro-Wilk" in f for f in fatos["diagnostico"])
+
+
+def test_tipo2_com_termo_de_erro_nulo_nao_divide_por_zero() -> None:
+    _, _, ajuste = _ajuste()
+    linhas = ajuste.tabela_tipo2(qm_erro=0.0, gl_erro=4)
+    termos = [linha for linha in linhas if linha.fonte != "Resíduo"]
+    assert all(linha.valor_f is None for linha in termos)
+    assert all(linha.valor_p in (0.0, 1.0) for linha in termos)

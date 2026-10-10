@@ -213,10 +213,16 @@ def _fatos_planejamento(resultado: AnalysisResult) -> list[str]:
 
 
 def _fatos_otimizacao(resultado: AnalysisResult) -> list[str]:
+    multi = len(resultado.ajustes) > 1
+    fatos: list[str] = []
+    for ajuste in resultado.ajustes:
+        fatos.extend(
+            _rotular(_fatos_estacionario(ajuste), ajuste.resposta, multi=multi)
+        )
+
     otimo = resultado.ponto_otimo
     if otimo is None:
-        return []
-
+        return fatos
     coords = ", ".join(
         f"{fator} = {_num(valor, 3)}" for fator, valor in otimo.coordenadas.items()
     )
@@ -224,11 +230,36 @@ def _fatos_otimizacao(resultado: AnalysisResult) -> list[str]:
         f"{resp} = {_num(valor, 4)}"
         for resp, valor in otimo.resposta_prevista.items()
     )
-    d = _num(otimo.desejabilidade_global, 3)
-    return [
-        f"A condição ótima (em níveis codificados) é {coords}.",
+    fatos += [
+        f"A condição ótima (em unidades reais) é {coords}.",
         f"Nessa condição, a resposta prevista é {previstas}.",
-        f"A desejabilidade global no ótimo é D = {d}.",
+    ]
+    if otimo.metodo == "desejabilidade":
+        fatos.append(
+            "A desejabilidade global no ótimo é "
+            f"D = {_num(otimo.desejabilidade_global, 3)}."
+        )
+    return fatos
+
+
+def _fatos_estacionario(ajuste: AjusteResposta) -> list[str]:
+    ponto = ajuste.ponto_estacionario
+    if ponto is None:
+        return []
+    natureza = {
+        "maximo": "um máximo",
+        "minimo": "um mínimo",
+        "sela": "um ponto de sela",
+    }
+    coords = ", ".join(f"{f} = {_num(v, 3)}" for f, v in ponto.real.items())
+    onde = (
+        "dentro da região experimental"
+        if ponto.dentro_da_regiao
+        else "fora da região experimental (não extrapolar o modelo até lá)"
+    )
+    return [
+        f"O ponto estacionário da superfície é {natureza[ponto.natureza]} em "
+        f"{coords}, {onde}, com resposta prevista {_num(ponto.resposta_prevista, 4)}."
     ]
 
 

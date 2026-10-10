@@ -33,8 +33,9 @@ from pydantic import BaseModel, ConfigDict, Field
 # dependem disso para continuarem legíveis. A parte menor sobe quando só se
 # acrescentam campos opcionais (1.1: t crítico e diagnóstico por ensaio; 1.2:
 # informações do planejamento; 1.3: ANOVA da regressão, R² de predição,
-# equação e opções do modelo); um JSON 1.0 continua sendo lido.
-SCHEMA_VERSION = "1.3"
+# equação e opções do modelo; 1.4: ponto estacionário e ótimo em unidades
+# reais); um JSON 1.0 continua sendo lido.
+SCHEMA_VERSION = "1.4"
 
 TipoPlanejamento = Literal[
     "fatorial_completo",
@@ -121,12 +122,40 @@ class FaltaDeAjuste(_Congelado):
 
 
 class PontoOtimo(_Congelado):
-    """Condição ótima encontrada pela função de desejabilidade."""
+    """Condição ótima (spec §9, E4 e E5).
+
+    `coordenadas` estão em **unidades reais** — é como o artigo publica a
+    condição ótima e como o usuário vai ajustar o equipamento;
+    `coordenadas_codificadas` são as mesmas na escala do modelo. `metas` diz o
+    que se pediu de cada resposta (maximizar, minimizar, alvo) e `metodo`
+    distingue a otimização direta de uma resposta da desejabilidade.
+    """
 
     coordenadas: dict[str, float]
     resposta_prevista: dict[str, float]
     desejabilidade_global: float
     desejabilidades_individuais: dict[str, float] = Field(default_factory=dict)
+    coordenadas_codificadas: dict[str, float] = Field(default_factory=dict)
+    metas: dict[str, str] = Field(default_factory=dict)
+    metodo: str = "desejabilidade"
+    limite_codificado: float = 1.0
+
+
+class PontoEstacionario(_Congelado):
+    """Ponto estacionário do modelo quadrático e sua natureza (spec §9, E3).
+
+    `x_s = −½·B⁻¹·b`. Os autovalores de B dizem a forma da superfície ali:
+    todos negativos → máximo; todos positivos → mínimo; sinais mistos → sela
+    (nem máximo nem mínimo). `dentro_da_regiao` avisa quando o ponto cai fora
+    da região experimental — o modelo não deve ser extrapolado até lá.
+    """
+
+    codificado: dict[str, float]
+    real: dict[str, float]
+    natureza: Literal["maximo", "minimo", "sela"]
+    autovalores: list[float]
+    resposta_prevista: float
+    dentro_da_regiao: bool
 
 
 class AnovaRegressao(_Congelado):
@@ -210,6 +239,7 @@ class AjusteResposta(_Congelado):
     # Termo de erro efetivamente usado nos testes desta resposta (o pedido pode
     # cair para o resíduo quando não há réplicas para o erro puro).
     termo_erro: TermoErro = "residuo"
+    ponto_estacionario: PontoEstacionario | None = None
 
 
 class FatorCodificado(_Congelado):
