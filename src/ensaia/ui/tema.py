@@ -38,6 +38,15 @@ LINHA = "rgba(29,29,27,0.08)"  # borda auto-colorida, sentida mais que vista
 # Compat: `report/theme.py` e trechos antigos ainda falam em "acento".
 ACENTO = VERDE
 
+# --- Cores dos gráficos (validadas: daltonismo, visão normal e contraste ≥ 3:1
+# sobre PAPEL_ALTO; a rampa passa o teste ordinal de tom único e passo visível).
+SERIE = "#2E8540"  # marca principal: termo significativo, ensaios
+SERIE_APAGADA = "#968F7A"  # cinza quente de ênfase: termo não significativo
+REFERENCIA = CINZA  # linhas de referência (y = x, zero, t crítico, reta do Q-Q)
+GRADE = "#E7E4D8"  # linhas de grade: um passo fora da superfície, recessivas
+# Rampa sequencial (claro → escuro) da superfície e do contorno: maior = mais escuro.
+RAMPA = ["#8FBD7D", "#6FA96A", "#529257", "#3B7B47", "#28643A", "#1A4E2D", "#0E3A26"]
+
 _STATIC = Path(__file__).parent / "static"
 # Rota estática servida uma única vez (nível de módulo roda no import). Serve as
 # fontes self-hosted sem depender de CDN — a interface roda offline (princípio
@@ -210,6 +219,15 @@ def _css() -> str:
     .ea-rodape b {{ color: var(--tinta); font-weight: 600; }}
 
     /* --- Fluxo de análise: mapear → analisar → resultados → relatório -------- */
+    /* Itens flexíveis crescem até o conteúdo por padrão (min-width: auto): uma
+       tabela larga empurrava a coluna inteira para fora da tela no celular.
+       Com min-width: 0 a coluna fica na largura da tela e a tabela rola por
+       dentro. */
+    .ea-main > *, .ea-analise > *, .ea-slot > *, .ea-resultado > *,
+    .ea-paineis, .ea-paineis .q-tab-panel, .ea-painel-aba > * {{
+      min-width: 0; max-width: 100%; }}
+    .ensaia-previa {{ max-width: 100%; }}
+    .ensaia-previa .q-table__middle {{ overflow-x: auto; }}
     .ea-analise {{ display: flex; flex-direction: column; gap: 1.6rem; }}
     .ea-analise:empty {{ display: none; }}
     .ea-slot:empty {{ display: none; }}
@@ -247,6 +265,40 @@ def _css() -> str:
     .ea-aviso {{ font-size: .82rem; color: var(--oliva-escuro); line-height: 1.45; }}
     .ea-tabela-rotulo {{ font-size: .8rem; font-weight: 600; color: var(--cinza);
       margin-top: .15rem; }}
+
+    /* Abas por resposta: rótulo em caixa normal (sem o caps do Quasar), o
+       indicador deslizante do próprio Quasar marca a aba ativa. */
+    .ea-abas {{ color: var(--cinza); border-bottom: 1px solid var(--linha); }}
+    .ea-abas .q-tabs__content {{ justify-content: flex-start; }}
+    .ea-abas .q-tab {{ flex: 0 0 auto; }}
+    /* O realce cinza do Quasar no clique vira caixa atrás do rótulo: fora. */
+    .ea-abas .q-focus-helper {{ display: none; }}
+    .ea-abas .q-tab:hover .q-tab__label {{ color: var(--tinta); }}
+    .ea-abas .q-tab {{ padding: 0 .9rem 0 0; min-height: 40px; }}
+    .ea-abas .q-tab__label {{ font-weight: 600; font-size: .9rem;
+      letter-spacing: 0; }}
+    .ea-paineis {{ background: transparent; }}
+    .ea-paineis .q-tab-panel {{ padding: 1rem 0 0 0; }}
+    .ea-painel-aba {{ gap: .55rem; }}
+
+    /* Gráfico + uma linha de "como ler" logo abaixo (US-16): curta, nunca um
+       parágrafo. */
+    .ea-grafico {{ width: 100%; }}
+    .ea-grafico-titulo {{ font-weight: 600; font-size: .92rem; color: var(--tinta);
+      margin-top: .35rem; }}
+    .ea-ler {{ font-size: .82rem; color: var(--cinza); line-height: 1.5;
+      max-width: 34rem; }}
+    .ea-ler b {{ color: var(--tinta); font-weight: 600; }}
+    .ea-controles {{ display: flex; flex-wrap: wrap; gap: .6rem 1rem;
+      align-items: flex-end; }}
+    .ea-controles .q-field {{ min-width: 150px; }}
+    .ea-forma {{ border: 1px solid var(--linha); border-radius: 10px; }}
+    .ea-forma .q-btn {{ border-radius: 9px; font-weight: 600; letter-spacing: 0;
+      padding: .25rem .8rem; }}
+    .ea-fixo {{ display: flex; flex-direction: column; gap: .1rem;
+      min-width: 210px; flex: 1; }}
+    .ea-fixo-rotulo {{ font-size: .8rem; color: var(--cinza); }}
+    .ea-fixo-rotulo b {{ color: var(--tinta); font-variant-numeric: tabular-nums; }}
 
     .ea-relatorio {{ display: flex; flex-direction: column; gap: 1rem; }}
     .ea-rel-secao {{ display: flex; flex-direction: column; gap: .3rem; }}
