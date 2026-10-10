@@ -35,8 +35,8 @@ from pydantic import BaseModel, ConfigDict, Field
 # informações do planejamento; 1.3: ANOVA da regressão, R² de predição,
 # equação e opções do modelo; 1.4: ponto estacionário e ótimo em unidades
 # reais; 1.5: efeitos de fatorial, pontos influentes e estatística
-# descritiva); um JSON 1.0 continua sendo lido.
-SCHEMA_VERSION = "1.5"
+# descritiva; 1.6: análises marcadas); um JSON 1.0 continua sendo lido.
+SCHEMA_VERSION = "1.6"
 
 TipoPlanejamento = Literal[
     "fatorial_completo",
@@ -385,6 +385,9 @@ class MetadadosExecucao(_Congelado):
     tipo_modelo: TipoModelo | None = None
     termo_erro: TermoErro = "residuo"
     reducao_backward: bool = False
+    # Análises marcadas pelo usuário (IDs da spec §9, A1…E5). A tela, o PDF e
+    # o texto mostram só estas (RF-07, RF-11); o núcleo calcula o que é barato.
+    analises: list[str] = Field(default_factory=list)
     semente: int | None = None
     tempo_execucao_s: float | None = None
     # Preenchido pelo chamador, não por relógio interno, para que o resultado

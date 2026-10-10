@@ -1,6 +1,6 @@
 {
   "caso": "go-2022-levofloxacino-hidroxiapatita-bbd",
-  "schema_version": "1.5",
+  "schema_version": "1.6",
   "criterios": {
     "a_erro_relativo_coeficientes_pct": 5.0,
     "b_alfa_significancia": 0.05,
