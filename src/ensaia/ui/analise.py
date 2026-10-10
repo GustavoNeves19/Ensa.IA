@@ -23,7 +23,6 @@ chama o pipeline e desenha o resultado.
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -38,7 +37,6 @@ from ensaia.ai.report import gerar_relatorio
 from ensaia.core.catalogo import CATALOGO, GRUPOS, IDS, disponibilidade
 from ensaia.core.descritiva import matriz_codificada, matriz_ensaios
 from ensaia.core.design import (
-    INTERCEPTO,
     Fator,
     Planejamento,
     interpretar_termo,
@@ -47,8 +45,8 @@ from ensaia.core.design import (
 from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import pontos_qq
 from ensaia.core.fatorial import pontos_meio_normal
-from ensaia.core.identificacao import identificar_planejamento
-from ensaia.core.pipeline import analisar, limite_da_regiao
+from ensaia.core.fluxo import Papel, analisar_tabela, sugerir_mapeamento
+from ensaia.core.pipeline import limite_da_regiao
 from ensaia.core.results import (
     NOME_PLANEJAMENTO,
     AjusteResposta,
@@ -70,15 +68,17 @@ from ensaia.core.surface import (
     prever_condicao,
 )
 from ensaia.core.table import Table
-from ensaia.core.termos import NOME_MODELO, escolher_termos, termos_do_tipo
+from ensaia.core.termos import NOME_MODELO
 from ensaia.ui import graficos
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.sessao import Sessao
 
-# Nomes usuais da coluna de ordem/número do ensaio (spec §8.3).
-_NOME_ORDEM = re.compile(
-    r"^(ensaio|ensaios|exp|experimento|run|ordem|corrida|n|n[º°o.]?)\b", re.IGNORECASE
-)
+_ROTULO_PAPEL: dict[Papel, str] = {
+    "fator": "Fator",
+    "resposta": "Resposta",
+    "ordem": "Ordem",
+    "ignorar": "Ignorar",
+}
 
 _MODELOS = {
     "auto": "Automático (pelo planejamento)",
@@ -104,8 +104,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
 
     `nome_arquivo` vai para a capa do PDF.
     """
-    numericas = [c for c in tabela.colunas if tabela.e_numerica(c)]
-    ultima_resposta = numericas[-1] if numericas else None
+    sugestao = sugerir_mapeamento(tabela)
     selects: dict[str, ui.select] = {}
 
     with ui.element("div").classes("ea-mapear"):
@@ -119,14 +118,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
         with ui.element("div").classes("ea-mapa-grade"):
             for coluna in tabela.colunas:
                 numerica = tabela.e_numerica(coluna)
-                if not numerica:
-                    padrao = "Ignorar"
-                elif _parece_ordem(coluna, tabela):
-                    padrao = "Ordem"
-                elif coluna == ultima_resposta:
-                    padrao = "Resposta"
-                else:
-                    padrao = "Fator"
+                padrao = _ROTULO_PAPEL[sugestao[coluna]]
                 with ui.element("div").classes("ea-mapa-item"):
                     ui.html(f'<div class="ea-col-nome">{escape(coluna)}</div>')
                     sel = (
@@ -300,14 +292,6 @@ def _painel_opcoes(opcoes: _Opcoes) -> None:
         )
 
 
-def _parece_ordem(coluna: str, tabela: Table) -> bool:
-    """Coluna 1..n com nome de ensaio/ordem vira Ordem por padrão (spec §8.3)."""
-    if not _NOME_ORDEM.match(coluna.strip()):
-        return False
-    valores = sorted(float(v) for v in tabela.coluna(coluna))
-    return valores == [float(i) for i in range(1, len(valores) + 1)]
-
-
 def _rodar_analise(
     tabela: Table,
     fatores: list[str],
@@ -316,41 +300,26 @@ def _rodar_analise(
     coluna_ordem: str | None = None,
     analises: list[str] | None = None,
 ) -> tuple[AnalysisResult, Planejamento, list[str]]:
-    """Reconhece o planejamento, escolhe os termos e roda o núcleo.
+    """Roda o fluxo do núcleo com as opções da tela (o mesmo do servidor MCP).
 
     Devolve também o `Planejamento` (a superfície precisa das faixas dos fatores)
     e os termos candidatos do modelo, para o usuário escolher o que excluir.
     """
-    identificacao = identificar_planejamento(
-        {nome: [float(v) for v in tabela.coluna(nome)] for nome in fatores}
-    )
-    planejamento = identificacao.planejamento
     pedido = None if opcoes.tipo_modelo == "auto" else opcoes.tipo_modelo
-    selecao = escolher_termos(
+    feita = analisar_tabela(
         tabela,
-        planejamento,
-        tipo_modelo=cast(TipoModelo | None, pedido),
-        excluidos=opcoes.excluidos,
-    )
-    niveis = {f.fator.nome: len(f.niveis) for f in identificacao.fatores}
-    candidatos = [
-        t for t in termos_do_tipo(niveis, selecao.tipo_modelo) if t != INTERCEPTO
-    ]
-    analise = analisar(
-        tabela,
-        planejamento,
-        selecao.termos,
+        fatores,
         respostas,
         versao_ensaia=__version__,
         alfa=opcoes.alfa,
+        tipo_modelo=cast(TipoModelo | None, pedido),
+        excluidos=opcoes.excluidos,
         termo_erro=cast(TermoErro, opcoes.termo_erro),
         reduzir=opcoes.reduzir,
-        tipo_modelo=selecao.tipo_modelo,
-        avisos_planejamento=[*identificacao.avisos, *selecao.avisos],
         coluna_ordem=coluna_ordem,
         analises=analises,
     )
-    return analise, planejamento, candidatos
+    return feita.resultado, feita.planejamento, feita.candidatos
 
 
 def _mostrar_resultados(

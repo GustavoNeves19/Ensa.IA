@@ -38,13 +38,13 @@ WORKDIR /app
 # Primeiro só as dependências: esta camada só é refeita quando o uv.lock muda.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-install-project --no-editable \
-        --extra ui --extra report --extra llm
+        --extra ui --extra report --extra llm --extra mcp
 
 # Depois o pacote em si (camada que muda a cada commit).
 COPY README.md ./
 COPY src ./src
 RUN uv sync --locked --no-editable \
-        --extra ui --extra report --extra llm
+        --extra ui --extra report --extra llm --extra mcp
 
 # Enxugar o ambiente (RNF-10), sem mudar o que o app executa:
 #   - apaga as suítes de teste que as bibliotecas trazem dentro do pacote e os
