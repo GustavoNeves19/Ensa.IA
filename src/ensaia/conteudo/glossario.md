@@ -10,7 +10,7 @@
 
 **Ponto central**: ensaio com todos os fatores no nível 0. Repetido, estima o erro puro e testa curvatura.
 
-**Fatorial 2^k**: todas as combinações de dois níveis de k fatores. Serve para triagem: descobrir quais fatores importam.
+**Fatorial 2ᵏ**: todas as combinações de dois níveis de k fatores. Serve para triagem: descobrir quais fatores importam.
 
 **Composto central (DCCR)**: fatorial + pontos axiais (±α) + pontos centrais. Permite ajustar um modelo quadrático.
 

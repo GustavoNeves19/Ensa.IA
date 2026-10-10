@@ -48,6 +48,7 @@ from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import pontos_qq
 from ensaia.core.fatorial import pontos_meio_normal
 from ensaia.core.fluxo import Papel, analisar_tabela, sugerir_mapeamento
+from ensaia.core.indicativos import indicativos, proximos_passos
 from ensaia.core.pipeline import limite_da_regiao
 from ensaia.core.results import (
     NOME_PLANEJAMENTO,
@@ -72,6 +73,7 @@ from ensaia.core.surface import (
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO
 from ensaia.ui import graficos
+from ensaia.ui.ajuda import ajuda, titulo_com_ajuda
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.sessao import Sessao
 
@@ -355,14 +357,7 @@ def _mostrar_resultados(
     for ajuste in analise.ajustes:
         with ui.element("div").classes("ea-resultado"):
             ui.html(f'<div class="ea-resp-nome">{escape(ajuste.resposta)}</div>')
-            if "C3" in sel:
-                r2 = (
-                    f"R² = <b>{_fmt(ajuste.r2, 3)}</b> · "
-                    f"R² ajustado = <b>{_fmt(ajuste.r2_ajustado, 3)}</b>"
-                )
-                if ajuste.r2_predicao is not None:
-                    r2 += f" · R² de predição = <b>{_fmt(ajuste.r2_predicao, 3)}</b>"
-                ui.html(f'<div class="ea-r2">{r2}</div>')
+            _painel_indicativos(ajuste, analise.metadados.alfa, sel)
             notas = []
             if ajuste.termo_erro == "erro_puro":
                 notas.append("Testes feitos com o erro puro das réplicas.")
@@ -390,9 +385,51 @@ def _mostrar_resultados(
         _bloco_otimizacao(sessao, planejamento)
     if "C1" in sel:
         _bloco_prever(analise, planejamento)
+    _bloco_proximos_passos(sessao, limite_da_regiao(planejamento))
 
     construir_narracao(sessao)
     _bloco_baixar(sessao)
+
+
+_SITUACAO = {"ok": "em ordem", "atencao": "atenção", "info": ""}
+
+
+def _painel_indicativos(
+    ajuste: AjusteResposta, alfa: float, sel: frozenset[str]
+) -> None:
+    """Primeira leitura de uma resposta (US-06): os indicadores e seus sinais."""
+    itens = [i for i in indicativos(ajuste, alfa) if i.analise in sel]
+    if not itens:
+        return
+    with ui.element("div").classes("ea-indicativos"):
+        for item in itens:
+            with ui.element("div").classes(f"ea-ind ea-ind-{item.situacao}"):
+                with ui.element("div").classes("ea-ind-rotulo"):
+                    ui.label(item.rotulo)
+                    ajuda(item.chave)
+                ui.label(item.valor).classes("ea-ind-valor")
+                if item.situacao != "info":
+                    ui.label(_SITUACAO[item.situacao]).classes("ea-ind-sit")
+                ui.label(item.leitura).classes("ea-ind-leitura")
+
+
+def _bloco_proximos_passos(sessao: Sessao, limite: float) -> None:
+    """O que fazer agora (US-17), refeito quando a melhor condição é calculada."""
+    with ui.element("div").classes("ea-otimizacao"):
+        ui.html('<div class="ea-secao-titulo">Próximos passos</div>')
+        lista = ui.element("div").classes("ea-passos-sugeridos")
+
+    def mostrar() -> None:
+        lista.clear()
+        passos = proximos_passos(sessao.analise, limite_codificado=limite)
+        with lista:
+            for passo in passos or [
+                "Nada pede ajuste: o modelo está pronto para prever e otimizar."
+            ]:
+                ui.label(passo).classes("ea-passo-sugerido")
+
+    sessao.ouvintes["proximos"] = mostrar
+    mostrar()
 
 
 def _marcadas(analise: AnalysisResult) -> frozenset[str]:
@@ -411,7 +448,7 @@ def _dados_experimento(
         "dense switch-toggle-side"
     ):
         if analise.descritiva and "A1" in sel:
-            ui.html('<div class="ea-tabela-rotulo">Estatística descritiva</div>')
+            titulo_com_ajuda("Estatística descritiva", "descritiva", "ea-tabela-rotulo")
             colunas = [
                 {
                     "name": c,
@@ -447,9 +484,10 @@ def _dados_experimento(
 
         if "A3" not in sel:
             return
-        ui.html(
-            '<div class="ea-tabela-rotulo">Matriz do planejamento '
-            "(real e, entre parênteses, codificado)</div>"
+        titulo_com_ajuda(
+            "Matriz do planejamento (real e, entre parênteses, codificado)",
+            "matriz",
+            "ea-tabela-rotulo",
         )
         codificada = matriz_codificada(tabela, planejamento)
         nomes = [f.nome for f in planejamento.fatores]
@@ -489,7 +527,7 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
     """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo."""
     analise = sessao.analise
     with ui.element("div").classes("ea-otimizacao"):
-        ui.html('<div class="ea-secao-titulo">Melhor condição</div>')
+        titulo_com_ajuda("Melhor condição", "desejabilidade", "ea-secao-titulo")
         ui.html(
             '<div class="ea-secao-sub">Diga o que você quer de cada resposta. O '
             "EnsaIA procura, dentro da região estudada, a combinação de fatores "
@@ -872,7 +910,9 @@ def _aba_efeitos(
     if ajuste.efeitos_fatorial is not None:
         _bloco_fatorial(ajuste, alfa, sel)
     if "C1" in sel:
-        ui.html('<div class="ea-tabela-rotulo">Coeficientes (escala codificada)</div>')
+        titulo_com_ajuda(
+            "Coeficientes (escala codificada)", "coeficientes", "ea-tabela-rotulo"
+        )
         _tabela_coeficientes(ajuste)
     if "C5" in sel:
         _equacao(ajuste)
@@ -881,7 +921,7 @@ def _aba_efeitos(
 def _pareto(
     ajuste: AjusteResposta, alfa: float, ao_clicar: Callable[[str], None] | None
 ) -> None:
-    ui.html('<div class="ea-grafico-titulo">Pareto dos efeitos padronizados</div>')
+    titulo_com_ajuda("Pareto dos efeitos padronizados", "pareto")
 
     def clique(evento: EChartPointClickEventArguments) -> None:
         if ao_clicar and isinstance(evento.data, dict) and evento.data.get("termo"):
@@ -933,7 +973,7 @@ def _bloco_fatorial(
 
 
 def _tabela_efeitos(ef: EfeitosFatorial) -> None:
-    ui.html('<div class="ea-tabela-rotulo">Efeitos (de −1 a +1)</div>')
+    titulo_com_ajuda("Efeitos (de −1 a +1)", "efeitos", "ea-tabela-rotulo")
     colunas = [
         {"name": "termo", "label": "Termo", "field": "termo", "align": "left"},
         {"name": "ef", "label": "Efeito", "field": "ef", "align": "right"},
@@ -959,7 +999,7 @@ def _tabela_efeitos(ef: EfeitosFatorial) -> None:
 def _meio_normal(ef: EfeitosFatorial) -> None:
     assert ef.lenth is not None
     ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
-    ui.html('<div class="ea-grafico-titulo">Gráfico meio-normal dos efeitos</div>')
+    titulo_com_ajuda("Gráfico meio-normal dos efeitos", "meio_normal")
     _grafico(
         graficos.opcoes_meio_normal(
             pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
@@ -986,7 +1026,7 @@ def _efeitos_principais(ef: EfeitosFatorial) -> None:
     todas = [v for m in ef.medias_principais for v in m.medias]
     baixo, alto = min(todas), max(todas)
     folga = (alto - baixo) * 0.12 or 1.0
-    ui.html('<div class="ea-grafico-titulo">Efeitos principais</div>')
+    titulo_com_ajuda("Efeitos principais", "efeitos_principais")
     with ui.element("div").classes("ea-multiplos"):
         for m in ef.medias_principais:
             _grafico(
@@ -1008,10 +1048,10 @@ def _interacao(ef: EfeitosFatorial) -> None:
         ef.medias_interacoes,
         key=lambda m: efeito_de.get(f"{m.fator_a}:{m.fator_b}", 0.0),
     )
-    ui.html(
-        '<div class="ea-grafico-titulo">Interação '
-        f"{escape(nome_legivel(mais_forte.fator_a))} × "
-        f"{escape(nome_legivel(mais_forte.fator_b))}</div>"
+    titulo_com_ajuda(
+        f"Interação {nome_legivel(mais_forte.fator_a)} × "
+        f"{nome_legivel(mais_forte.fator_b)}",
+        "interacao",
     )
     _grafico(
         graficos.opcoes_interacao(mais_forte),
@@ -1045,7 +1085,7 @@ def _equacao(ajuste: AjusteResposta) -> None:
     if eq is None:
         return
     legenda = ", ".join(f"{s} = {nome_legivel(n)}" for s, n in eq.variaveis.items())
-    ui.html('<div class="ea-tabela-rotulo">Equação do modelo</div>')
+    titulo_com_ajuda("Equação do modelo", "equacao", "ea-tabela-rotulo")
     ui.html(f'<div class="ea-equacao">{escape(eq.codificada)}</div>')
     ui.html(f'<div class="ea-ler">Variáveis codificadas ({escape(legenda)}).</div>')
     ui.html(f'<div class="ea-equacao">{escape(eq.real.replace("_", " "))}</div>')
@@ -1060,7 +1100,7 @@ def _aba_anova(
 ) -> None:
     reg = ajuste.anova_regressao
     if reg is not None and "C2" in sel:
-        ui.html('<div class="ea-tabela-rotulo">ANOVA da regressão</div>')
+        titulo_com_ajuda("ANOVA da regressão", "anova", "ea-tabela-rotulo")
         _tabela_anova(reg.linhas)
         if reg.razao_f is not None and reg.f_tabelado is not None:
             leitura = (
@@ -1075,9 +1115,10 @@ def _aba_anova(
             )
     if "C2" in sel:
         if ajuste.anova:
-            ui.html(
-                '<div class="ea-tabela-rotulo">Efeito de cada termo '
-                "(ANOVA Tipo II)</div>"
+            titulo_com_ajuda(
+                "Efeito de cada termo (ANOVA Tipo II)",
+                "anova_tipo2",
+                "ea-tabela-rotulo",
             )
             _tabela_anova(ajuste.anova)
         else:
@@ -1101,7 +1142,7 @@ def _aba_diagnostico(
         return
 
     if "C6" in sel:
-        ui.html('<div class="ea-grafico-titulo">Previsto × observado</div>')
+        titulo_com_ajuda("Previsto × observado", "previsto_observado")
         _grafico(
             graficos.opcoes_preditos_observados(ajuste),
             300,
@@ -1114,7 +1155,7 @@ def _aba_diagnostico(
         )
 
     if "D1" in sel:
-        ui.html('<div class="ea-grafico-titulo">Resíduos × previsto</div>')
+        titulo_com_ajuda("Resíduos × previsto", "residuos_previsto")
         _grafico(
             graficos.opcoes_residuos_preditos(ajuste),
             280,
@@ -1127,7 +1168,7 @@ def _aba_diagnostico(
         )
 
     if d.ordem is not None and "D3" in sel:
-        ui.html('<div class="ea-grafico-titulo">Resíduos × ordem de execução</div>')
+        titulo_com_ajuda("Resíduos × ordem de execução", "residuos_ordem")
         _grafico(
             graficos.opcoes_residuos_ordem(ajuste),
             260,
@@ -1140,7 +1181,7 @@ def _aba_diagnostico(
         )
 
     if "D2" in sel:
-        ui.html('<div class="ea-grafico-titulo">Normalidade dos resíduos (Q-Q)</div>')
+        titulo_com_ajuda("Normalidade dos resíduos (Q-Q)", "qq")
         _grafico(
             graficos.opcoes_qq(pontos_qq(d.residuos)),
             280,
@@ -1283,6 +1324,7 @@ class _PainelSuperficie:
                 )
                 .classes("ea-forma")
             )
+            ajuda("superficie")
         if len(formas) == 1:
             self.forma.set_visibility(False)  # só uma forma marcada: sem escolha
         self.estacionario = ajuste.ponto_estacionario if "E3" in sel else None
