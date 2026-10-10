@@ -69,6 +69,9 @@ dev = [
     # ANOVA Tipo II); statsmodels e pandas NÃO entram em produção. ADRs 0007/0008.
     "statsmodels>=0.14",
     "pandas>=2.2",
+    # Medição de memória (RNF-01, spec §16.2): scripts/measure_memory.py lê o
+    # RSS dos processos. Só desenvolvimento/CI; não entra na imagem Docker.
+    "psutil>=5.9",
 ]
 
 [project.scripts]
