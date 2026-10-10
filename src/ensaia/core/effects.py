@@ -40,6 +40,8 @@ def extrair_coeficientes(
     *,
     alfa: float = ALFA_PADRAO,
     calcular_ic: bool = True,
+    qm_erro: float | None = None,
+    gl_erro: int | None = None,
 ) -> list[Coeficiente]:
     """Converte o ajuste OLS na lista de `Coeficiente` do contrato público.
 
@@ -49,14 +51,15 @@ def extrair_coeficientes(
     `design.termos_do_modelo` — a comparação com os valores publicados casa por
     nome, não por posição.
 
-    Com `calcular_ic=False`, `ic_inferior`/`ic_superior` ficam None: útil quando
-    o intervalo não vai ser usado.
+    `qm_erro`/`gl_erro` trocam o termo de erro dos testes t e do IC (o do erro
+    puro, por exemplo); sem eles vale o resíduo. Com `calcular_ic=False`,
+    `ic_inferior`/`ic_superior` ficam None.
     """
     estimativas = ajuste.coeficientes
-    erros = ajuste.erros_padrao
-    ts = ajuste.valores_t
-    ps = ajuste.valores_p
-    intervalo = ajuste.intervalo_confianca(alfa) if calcular_ic else {}
+    erros, ts, ps = ajuste.estatisticas_t(qm_erro, gl_erro)
+    intervalo = (
+        ajuste.intervalo_confianca(alfa, qm_erro, gl_erro) if calcular_ic else {}
+    )
 
     return [
         Coeficiente(

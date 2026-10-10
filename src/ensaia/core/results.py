@@ -32,8 +32,9 @@ from pydantic import BaseModel, ConfigDict, Field
 # guardados em resultados/ e os valores de referência dos casos de estudo
 # dependem disso para continuarem legíveis. A parte menor sobe quando só se
 # acrescentam campos opcionais (1.1: t crítico e diagnóstico por ensaio; 1.2:
-# informações do planejamento); um JSON 1.0 continua sendo lido.
-SCHEMA_VERSION = "1.2"
+# informações do planejamento; 1.3: ANOVA da regressão, R² de predição,
+# equação e opções do modelo); um JSON 1.0 continua sendo lido.
+SCHEMA_VERSION = "1.3"
 
 TipoPlanejamento = Literal[
     "fatorial_completo",
@@ -55,6 +56,13 @@ NOME_PLANEJAMENTO: dict[str, str] = {
 }
 
 Sentido = Literal["maximizar", "minimizar", "alvo"]
+
+# Opções do modelo (spec §4, passo 4, "opções avançadas").
+TipoModelo = Literal["linear", "interacoes", "quadratico"]
+# Termo de erro dos testes t e F: o resíduo (tipo Minitab) ou o erro puro das
+# réplicas (comum no Statistica e em artigos brasileiros). Essencial para
+# comparar com um Artigo Alvo: usar o mesmo termo que o artigo usou.
+TermoErro = Literal["residuo", "erro_puro"]
 
 
 class _Congelado(BaseModel):
@@ -121,6 +129,39 @@ class PontoOtimo(_Congelado):
     desejabilidades_individuais: dict[str, float] = Field(default_factory=dict)
 
 
+class AnovaRegressao(_Congelado):
+    """ANOVA da regressão como a literatura de DOE apresenta (spec §9, C2).
+
+    Linhas: Regressão, Resíduo, Falta de ajuste e Erro puro (quando há réplicas)
+    e Total. `f_tabelado` é o F crítico da regressão no nível α e `razao_f` é
+    F calculado / F tabelado — o critério de Barros Neto et al. e Rodrigues e
+    Iemma, muito usado em artigos brasileiros (razão > 1: regressão
+    significativa).
+    """
+
+    linhas: list[LinhaAnova]
+    f_tabelado: float | None = None
+    razao_f: float | None = None
+    regressao_significativa: bool | None = None
+
+
+class Equacao(_Congelado):
+    """Equação do modelo ajustado (spec §9, C5), já formatada em pt-BR.
+
+    `codificada` usa X1, X2… (ver `variaveis`) e é a escala em que os artigos
+    publicam os coeficientes. `real` é a mesma superfície reescrita nas unidades
+    dos fatores, para prever direto com os valores do laboratório.
+    `significativos` é a codificada só com os termos significativos (sem
+    reajuste). `coeficientes_reais` traz os números da forma real por termo.
+    """
+
+    codificada: str
+    real: str
+    significativos: str
+    variaveis: dict[str, str]
+    coeficientes_reais: dict[str, float]
+
+
 class Diagnostico(_Congelado):
     """Valores por ensaio e normalidade dos resíduos (spec §9: C6, D1, D2).
 
@@ -163,6 +204,12 @@ class AjusteResposta(_Congelado):
     # None quando não sobra grau de liberdade para o resíduo.
     t_critico: float | None = None
     diagnostico: Diagnostico | None = None
+    anova_regressao: AnovaRegressao | None = None
+    r2_predicao: float | None = None
+    equacao: Equacao | None = None
+    # Termo de erro efetivamente usado nos testes desta resposta (o pedido pode
+    # cair para o resíduo quando não há réplicas para o erro puro).
+    termo_erro: TermoErro = "residuo"
 
 
 class FatorCodificado(_Congelado):
@@ -200,6 +247,9 @@ class MetadadosExecucao(_Congelado):
     versao_ensaia: str
     schema_version: str = SCHEMA_VERSION
     alfa: float = 0.05
+    tipo_modelo: TipoModelo | None = None
+    termo_erro: TermoErro = "residuo"
+    reducao_backward: bool = False
     semente: int | None = None
     tempo_execucao_s: float | None = None
     # Preenchido pelo chamador, não por relógio interno, para que o resultado

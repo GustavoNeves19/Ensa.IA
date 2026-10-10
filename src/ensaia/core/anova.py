@@ -11,25 +11,131 @@ from scipy import stats
 
 from ensaia.core.design import interpretar_termo
 from ensaia.core.model import RESIDUO, AjusteOLS
-from ensaia.core.results import FaltaDeAjuste, LinhaAnova
+from ensaia.core.results import AnovaRegressao, FaltaDeAjuste, LinhaAnova
 from ensaia.core.table import Table
 
 ALFA_PADRAO = 0.05
 
+# Fontes da ANOVA da regressão (a linha do resíduo usa RESIDUO, de model.py).
+REGRESSAO = "Regressão"
+FALTA_DE_AJUSTE = "Falta de ajuste"
+ERRO_PURO = "Erro puro"
+TOTAL = "Total"
 
-def tabela_anova(ajuste: AjusteOLS, tipo: int = 2) -> list[LinhaAnova]:
-    """Constrói a tabela de ANOVA do modelo ajustado.
 
-    ANOVA tipo II por padrão: com planejamentos desbalanceados (o que acontece
-    sempre que há pontos centrais repetidos), a soma de quadrados sequencial
-    (tipo I) depende da ordem em que os termos entram no modelo, e resultados
-    que mudam conforme a ordem das colunas não são defensáveis numa banca.
+def anova_regressao(
+    ajuste: AjusteOLS, falta: FaltaDeAjuste, *, alfa: float = ALFA_PADRAO
+) -> AnovaRegressao:
+    """ANOVA da regressão no formato da literatura de DOE (spec §9, C2).
 
-    TODO(#4): a Tipo II já é calculada em numpy por `AjusteOLS.tabela_tipo2()`
-    (ver model.py e ADR 0007); aqui é só adaptá-la para `list[LinhaAnova]` e
-    acrescentar a decomposição falta de ajuste/erro puro. Sem statsmodels.
+        Regressão   gl = p − 1     SQ_R = SQ_T − SQ_res   F = QM_R / QM_res
+        Resíduo     gl = n − p     SQ_res
+          Falta de ajuste / Erro puro (quando há réplicas genuínas)
+        Total       gl = n − 1     SQ_T
+
+    Além do p-valor, devolve o F tabelado F(1 − α; gl_R, gl_res) e a razão
+    F calculado / F tabelado, critério de Barros Neto et al. muito usado em
+    artigos brasileiros: razão maior que 1 é regressão significativa.
     """
-    raise NotImplementedError("Ver issue #4 — ANOVA e seleção de termos.")
+    gl_r = ajuste.n_parametros - 1
+    gl_res = ajuste.gl_residuo
+    sq_t = ajuste.soma_quadrados_total
+    sq_res = ajuste.soma_quadrados_residual
+    sq_r = sq_t - sq_res
+    qm_res = sq_res / gl_res
+
+    linhas: list[LinhaAnova] = []
+    f_tab: float | None = None
+    razao: float | None = None
+    significativa: bool | None = None
+    if gl_r > 0:
+        qm_r = sq_r / gl_r
+        f = qm_r / qm_res if qm_res > 0 else None
+        p = float(stats.f.sf(f, gl_r, gl_res)) if f is not None else 0.0
+        f_tab = float(stats.f.ppf(1.0 - alfa, gl_r, gl_res))
+        razao = f / f_tab if f is not None else None
+        significativa = p < alfa
+        linhas.append(
+            LinhaAnova(
+                fonte=REGRESSAO,
+                soma_quadrados=sq_r,
+                graus_liberdade=gl_r,
+                quadrado_medio=qm_r,
+                valor_f=f,
+                valor_p=p,
+            )
+        )
+    linhas.append(
+        LinhaAnova(
+            fonte=RESIDUO,
+            soma_quadrados=sq_res,
+            graus_liberdade=gl_res,
+            quadrado_medio=qm_res,
+        )
+    )
+    if (
+        falta.aplicavel
+        and falta.soma_quadrados_falta is not None
+        and falta.graus_liberdade_falta
+        and falta.soma_quadrados_erro_puro is not None
+        and falta.graus_liberdade_erro_puro
+    ):
+        linhas.append(
+            LinhaAnova(
+                fonte=FALTA_DE_AJUSTE,
+                soma_quadrados=falta.soma_quadrados_falta,
+                graus_liberdade=falta.graus_liberdade_falta,
+                quadrado_medio=falta.soma_quadrados_falta / falta.graus_liberdade_falta,
+                valor_f=falta.valor_f,
+                valor_p=falta.valor_p,
+            )
+        )
+        linhas.append(
+            LinhaAnova(
+                fonte=ERRO_PURO,
+                soma_quadrados=falta.soma_quadrados_erro_puro,
+                graus_liberdade=falta.graus_liberdade_erro_puro,
+                quadrado_medio=(
+                    falta.soma_quadrados_erro_puro / falta.graus_liberdade_erro_puro
+                ),
+            )
+        )
+    linhas.append(
+        LinhaAnova(
+            fonte=TOTAL,
+            soma_quadrados=sq_t,
+            graus_liberdade=ajuste.n_observacoes - 1,
+            quadrado_medio=sq_t / (ajuste.n_observacoes - 1),
+        )
+    )
+    return AnovaRegressao(
+        linhas=linhas,
+        f_tabelado=f_tab,
+        razao_f=razao,
+        regressao_significativa=significativa,
+    )
+
+
+def erro_puro(dados: Table, resposta: str, fatores: list[str]) -> tuple[float, int]:
+    """(SQ, gl) do erro puro: a variação entre réplicas da mesma condição.
+
+    Depende só dos dados (não do modelo): agrupa os ensaios com os mesmos níveis
+    de todos os fatores e soma a dispersão dentro de cada grupo. gl = n − nº de
+    condições distintas; 0 quando nenhuma condição foi repetida.
+    """
+    y = dados.coluna(resposta)
+    colunas = [dados.coluna(f) for f in fatores]
+    grupos: dict[tuple[float, ...], list[int]] = {}
+    for i in range(len(y)):
+        chave = tuple(float(col[i]) for col in colunas)
+        grupos.setdefault(chave, []).append(i)
+
+    sq = 0.0
+    for indices in grupos.values():
+        if len(indices) > 1:
+            valores = y[indices]
+            sq += float(((valores - valores.mean()) ** 2).sum())
+    return sq, len(y) - len(grupos)
 
 
 def selecionar_termos(
@@ -101,14 +207,7 @@ def teste_falta_ajuste(
         SQ_falta = SQ_residuo − SQ_erro_puro ;  gl_falta = gl_residuo − gl_erro_puro
         F = (SQ_falta/gl_falta) / (SQ_erro_puro/gl_erro_puro)
     """
-    y = dados.coluna(resposta)
-    colunas = [dados.coluna(f) for f in fatores]
-    grupos: dict[tuple[float, ...], list[int]] = {}
-    for i in range(len(y)):
-        chave = tuple(float(col[i]) for col in colunas)
-        grupos.setdefault(chave, []).append(i)
-
-    gl_erro_puro = len(y) - len(grupos)
+    sq_erro_puro, gl_erro_puro = erro_puro(dados, resposta, fatores)
     if gl_erro_puro <= 0:
         return FaltaDeAjuste(
             aplicavel=False,
@@ -117,12 +216,6 @@ def teste_falta_ajuste(
                 "uma única vez"
             ),
         )
-
-    sq_erro_puro = 0.0
-    for indices in grupos.values():
-        if len(indices) > 1:
-            valores = y[indices]
-            sq_erro_puro += float(((valores - valores.mean()) ** 2).sum())
 
     gl_falta = ajuste.gl_residuo - gl_erro_puro
     if gl_falta <= 0:
