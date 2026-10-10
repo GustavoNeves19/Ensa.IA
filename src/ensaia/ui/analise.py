@@ -44,14 +44,17 @@ from ensaia.core.design import (
     Planejamento,
     interpretar_termo,
 )
+from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import pontos_qq
 from ensaia.core.identificacao import identificar_planejamento
-from ensaia.core.pipeline import analisar
+from ensaia.core.pipeline import analisar, limite_da_regiao
 from ensaia.core.results import (
     NOME_PLANEJAMENTO,
     AjusteResposta,
     AnalysisResult,
     LinhaAnova,
+    PontoOtimo,
+    Sentido,
     TermoErro,
     TipoModelo,
 )
@@ -269,22 +272,157 @@ def _mostrar_resultados(
     for aviso in analise.avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
 
-    # O último texto mostrado (IA ou fiel) é o que vai para o PDF.
-    estado: dict[str, RelatorioTextual] = {}
+    sessao = _Sessao(analise)
+    _bloco_otimizacao(sessao, planejamento)
+
     relatorio = ui.column().classes("w-full ea-slot")
     with ui.element("div").classes("ea-acoes"):
         ui.button(
-            "Narrar com IA", on_click=lambda: _gerar_ia(analise, relatorio, estado)
+            "Narrar com IA", on_click=lambda: _gerar_ia(sessao, relatorio)
         ).props("unelevated").classes("ea-botao")
         ui.button(
             "ou ver o texto fiel (sem IA)",
-            on_click=lambda: _gerar_m0(analise, relatorio, estado),
+            on_click=lambda: _gerar_m0(sessao, relatorio),
         ).props("flat").classes("ea-botao-sec")
 
-    _bloco_baixar(analise, estado)
+    _bloco_baixar(sessao)
 
 
-def _bloco_baixar(analise: AnalysisResult, estado: dict[str, RelatorioTextual]) -> None:
+@dataclass
+class _Sessao:
+    """O que os botões finais usam: a análise atual e o último texto mostrado.
+
+    A análise pode ganhar o ponto ótimo depois (bloco "Melhor condição"); por
+    isso PDF, JSON e texto leem daqui no momento do clique, não de uma cópia
+    capturada quando a tela foi montada.
+    """
+
+    analise: AnalysisResult
+    texto: RelatorioTextual | None = None
+
+
+_SENTIDOS = {
+    "maximizar": "Maximizar",
+    "minimizar": "Minimizar",
+    "alvo": "Atingir um alvo",
+    "ignorar": "Não otimizar",
+}
+
+
+def _bloco_otimizacao(sessao: _Sessao, planejamento: Planejamento) -> None:
+    """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo."""
+    analise = sessao.analise
+    with ui.element("div").classes("ea-otimizacao"):
+        ui.html('<div class="ea-secao-titulo">Melhor condição</div>')
+        ui.html(
+            '<div class="ea-secao-sub">Diga o que você quer de cada resposta. O '
+            "EnsaIA procura, dentro da região estudada, a combinação de fatores "
+            "que melhor atende a todas.</div>"
+        )
+        escolhas: dict[str, tuple[ui.select, ui.number]] = {}
+        with ui.element("div").classes("ea-mapa-grade"):
+            for i, ajuste in enumerate(analise.ajustes):
+                observados = ajuste.diagnostico.observados if ajuste.diagnostico else []
+                meio = (min(observados) + max(observados)) / 2 if observados else None
+                with ui.element("div").classes("ea-mapa-item"):
+                    ui.html(f'<div class="ea-col-nome">{escape(ajuste.resposta)}</div>')
+                    sentido = ui.select(
+                        _SENTIDOS, value="maximizar" if i == 0 else "ignorar"
+                    ).props("dense outlined")
+                    alvo = ui.number("Valor-alvo", value=meio, format="%.4g").props(
+                        "dense outlined"
+                    )
+                    alvo.bind_visibility_from(sentido, "value", value="alvo")
+                    escolhas[ajuste.resposta] = (sentido, alvo)
+
+        def buscar() -> None:
+            sentidos = {
+                r: cast(Sentido, sel.value)
+                for r, (sel, _) in escolhas.items()
+                if sel.value != "ignorar"
+            }
+            if not sentidos:
+                ui.notify("Escolha a meta de ao menos uma resposta.", type="warning")
+                return
+            alvos = {
+                r: float(campo.value)
+                for r, (sel, campo) in escolhas.items()
+                if sel.value == "alvo" and campo.value is not None
+            }
+            try:
+                metas = metas_padrao(analise.ajustes, sentidos, alvos)
+                ponto, avisos = otimizar(
+                    analise.ajustes,
+                    planejamento.fatores,
+                    metas,
+                    limite_codificado=limite_da_regiao(planejamento),
+                )
+            except ValueError as erro:
+                ui.notify(str(erro), type="negative", position="top", timeout=9000)
+                return
+            sessao.analise = analise.model_copy(
+                update={"ponto_otimo": ponto, "avisos": [*analise.avisos, *avisos]}
+            )
+            area.clear()
+            with area:
+                _mostrar_otimo(ponto, avisos, planejamento)
+
+        ui.button("Encontrar a melhor condição", on_click=buscar).props(
+            "unelevated"
+        ).classes("ea-botao")
+        # O resultado aparece ABAIXO do botão, na ordem de leitura.
+        area = ui.column().classes("w-full ea-slot")
+
+
+def _mostrar_otimo(
+    ponto: PontoOtimo | None, avisos: list[str], planejamento: Planejamento
+) -> None:
+    for aviso in avisos:
+        ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
+    if ponto is None:
+        return
+    unidades = {f.nome: f.unidade for f in planejamento.fatores}
+    linhas = [
+        {
+            "item": nome_legivel(nome),
+            "valor": _fmt_curto(valor),
+            "extra": unidades.get(nome) or "",
+        }
+        for nome, valor in ponto.coordenadas.items()
+    ]
+    linhas += [
+        {
+            "item": f"{nome} (prevista)",
+            "valor": _fmt(valor, 3),
+            "extra": (
+                f"d = {_fmt(ponto.desejabilidades_individuais[nome], 3)}"
+                if ponto.metodo == "desejabilidade"
+                else _SENTIDOS.get(ponto.metas.get(nome, ""), "")
+            ),
+        }
+        for nome, valor in ponto.resposta_prevista.items()
+    ]
+    colunas = [
+        {"name": "item", "label": "", "field": "item", "align": "left"},
+        {"name": "valor", "label": "Valor", "field": "valor", "align": "right"},
+        {"name": "extra", "label": "", "field": "extra", "align": "left"},
+    ]
+    ui.table(columns=colunas, rows=linhas, row_key="item").props(
+        "flat bordered dense hide-bottom"
+    ).classes("ensaia-previa w-full")
+    leitura = (
+        f"Desejabilidade global D = <b>{_fmt(ponto.desejabilidade_global, 3)}</b> "
+        "(1 = todas as metas plenamente atendidas). "
+        if ponto.metodo == "desejabilidade"
+        else ""
+    )
+    ui.html(
+        f'<div class="ea-ler">{leitura}Valores dentro da região estudada; '
+        "confirme com um ensaio nessa condição antes de adotá-la.</div>"
+    )
+
+
+def _bloco_baixar(sessao: _Sessao) -> None:
     """Passo 7 do fluxo (spec §4): baixar o relatório em PDF e os resultados em JSON."""
     with ui.element("div").classes("ea-baixar"):
         with ui.element("div").classes("ea-acoes"):
@@ -294,19 +432,18 @@ def _bloco_baixar(analise: AnalysisResult, estado: dict[str, RelatorioTextual]) 
                 .classes("ea-botao")
             )
             ui.button(
-                "ou baixar os resultados (JSON)", on_click=lambda: _baixar_json(analise)
+                "ou baixar os resultados (JSON)",
+                on_click=lambda: _baixar_json(sessao.analise),
             ).props("flat").classes("ea-botao-sec")
         ui.html(
             '<div class="ea-ler">O PDF leva o texto que estiver na tela; sem texto '
             "gerado, vai o texto fiel (sem IA). Nada fica guardado: o arquivo é "
             "montado na memória e entregue direto ao seu navegador.</div>"
         )
-    botao_pdf.on_click(lambda: _baixar_pdf(analise, estado, botao_pdf))
+    botao_pdf.on_click(lambda: _baixar_pdf(sessao, botao_pdf))
 
 
-async def _baixar_pdf(
-    analise: AnalysisResult, estado: dict[str, RelatorioTextual], botao: ui.button
-) -> None:
+async def _baixar_pdf(sessao: _Sessao, botao: ui.button) -> None:
     try:
         from ensaia.report import gerar_pdf  # extra [report]: fpdf2 + matplotlib
     except ImportError:
@@ -318,7 +455,8 @@ async def _baixar_pdf(
         )
         return
 
-    texto = estado.get("texto") or gerar_relatorio(analise, modo="m0")
+    analise = sessao.analise
+    texto = sessao.texto or gerar_relatorio(analise, modo="m0")
     agora = datetime.now()
     botao.props("loading")
     try:
@@ -630,6 +768,9 @@ class _PainelSuperficie:
                 )
                 .classes("ea-forma")
             )
+        self.estacionario = ajuste.ponto_estacionario
+        if self.estacionario is not None:
+            self._linha_estacionario()
         self.area_fixos = ui.element("div").classes("ea-controles")
         self.area_grafico = ui.column().classes("w-full")
         self.ler = ui.html("").classes("ea-ler")
@@ -640,6 +781,53 @@ class _PainelSuperficie:
         self.forma.on_value_change(lambda _: self._redesenhar(recriar=True))
         self._montar_fixos()
         self._redesenhar(recriar=True)
+
+    def _linha_estacionario(self) -> None:
+        pe = self.estacionario
+        assert pe is not None
+        natureza = {"maximo": "máximo", "minimo": "mínimo", "sela": "ponto de sela"}
+        onde = (
+            "dentro da região estudada"
+            if pe.dentro_da_regiao
+            else "fora da região estudada (não extrapole o modelo até lá)"
+        )
+        coords = ", ".join(
+            f"{nome_legivel(n)} = {_fmt_curto(v)}" for n, v in pe.real.items()
+        )
+        with ui.element("div").classes("ea-estacionario"):
+            ui.html(
+                f'<div class="ea-ler">Ponto estacionário: <b>{natureza[pe.natureza]}'
+                f"</b> em {escape(coords)}, {onde}; resposta prevista "
+                f"{_fmt(pe.resposta_prevista, 3)}.</div>"
+            )
+            if pe.dentro_da_regiao:
+                ui.button(
+                    "Ver este ponto na superfície", on_click=self._ir_ao_estacionario
+                ).props("flat dense").classes("ea-botao-sec")
+
+    def _ir_ao_estacionario(self) -> None:
+        """Fixa os demais fatores no ponto estacionário e o marca no contorno."""
+        pe = self.estacionario
+        assert pe is not None
+        self.fixos.update(pe.real)
+        self._montar_fixos()
+        self._redesenhar(recriar=self.forma.value == "3d")
+
+    def _destaque(self) -> tuple[float, float, str] | None:
+        """Ponto a marcar no contorno: só quando o corte passa por ele."""
+        pe = self.estacionario
+        if pe is None or not pe.dentro_da_regiao:
+            return None
+        x, y = self._eixos
+        por_nome = {f.nome: f for f in self.fatores}
+        for nome, valor in pe.real.items():
+            if nome in (x, y):
+                continue
+            tolerancia = 1e-6 * (por_nome[nome].amplitude or 1.0)
+            if abs(self.fixos.get(nome, float("nan")) - valor) > tolerancia:
+                return None
+        rotulo = {"maximo": "máximo", "minimo": "mínimo", "sela": "sela"}[pe.natureza]
+        return pe.real[x], pe.real[y], rotulo
 
     # -- interação ---------------------------------------------------------
     def focar(self, envolvidos: list[str]) -> None:
@@ -730,7 +918,7 @@ class _PainelSuperficie:
         )
         opcoes = (
             graficos.opcoes_superficie_3d(grade) if tres_d
-            else graficos.opcoes_contorno(grade)
+            else graficos.opcoes_contorno(grade, destaque=self._destaque())
         )
         if recriar or self.grafico is None:
             self.area_grafico.clear()
@@ -867,19 +1055,16 @@ def _texto_falta(ajuste: AjusteResposta) -> str:
     return f"Sem evidência de falta de ajuste (p = {_fmt(falta.valor_p, 4)})."
 
 
-def _gerar_m0(
-    analise: AnalysisResult, destino: ui.column, estado: dict[str, RelatorioTextual]
-) -> None:
-    texto = gerar_relatorio(analise, modo="m0")
-    estado["texto"] = texto
+def _gerar_m0(sessao: _Sessao, destino: ui.column) -> None:
+    texto = gerar_relatorio(sessao.analise, modo="m0")
+    sessao.texto = texto
     destino.clear()
     with destino:
         _mostrar_relatorio(texto)
 
 
-async def _gerar_ia(
-    analise: AnalysisResult, destino: ui.column, estado: dict[str, RelatorioTextual]
-) -> None:
+async def _gerar_ia(sessao: _Sessao, destino: ui.column) -> None:
+    analise = sessao.analise
     cfg = _config_openai()
     if cfg is None:
         ui.notify(
@@ -889,7 +1074,7 @@ async def _gerar_ia(
             position="top",
             timeout=9000,
         )
-        _gerar_m0(analise, destino, estado)
+        _gerar_m0(sessao, destino)
         return
 
     destino.clear()
@@ -911,13 +1096,13 @@ async def _gerar_ia(
             position="top",
             timeout=9000,
         )
-        _gerar_m0(analise, destino, estado)
+        _gerar_m0(sessao, destino)
         return
 
     destino.clear()
     if relatorio is None:  # o servidor encerrou no meio da chamada
         return
-    estado["texto"] = relatorio
+    sessao.texto = relatorio
     with destino:
         _mostrar_relatorio(relatorio)
 
