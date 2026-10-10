@@ -55,6 +55,9 @@ respostas:
 # como o valor publicado arredondado, e a comparacao deve declarar essa
 # limitacao.
 condicao_otima:
+  # Objetivo da otimização no artigo: a condição publicada é a de máxima remoção do metronidazol.
+  objetivos:
+    remocao_mnz: maximizar
   coordenadas:
     dose_adsorvente: 1.0
     tempo_mistura: 60.0

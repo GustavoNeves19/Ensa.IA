@@ -64,8 +64,17 @@ def test_caso_reproduz_valores_publicados(caso) -> None:
             f"{caso.name}/{resposta}: significância divergente — {sig.divergencias}"
         )
 
-    # (d) só é avaliável quando a desejabilidade produzir ponto ótimo (issue #6).
-    assert not resultado["condicao_otima"].aplicavel
+    # (d) a condição ótima é comparada com a publicada; a spec (§14.1) não fixa
+    # tolerância para ela — a diferença é registrada e discutida na monografia
+    # (artigos costumam publicar uma condição arredondada e prática). Aqui se
+    # garante que a comparação existe e cobre todos os fatores do artigo.
+    condicao = resultado["condicao_otima"]
+    if (referencia.get("condicao_otima") or {}).get("objetivos"):
+        assert condicao.aplicavel
+        publicados = set(referencia["condicao_otima"]["coordenadas"])
+        assert {d.fator for d in condicao.diferencas} == publicados
+        for d in condicao.diferencas:
+            assert d.diferenca_pct_faixa is not None
 
 
 def test_go_respeita_modelo_2fi_publicado() -> None:

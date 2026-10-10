@@ -11,13 +11,14 @@ parâmetros de `referencia.yaml`) e o servidor MCP. Todos chamam `analisar`.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ensaia.core.anova import anova_regressao, erro_puro, teste_falta_ajuste
 from ensaia.core.design import Planejamento
+from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import diagnosticar
 from ensaia.core.effects import extrair_coeficientes, t_critico
 from ensaia.core.equacao import montar_equacao
@@ -30,9 +31,11 @@ from ensaia.core.results import (
     InfoPlanejamento,
     LinhaAnova,
     MetadadosExecucao,
+    Sentido,
     TermoErro,
     TipoModelo,
 )
+from ensaia.core.surface import ponto_estacionario
 from ensaia.core.table import Table
 from ensaia.core.termos import reduzir_backward
 
@@ -52,6 +55,8 @@ def analisar(
     termo_erro: TermoErro = "residuo",
     reduzir: bool = False,
     tipo_modelo: TipoModelo | None = None,
+    objetivos: Mapping[str, Sentido] | None = None,
+    alvos: Mapping[str, float] | None = None,
 ) -> AnalysisResult:
     """Ajusta o modelo a cada resposta e devolve o resultado congelado.
 
@@ -64,6 +69,9 @@ def analisar(
     - `reduzir=True` aplica a eliminação backward por resposta (cada resposta
       pode terminar com termos diferentes).
     - `tipo_modelo` só é registrado nos metadados (os termos já chegam prontos).
+    - `objetivos` (maximizar, minimizar ou alvo por resposta; `alvos` traz o
+      valor-alvo) aciona a busca da condição ótima dentro da região
+      experimental (spec §9, E4/E5), com limites pelos valores observados.
 
     Levanta `ValueError` quando falta uma coluna exigida ou uma resposta tem
     valor ausente/não numérico — mensagens em português, prontas para virar aviso
@@ -80,6 +88,7 @@ def analisar(
 
     ajustes: list[AjusteResposta] = []
     avisos: list[str] = list(avisos_planejamento)
+    limite = limite_da_regiao(planejamento)
     for resposta in respostas:
         resposta = str(resposta)
         y = tabela.coluna(resposta)
@@ -119,8 +128,17 @@ def analisar(
                 gl_erro=gl_erro,
                 termo_erro=usado,
                 descartados=descartados,
+                limite_codificado=limite,
             )
         )
+
+    ponto_otimo = None
+    if objetivos:
+        metas = metas_padrao(ajustes, objetivos, alvos)
+        ponto_otimo, avisos_otimo = otimizar(
+            ajustes, planejamento.fatores, metas, limite_codificado=limite
+        )
+        avisos.extend(avisos_otimo)
 
     return AnalysisResult(
         tipo_planejamento=planejamento.tipo,
@@ -135,10 +153,22 @@ def analisar(
             termo_erro=termo_erro,
             reducao_backward=reduzir,
         ),
-        ponto_otimo=None,
+        ponto_otimo=ponto_otimo,
         avisos=avisos,
         planejamento=info_planejamento(tabela, planejamento, avisos_planejamento),
     )
+
+
+def limite_da_regiao(planejamento: Planejamento) -> float:
+    """Borda da região experimental na escala codificada.
+
+    ±α no composto central (os pontos axiais fazem parte da região estudada);
+    ±1 nos demais planejamentos. É até onde o modelo pode ser usado sem
+    extrapolar, e por isso é a caixa da busca do ótimo.
+    """
+    if planejamento.tipo == "composto_central" and planejamento.alfa_axial:
+        return max(1.0, float(planejamento.alfa_axial))
+    return 1.0
 
 
 def _termo_de_erro(
@@ -202,6 +232,7 @@ def _ajuste_resposta(
     gl_erro: int | None = None,
     termo_erro: TermoErro = "residuo",
     descartados: Sequence[str] = (),
+    limite_codificado: float = 1.0,
 ) -> AjusteResposta:
     """Empacota um ajuste OLS no contrato congelado `AjusteResposta`.
 
@@ -216,7 +247,7 @@ def _ajuste_resposta(
     )
     gl_teste = ajuste.gl_residuo if gl_erro is None else gl_erro
     y: NDArray[np.float64] = dados.coluna(resposta)
-    return AjusteResposta(
+    ajuste_resposta = AjusteResposta(
         resposta=resposta,
         coeficientes=coeficientes,
         anova=_linhas_anova(resposta, ajuste, avisos, qm_erro, gl_erro),
@@ -234,6 +265,12 @@ def _ajuste_resposta(
         equacao=montar_equacao(coeficientes, planejamento.fatores),
         termo_erro=termo_erro,
     )
+    estacionario = ponto_estacionario(
+        ajuste_resposta, planejamento.fatores, limite_codificado=limite_codificado
+    )
+    if estacionario is None:
+        return ajuste_resposta
+    return ajuste_resposta.model_copy(update={"ponto_estacionario": estacionario})
 
 
 def _linhas_anova(

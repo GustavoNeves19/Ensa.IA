@@ -15,12 +15,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ensaia.core.design import Fator, interpretar_termo
-from ensaia.core.results import AjusteResposta
+from ensaia.core.design import INTERCEPTO, Fator, interpretar_termo
+from ensaia.core.results import AjusteResposta, PontoEstacionario
 
 PONTOS_PADRAO = 25
 
@@ -76,6 +77,64 @@ def prever(
             parcela = parcela * codificados[nome] ** potencia
         total = total + parcela
     return total
+
+
+def ponto_estacionario(
+    ajuste: AjusteResposta,
+    fatores: Sequence[Fator],
+    *,
+    limite_codificado: float = 1.0,
+) -> PontoEstacionario | None:
+    """Ponto estacionário e análise canônica do modelo quadrático (spec §9, E3).
+
+    Escrevendo o modelo como ŷ = b₀ + xᵀb + xᵀBx (B com os quadráticos na
+    diagonal e metade de cada interação fora dela), o gradiente zera em
+    x_s = −½·B⁻¹·b, onde ŷ_s = b₀ + ½·x_sᵀb. Os autovalores de B classificam
+    o ponto. Só faz sentido com o termo quadrático de todos os fatores; sem ele
+    (ou com B singular) devolve None.
+
+    `limite_codificado` é a borda da região experimental na escala codificada
+    (1 no fatorial e no Box-Behnken; α no composto central).
+    """
+    nomes = [f.nome for f in fatores]
+    k = len(nomes)
+    estimativa = {c.termo: c.estimativa for c in ajuste.coeficientes}
+    if k == 0 or any(f"{n}^2" not in estimativa for n in nomes):
+        return None
+
+    b = np.array([estimativa.get(n, 0.0) for n in nomes])
+    matriz_b = np.zeros((k, k))
+    for i, ni in enumerate(nomes):
+        matriz_b[i, i] = estimativa[f"{ni}^2"]
+        for j in range(i + 1, k):
+            interacao = estimativa.get(
+                f"{ni}:{nomes[j]}", estimativa.get(f"{nomes[j]}:{ni}", 0.0)
+            )
+            meio = interacao / 2.0
+            matriz_b[i, j] = matriz_b[j, i] = meio
+    if abs(np.linalg.det(matriz_b)) < 1e-12:
+        return None
+
+    x_s = -0.5 * np.linalg.solve(matriz_b, b)
+    autovalores = np.linalg.eigvalsh(matriz_b)
+    if np.all(autovalores < 0):
+        natureza: Literal["maximo", "minimo", "sela"] = "maximo"
+    elif np.all(autovalores > 0):
+        natureza = "minimo"
+    else:
+        natureza = "sela"
+    y_s = float(estimativa.get(INTERCEPTO, 0.0) + 0.5 * x_s @ b)
+    return PontoEstacionario(
+        codificado={n: float(v) for n, v in zip(nomes, x_s, strict=True)},
+        real={
+            f.nome: float(f.decodificar(v))
+            for f, v in zip(fatores, x_s, strict=True)
+        },
+        natureza=natureza,
+        autovalores=[float(v) for v in autovalores],
+        resposta_prevista=y_s,
+        dentro_da_regiao=bool(np.all(np.abs(x_s) <= limite_codificado + 1e-9)),
+    )
 
 
 def grade_superficie(

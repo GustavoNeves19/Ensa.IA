@@ -1,6 +1,6 @@
 {
   "caso": "go-2022-levofloxacino-hidroxiapatita-bbd",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "criterios": {
     "a_erro_relativo_coeficientes_pct": 5.0,
     "b_alfa_significancia": 0.05,
@@ -91,9 +91,31 @@
     }
   },
   "condicao_otima": {
-    "diferencas": [],
-    "aplicavel": false,
-    "motivo_inaplicavel": "A análise não produziu ponto ótimo (otimização não executada ou bloqueada por R² insuficiente)."
+    "diferencas": [
+      {
+        "fator": "concentracao_levofloxacino",
+        "valor_ensaia": 4.0,
+        "valor_referencia": 4.0,
+        "diferenca_absoluta": 0.0,
+        "diferenca_pct_faixa": 0.0
+      },
+      {
+        "fator": "dose_catalisador",
+        "valor_ensaia": 1.5,
+        "valor_referencia": 1.5,
+        "diferenca_absoluta": 0.0,
+        "diferenca_pct_faixa": 0.0
+      },
+      {
+        "fator": "ph",
+        "valor_ensaia": 10.0,
+        "valor_referencia": 10.0,
+        "diferenca_absoluta": 0.0,
+        "diferenca_pct_faixa": 0.0
+      }
+    ],
+    "aplicavel": true,
+    "motivo_inaplicavel": null
   },
   "dentro_das_tolerancias": true
 }

@@ -17,3 +17,7 @@ O modelo explica 97,1% da variação da resposta 'eficiencia_fotodegradacao' (R�
 ## Diagnóstico do modelo
 
 Não há evidência de falta de ajuste (p = 0,9055 ≥ 0,05). O teste de Shapiro-Wilk não indica desvio da normalidade dos resíduos (W = 0,953; p = 0,5787 ≥ 0,05).
+
+## Otimização
+
+A condição ótima (em unidades reais) é dose_catalisador = 1,500, concentracao_levofloxacino = 4,000, ph = 10,000. Nessa condição, a resposta prevista é eficiencia_fotodegradacao = 71,5912.

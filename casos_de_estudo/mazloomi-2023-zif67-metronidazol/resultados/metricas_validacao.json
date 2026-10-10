@@ -1,6 +1,6 @@
 {
   "caso": "mazloomi-2023-zif67-metronidazol",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "criterios": {
     "a_erro_relativo_coeficientes_pct": 5.0,
     "b_alfa_significancia": 0.05,
@@ -115,9 +115,31 @@
     }
   },
   "condicao_otima": {
-    "diferencas": [],
-    "aplicavel": false,
-    "motivo_inaplicavel": "A análise não produziu ponto ótimo (otimização não executada ou bloqueada por R² insuficiente)."
+    "diferencas": [
+      {
+        "fator": "dose_adsorvente",
+        "valor_ensaia": 0.8926478403834008,
+        "valor_referencia": 1.0,
+        "diferenca_absoluta": 0.10735215961659916,
+        "diferenca_pct_faixa": 14.313621282213221
+      },
+      {
+        "fator": "ph",
+        "valor_ensaia": 7.43401260346751,
+        "valor_referencia": 7.0,
+        "diferenca_absoluta": 0.4340126034675098,
+        "diferenca_pct_faixa": 7.233543391125163
+      },
+      {
+        "fator": "tempo_mistura",
+        "valor_ensaia": 55.57880435720605,
+        "valor_referencia": 60.0,
+        "diferenca_absoluta": 4.421195642793947,
+        "diferenca_pct_faixa": 9.824879206208772
+      }
+    ],
+    "aplicavel": true,
+    "motivo_inaplicavel": null
   },
   "dentro_das_tolerancias": true
 }

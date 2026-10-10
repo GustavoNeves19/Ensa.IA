@@ -351,12 +351,32 @@
           "tempo_mistura:ph": -0.042962962962962904
         }
       },
-      "termo_erro": "residuo"
+      "termo_erro": "residuo",
+      "ponto_estacionario": {
+        "codificado": {
+          "dose_adsorvente": 0.7137276058594955,
+          "tempo_mistura": 0.8035022048468775,
+          "ph": 0.1446708421329592
+        },
+        "real": {
+          "dose_adsorvente": 0.8926478521973108,
+          "tempo_mistura": 55.57879960905474,
+          "ph": 7.434012526398877
+        },
+        "natureza": "maximo",
+        "autovalores": [
+          -18.487564816119754,
+          -8.902310794173058,
+          -4.360124389707172
+        ],
+        "resposta_prevista": 99.36547302936394,
+        "dentro_da_regiao": true
+      }
     }
   ],
   "metadados": {
     "versao_ensaia": "0.1.0",
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "alfa": 0.05,
     "tipo_modelo": null,
     "termo_erro": "residuo",
@@ -365,7 +385,30 @@
     "tempo_execucao_s": null,
     "executado_em": null
   },
-  "ponto_otimo": null,
+  "ponto_otimo": {
+    "coordenadas": {
+      "dose_adsorvente": 0.8926478403834008,
+      "tempo_mistura": 55.57880435720605,
+      "ph": 7.43401260346751
+    },
+    "resposta_prevista": {
+      "remocao_mnz": 99.36547302936368
+    },
+    "desejabilidade_global": 1.0,
+    "desejabilidades_individuais": {
+      "remocao_mnz": 1.0
+    },
+    "coordenadas_codificadas": {
+      "dose_adsorvente": 0.7137275743557357,
+      "tempo_mistura": 0.8035024158758246,
+      "ph": 0.14467086782250327
+    },
+    "metas": {
+      "remocao_mnz": "maximizar"
+    },
+    "metodo": "resposta_unica",
+    "limite_codificado": 1.0
+  },
   "avisos": [],
   "planejamento": {
     "k": 3,
