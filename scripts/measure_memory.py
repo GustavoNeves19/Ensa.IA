@@ -24,9 +24,10 @@ São duas medições, em dois processos diferentes:
        (FastAPI, NiceGUI, Uvicorn, núcleo, telas);
     2. lê ``casos_de_estudo/mazloomi-2023-zif67-metronidazol/dados.csv`` com
        ``ensaia.io.readers.ler_dados``;
-    3. monta o ``Planejamento`` e escolhe os termos do mesmo jeito que
-       ``ensaia.ui.analise._rodar_analise`` (mapeamento padrão da tela: colunas
-       numéricas viram fatores e a última vira resposta);
+    3. reconhece o planejamento e escolhe os termos do mesmo jeito que
+       ``ensaia.ui.analise._rodar_analise``, com as opções padrão da tela
+       (colunas numéricas viram fatores, a última vira resposta, modelo
+       automático);
     4. roda ``ensaia.core.pipeline.analisar``, gera o texto fiel (modo M0) e o
        PDF com ``ensaia.report.gerar_pdf``, que carrega matplotlib e fpdf2.
 
@@ -250,13 +251,9 @@ def executar_carga() -> None:
 
     from ensaia import __version__
     from ensaia.ai.report import gerar_relatorio
-    from ensaia.core.design import (
-        Fator,
-        Planejamento,
-        detectar_tipo,
-        termos_do_modelo,
-    )
+    from ensaia.core.identificacao import identificar_planejamento
     from ensaia.core.pipeline import analisar
+    from ensaia.core.termos import escolher_termos
     from ensaia.io.readers import ler_dados
     from ensaia.report import gerar_pdf
 
@@ -264,24 +261,21 @@ def executar_carga() -> None:
     numericas = [c for c in tabela.colunas if tabela.e_numerica(c)]
     fatores, respostas = numericas[:-1], numericas[-1:]
 
-    # Mesma montagem de ensaia.ui.analise._rodar_analise / _escolher_termos.
-    objetos = [
-        Fator(nome, float(tabela.coluna(nome).min()), float(tabela.coluna(nome).max()))
-        for nome in fatores
-    ]
-    niveis = {nome: list(tabela.coluna(nome)) for nome in fatores}
-    tipo = detectar_tipo(niveis, len(tabela))
-    planejamento = Planejamento(tipo=tipo, fatores=objetos)
-    quadraticos = tipo != "fatorial_completo"
-    candidatos = [
-        termos_do_modelo(fatores, incluir_quadraticos=quadraticos, grau_interacao=2),
-        termos_do_modelo(fatores, incluir_quadraticos=False, grau_interacao=2),
-        termos_do_modelo(fatores, incluir_quadraticos=False, grau_interacao=1),
-    ]
-    termos = next((t for t in candidatos if len(t) < len(tabela)), candidatos[-1])
-
+    # Mesma sequência de ensaia.ui.analise._rodar_analise, com as opções padrão
+    # da tela (modelo automático, sem termos excluídos, α = 0,05).
+    identificacao = identificar_planejamento(
+        {nome: [float(v) for v in tabela.coluna(nome)] for nome in fatores}
+    )
+    planejamento = identificacao.planejamento
+    selecao = escolher_termos(tabela, planejamento)
     analise = analisar(
-        tabela, planejamento, termos, respostas, versao_ensaia=__version__
+        tabela,
+        planejamento,
+        selecao.termos,
+        respostas,
+        versao_ensaia=__version__,
+        tipo_modelo=selecao.tipo_modelo,
+        avisos_planejamento=[*identificacao.avisos, *selecao.avisos],
     )
     texto = gerar_relatorio(analise, modo="m0")
     pdf = gerar_pdf(analise, texto, gerado_em="01/01/2026 00:00")
