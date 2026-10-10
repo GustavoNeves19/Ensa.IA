@@ -56,7 +56,7 @@ def construir_home() -> None:
                 destino.clear()
                 if tabela is not None:
                     with destino:
-                        construir_analise(tabela)
+                        construir_analise(tabela, nome)
 
             with ui.element("div").classes("ea-painel"):
                 construir_upload(ao_carregar=ao_carregar)
