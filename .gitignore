@@ -27,3 +27,7 @@ resultados/*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Configuração local de ferramentas (não versionar)
+.claude/
+CLAUDE.md
