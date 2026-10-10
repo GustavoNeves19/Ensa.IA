@@ -79,6 +79,31 @@ def prever(
     return total
 
 
+def prever_condicao(
+    ajustes: Sequence[AjusteResposta],
+    fatores: Sequence[Fator],
+    valores_reais: dict[str, float],
+    *,
+    limite_codificado: float = 1.0,
+) -> tuple[dict[str, float], bool]:
+    """Resposta prevista numa condição escolhida pelo usuário (US-15, "e se?").
+
+    Devolve as previsões por resposta e se a condição sai da região estudada
+    (algum fator além de ±limite na escala codificada). Fora da região o modelo
+    está extrapolando: a tela avisa, porque ali a previsão pode não valer.
+    """
+    faltam = sorted({f.nome for f in fatores} - set(valores_reais))
+    if faltam:
+        raise ValueError(f"Informe o valor de: {', '.join(faltam)}.")
+    codificados = {
+        f.nome: np.array([f.codificar(float(valores_reais[f.nome]))]) for f in fatores
+    }
+    extrapola = any(
+        abs(float(v[0])) > limite_codificado + 1e-9 for v in codificados.values()
+    )
+    return {a.resposta: float(prever(a, codificados)[0]) for a in ajustes}, extrapola
+
+
 def ponto_estacionario(
     ajuste: AjusteResposta,
     fatores: Sequence[Fator],
