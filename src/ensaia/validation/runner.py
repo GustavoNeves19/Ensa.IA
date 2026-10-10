@@ -14,7 +14,7 @@ import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, cast, get_args
 
 import yaml
 
@@ -197,7 +197,7 @@ def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
             ) from erro
         fatores.append(Fator(nome, minimo, maximo, str(faixa.get("unidade", ""))))
 
-    return Planejamento(tipo=tipo, fatores=fatores)
+    return Planejamento(tipo=cast(TipoPlanejamento, tipo), fatores=fatores)
 
 
 def _termos_publicados(referencia: dict[str, Any], fatores: list[str]) -> list[str]:

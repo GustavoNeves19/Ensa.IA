@@ -27,6 +27,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ensaia.core.design import Fator, Planejamento
 from ensaia.core.results import TipoPlanejamento
@@ -200,13 +201,13 @@ def identificar_planejamento(
     )
 
 
-def contar_pontos_centrais(matriz_codificada: np.ndarray) -> int:
+def contar_pontos_centrais(matriz_codificada: NDArray[np.float64]) -> int:
     """Ensaios com todas as coordenadas no centro (0) da escala codificada."""
     return int(np.sum(np.all(np.abs(matriz_codificada) < _TOL, axis=1)))
 
 
 def _classificar(
-    matriz: np.ndarray,
+    matriz: NDArray[np.float64],
 ) -> tuple[TipoPlanejamento, float | None, int, list[str]]:
     """Tipo, α axial, nº de pontos centrais e avisos a partir da matriz codificada."""
     _, k = matriz.shape
@@ -290,11 +291,11 @@ def _e_fracionado(vertices: set[tuple[int, ...]], k: int) -> bool:
     return bool(np.all(pontos.sum(axis=0) == 0))
 
 
-def _e_fatorial_3k(matriz: np.ndarray, k: int) -> bool:
+def _e_fatorial_3k(matriz: NDArray[np.float64], k: int) -> bool:
     """Todas as 3^k combinações de {−1, 0, +1} presentes (réplicas permitidas)."""
     arredondada = np.round(matriz).astype(int)
     if not np.allclose(matriz, arredondada, atol=_TOL):
         return False
     if np.abs(arredondada).max() > 1:
         return False
-    return len({tuple(linha) for linha in arredondada}) == 3**k
+    return bool(len({tuple(linha) for linha in arredondada}) == 3**k)
