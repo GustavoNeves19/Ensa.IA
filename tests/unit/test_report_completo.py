@@ -82,7 +82,7 @@ def test_matriz_dos_ensaios_tem_real_codificado_e_respostas() -> None:
 def test_painel_de_diagnostico_so_com_os_graficos_pedidos() -> None:
     res, _, _ = _exemplo()
     ajuste = res.ajustes[0]
-    assert grafico_diagnostico(ajuste, ["D2"])[:8] == _PNG  # type: ignore[index]
+    assert grafico_diagnostico(ajuste, ["D2"])[:8] == _PNG
     # Sem ordem de execução no contrato, o D3 sozinho não tem o que desenhar.
     assert grafico_diagnostico(ajuste, ["D3"]) is None
 
