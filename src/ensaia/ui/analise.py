@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import math
 import os
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from html import escape
@@ -38,6 +39,7 @@ from nicegui.events import EChartPointClickEventArguments
 from ensaia import __version__
 from ensaia.ai.client import ClienteModelo, ConfiguracaoModelo, ErroDeIA
 from ensaia.ai.report import RelatorioTextual, gerar_relatorio
+from ensaia.core.descritiva import matriz_codificada
 from ensaia.core.design import (
     INTERCEPTO,
     Fator,
@@ -46,16 +48,19 @@ from ensaia.core.design import (
 )
 from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import pontos_qq
+from ensaia.core.fatorial import pontos_meio_normal
 from ensaia.core.identificacao import identificar_planejamento
 from ensaia.core.pipeline import analisar, limite_da_regiao
 from ensaia.core.results import (
     NOME_PLANEJAMENTO,
     AjusteResposta,
     AnalysisResult,
+    Diagnostico,
     LinhaAnova,
     PontoOtimo,
     Sentido,
     TermoErro,
+    TesteCurvatura,
     TipoModelo,
 )
 from ensaia.core.surface import PONTOS_PADRAO, grade_superficie
@@ -63,6 +68,11 @@ from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO, escolher_termos, termos_do_tipo
 from ensaia.ui import graficos
 from ensaia.ui.graficos import nome_legivel
+
+# Nomes usuais da coluna de ordem/número do ensaio (spec §8.3).
+_NOME_ORDEM = re.compile(
+    r"^(ensaio|ensaios|exp|experimento|run|ordem|corrida|n|n[º°o.]?)\b", re.IGNORECASE
+)
 
 _MODELOS = {
     "auto": "Automático (pelo planejamento)",
@@ -93,14 +103,17 @@ def construir_analise(tabela: Table) -> None:
         ui.html('<div class="ea-secao-titulo">Mapear colunas</div>')
         ui.html(
             '<div class="ea-secao-sub">Diga o que é <b>fator</b> (o que você '
-            "controla) e o que é <b>resposta</b> (o que você mede). O resto é "
-            "ignorado.</div>"
+            "controla) e o que é <b>resposta</b> (o que você mede). Se a planilha "
+            "tem a ordem em que os ensaios foram feitos, marque como <b>ordem</b>. "
+            "O resto é ignorado.</div>"
         )
         with ui.element("div").classes("ea-mapa-grade"):
             for coluna in tabela.colunas:
                 numerica = tabela.e_numerica(coluna)
                 if not numerica:
                     padrao = "Ignorar"
+                elif _parece_ordem(coluna, tabela):
+                    padrao = "Ordem"
                 elif coluna == ultima_resposta:
                     padrao = "Resposta"
                 else:
@@ -108,7 +121,9 @@ def construir_analise(tabela: Table) -> None:
                 with ui.element("div").classes("ea-mapa-item"):
                     ui.html(f'<div class="ea-col-nome">{escape(coluna)}</div>')
                     sel = (
-                        ui.select(["Fator", "Resposta", "Ignorar"], value=padrao)
+                        ui.select(
+                            ["Fator", "Resposta", "Ordem", "Ignorar"], value=padrao
+                        )
                         .props("dense outlined")
                         .classes("ea-col-sel")
                     )
@@ -122,6 +137,12 @@ def construir_analise(tabela: Table) -> None:
     def analisar_e_mostrar() -> None:
         fatores = [c for c, s in selects.items() if s.value == "Fator"]
         respostas = [c for c, s in selects.items() if s.value == "Resposta"]
+        ordens = [c for c, s in selects.items() if s.value == "Ordem"]
+        if len(ordens) > 1:
+            ui.notify(
+                f"Só uma coluna pode ser a ordem; usando {ordens[0]!r}.",
+                type="warning",
+            )
         if not fatores:
             ui.notify("Escolha ao menos uma coluna como Fator.", type="warning")
             return
@@ -130,7 +151,7 @@ def construir_analise(tabela: Table) -> None:
             return
         try:
             analise, planejamento, candidatos = _rodar_analise(
-                tabela, fatores, respostas, opcoes
+                tabela, fatores, respostas, opcoes, ordens[0] if ordens else None
             )
         except ValueError as erro:
             ui.notify(str(erro), type="negative", position="top", timeout=9000)
@@ -146,7 +167,7 @@ def construir_analise(tabela: Table) -> None:
         resultado.clear()
         with resultado:
             _mostrar_resultados(
-                analise, planejamento, candidatos, opcoes, analisar_e_mostrar
+                analise, planejamento, candidatos, opcoes, analisar_e_mostrar, tabela
             )
 
     def ao_analisar() -> None:
@@ -186,8 +207,20 @@ def _painel_opcoes(opcoes: _Opcoes) -> None:
         )
 
 
+def _parece_ordem(coluna: str, tabela: Table) -> bool:
+    """Coluna 1..n com nome de ensaio/ordem vira Ordem por padrão (spec §8.3)."""
+    if not _NOME_ORDEM.match(coluna.strip()):
+        return False
+    valores = sorted(float(v) for v in tabela.coluna(coluna))
+    return valores == [float(i) for i in range(1, len(valores) + 1)]
+
+
 def _rodar_analise(
-    tabela: Table, fatores: list[str], respostas: list[str], opcoes: _Opcoes
+    tabela: Table,
+    fatores: list[str],
+    respostas: list[str],
+    opcoes: _Opcoes,
+    coluna_ordem: str | None = None,
 ) -> tuple[AnalysisResult, Planejamento, list[str]]:
     """Reconhece o planejamento, escolhe os termos e roda o núcleo.
 
@@ -220,6 +253,7 @@ def _rodar_analise(
         reduzir=opcoes.reduzir,
         tipo_modelo=selecao.tipo_modelo,
         avisos_planejamento=[*identificacao.avisos, *selecao.avisos],
+        coluna_ordem=coluna_ordem,
     )
     return analise, planejamento, candidatos
 
@@ -230,6 +264,7 @@ def _mostrar_resultados(
     candidatos: list[str],
     opcoes: _Opcoes,
     reanalisar: Callable[[], None],
+    tabela: Table,
 ) -> None:
     tipo = NOME_PLANEJAMENTO.get(analise.tipo_planejamento, analise.tipo_planejamento)
     primeiro = analise.ajustes[0]
@@ -246,6 +281,7 @@ def _mostrar_resultados(
     ui.html('<div class="ea-secao-titulo">Resultados</div>')
     ui.html(f'<div class="ea-secao-sub">{escape(" · ".join(partes))}</div>')
     _ajustar_modelo(candidatos, opcoes, reanalisar)
+    _dados_experimento(analise, planejamento, tabela)
 
     for ajuste in analise.ajustes:
         with ui.element("div").classes("ea-resultado"):
@@ -286,6 +322,78 @@ def _mostrar_resultados(
         ).props("flat").classes("ea-botao-sec")
 
     _bloco_baixar(sessao)
+
+
+def _dados_experimento(
+    analise: AnalysisResult, planejamento: Planejamento, tabela: Table
+) -> None:
+    """Estatística descritiva (A1) e matriz real × codificada (A3), recolhidas."""
+    with ui.expansion("Dados do experimento").classes("ea-opcoes w-full").props(
+        "dense switch-toggle-side"
+    ):
+        if analise.descritiva:
+            ui.html('<div class="ea-tabela-rotulo">Estatística descritiva</div>')
+            colunas = [
+                {
+                    "name": c,
+                    "label": r,
+                    "field": c,
+                    "align": "left" if c == "r" else "right",
+                }
+                for c, r in [
+                    ("r", "Resposta"),
+                    ("n", "n"),
+                    ("media", "Média"),
+                    ("dp", "Desvio-padrão"),
+                    ("min", "Mín."),
+                    ("max", "Máx."),
+                    ("cv", "CV (%)"),
+                ]
+            ]
+            linhas = [
+                {
+                    "r": d.resposta,
+                    "n": d.n,
+                    "media": _fmt(d.media, 3),
+                    "dp": _fmt(d.desvio_padrao, 3),
+                    "min": _fmt(d.minimo, 3),
+                    "max": _fmt(d.maximo, 3),
+                    "cv": _fmt(d.cv_percentual, 1),
+                }
+                for d in analise.descritiva
+            ]
+            ui.table(columns=colunas, rows=linhas, row_key="r").props(
+                "flat bordered dense hide-bottom"
+            ).classes("ensaia-previa w-full")
+
+        ui.html(
+            '<div class="ea-tabela-rotulo">Matriz do planejamento '
+            "(real e, entre parênteses, codificado)</div>"
+        )
+        codificada = matriz_codificada(tabela, planejamento)
+        nomes = [f.nome for f in planejamento.fatores]
+        ensaio = {"name": "n", "label": "Ensaio", "field": "n", "align": "left"}
+        colunas_m = [ensaio] + [
+            {"name": n, "label": nome_legivel(n), "field": n, "align": "right"}
+            for n in nomes
+        ]
+        linhas_m = [
+            {
+                "n": i + 1,
+                **{
+                    n: f"{_fmt_curto(float(tabela.coluna(n)[i]))} "
+                    f"({_fmt_curto(codificada[n][i])})"
+                    for n in nomes
+                },
+            }
+            for i in range(len(tabela))
+        ]
+        ui.table(
+            columns=colunas_m,
+            rows=linhas_m,
+            row_key="n",
+            pagination={"rowsPerPage": 10},
+        ).props("flat bordered dense").classes("ensaia-previa w-full")
 
 
 @dataclass
@@ -624,9 +732,102 @@ def _aba_efeitos(
         '<div class="ea-ler">Quanto maior a barra, mais o termo mexe na resposta. '
         f"{corte}{dica}</div>"
     )
+    if ajuste.efeitos_fatorial is not None:
+        _bloco_fatorial(ajuste, alfa)
     ui.html('<div class="ea-tabela-rotulo">Coeficientes (escala codificada)</div>')
     _tabela_coeficientes(ajuste)
     _equacao(ajuste)
+
+
+def _bloco_fatorial(ajuste: AjusteResposta, alfa: float) -> None:
+    """Efeitos, meio-normal (Lenth), efeitos principais, interação e curvatura."""
+    ef = ajuste.efeitos_fatorial
+    assert ef is not None
+
+    ui.html('<div class="ea-tabela-rotulo">Efeitos (de −1 a +1)</div>')
+    colunas = [
+        {"name": "termo", "label": "Termo", "field": "termo", "align": "left"},
+        {"name": "ef", "label": "Efeito", "field": "ef", "align": "right"},
+        {"name": "ep", "label": "Erro padrão", "field": "ep", "align": "right"},
+        {"name": "p", "label": "p-valor", "field": "p", "align": "right"},
+        {"name": "sig", "label": "Signif.", "field": "sig", "align": "center"},
+    ]
+    linhas = [
+        {
+            "termo": nome_legivel(e.termo),
+            "ef": _fmt(e.efeito, 4),
+            "ep": _fmt(e.erro_padrao, 4),
+            "p": _fmt_p_tabela(e.valor_p),
+            "sig": "sim" if e.significativo else "—",
+        }
+        for e in sorted(ef.efeitos, key=lambda e: abs(e.efeito), reverse=True)
+    ]
+    ui.table(columns=colunas, rows=linhas, row_key="termo").props(
+        "flat bordered dense hide-bottom"
+    ).classes("ensaia-previa w-full")
+
+    if ef.lenth is not None:
+        ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
+        ui.html('<div class="ea-grafico-titulo">Gráfico meio-normal dos efeitos</div>')
+        _grafico(
+            graficos.opcoes_meio_normal(
+                pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
+            ),
+            300,
+        )
+        ui.html(
+            '<div class="ea-ler">Efeitos que são só ruído se alinham perto da origem; '
+            "os que se afastam para a direita da <b>linha tracejada</b> (margem de "
+            f"Lenth, ME = {_fmt(ef.lenth.me, 3)}) são ativos. Útil quando não há "
+            "réplicas para estimar o erro.</div>"
+        )
+
+    if ef.medias_principais:
+        todas = [v for m in ef.medias_principais for v in m.medias]
+        baixo, alto = min(todas), max(todas)
+        folga = (alto - baixo) * 0.12 or 1.0
+        ui.html('<div class="ea-grafico-titulo">Efeitos principais</div>')
+        with ui.element("div").classes("ea-multiplos"):
+            for m in ef.medias_principais:
+                _grafico(graficos.opcoes_medias(m, baixo - folga, alto + folga), 200)
+        ui.html(
+            '<div class="ea-ler">Média da resposta em cada nível, na mesma escala: '
+            "quanto mais inclinada a linha, maior o efeito do fator.</div>"
+        )
+
+    if ef.medias_interacoes:
+        efeito_de = {e.termo: abs(e.efeito) for e in ef.efeitos}
+        mais_forte = max(
+            ef.medias_interacoes,
+            key=lambda m: efeito_de.get(f"{m.fator_a}:{m.fator_b}", 0.0),
+        )
+        ui.html(
+            '<div class="ea-grafico-titulo">Interação '
+            f"{escape(nome_legivel(mais_forte.fator_a))} × "
+            f"{escape(nome_legivel(mais_forte.fator_b))}</div>"
+        )
+        _grafico(graficos.opcoes_interacao(mais_forte), 280)
+        ui.html(
+            '<div class="ea-ler">A interação mais forte do modelo. Linhas paralelas: '
+            "os fatores agem cada um por si; linhas que se abrem ou se cruzam: o "
+            "efeito de um depende do nível do outro.</div>"
+        )
+
+    ui.html(f'<div class="ea-ler">{_texto_curvatura(ef.curvatura, alfa)}</div>')
+
+
+def _texto_curvatura(curvatura: TesteCurvatura, alfa: float) -> str:
+    if not curvatura.aplicavel:
+        motivo = curvatura.motivo_inaplicavel or "sem pontos centrais"
+        return f"Teste de curvatura não aplicável ({escape(motivo)})."
+    teste = f"p = {_fmt_p(curvatura.valor_p)}"
+    if curvatura.significativa:
+        return (
+            f"<b>Há curvatura</b> ({teste} &lt; {_fmt(alfa, 2)}): o centro difere dos "
+            "vértices e o modelo linear não basta. Vale ampliar para um composto "
+            "central e ajustar termos quadráticos."
+        )
+    return f"Sem evidência de curvatura ({teste}): o modelo linear descreve a região."
 
 
 def _equacao(ajuste: AjusteResposta) -> None:
@@ -695,19 +896,53 @@ def _aba_diagnostico(ajuste: AjusteResposta, alfa: float) -> None:
         "Funil, curva ou tendência indicam algo que o modelo deixou de fora.</div>"
     )
 
+    if d.ordem is not None:
+        ui.html('<div class="ea-grafico-titulo">Resíduos × ordem de execução</div>')
+        _grafico(graficos.opcoes_residuos_ordem(ajuste), 260)
+        ui.html(
+            '<div class="ea-ler">Na ordem em que os ensaios foram feitos, os resíduos '
+            "não devem subir ou descer aos poucos: tendência indica deriva do "
+            "equipamento, do reagente ou do operador ao longo do tempo.</div>"
+        )
+
     ui.html('<div class="ea-grafico-titulo">Normalidade dos resíduos (Q-Q)</div>')
     _grafico(graficos.opcoes_qq(pontos_qq(d.residuos)), 280)
     ui.html(f'<div class="ea-ler">{_texto_normalidade(ajuste, alfa)}</div>')
 
+    ui.html(f'<div class="ea-ler">{_texto_influencia(d)}</div>')
     ui.html('<div class="ea-tabela-rotulo">Valores por ensaio</div>')
     colunas = [
         {"name": "n", "label": "Ensaio", "field": "n", "align": "left"},
         {"name": "obs", "label": "Observado", "field": "obs", "align": "right"},
         {"name": "prev", "label": "Previsto", "field": "prev", "align": "right"},
         {"name": "res", "label": "Resíduo", "field": "res", "align": "right"},
+        {"name": "h", "label": "Alavancagem", "field": "h", "align": "right"},
+        {"name": "r", "label": "Res. studentizado", "field": "r", "align": "right"},
+        {"name": "cook", "label": "Cook", "field": "cook", "align": "right"},
+        {"name": "nota", "label": "", "field": "nota", "align": "left"},
     ]
+
+    def coluna(valores: Sequence[float | None], i: int, casas: int = 3) -> str:
+        return _fmt(valores[i], casas) if i < len(valores) else "—"
+
     linhas = [
-        {"n": i + 1, "obs": _fmt(o, 3), "prev": _fmt(p, 3), "res": _fmt(r, 3)}
+        {
+            "n": i + 1,
+            "obs": _fmt(o, 3),
+            "prev": _fmt(p, 3),
+            "res": _fmt(r, 3),
+            "h": coluna(d.alavancagem, i),
+            "r": coluna(d.residuos_studentizados, i, 2),
+            "cook": coluna(d.distancia_cook, i),
+            "nota": ", ".join(
+                rotulo
+                for rotulo, lista in (
+                    ("influente", d.ensaios_influentes),
+                    ("possível outlier", d.possiveis_outliers),
+                )
+                if i + 1 in lista
+            ),
+        }
         for i, (o, p, r) in enumerate(
             zip(d.observados, d.preditos, d.residuos, strict=True)
         )
@@ -715,6 +950,31 @@ def _aba_diagnostico(ajuste: AjusteResposta, alfa: float) -> None:
     ui.table(
         columns=colunas, rows=linhas, row_key="n", pagination={"rowsPerPage": 10}
     ).props("flat bordered dense").classes("ensaia-previa w-full")
+
+
+def _texto_influencia(d: Diagnostico) -> str:
+    if not d.alavancagem:
+        return ""
+    partes = []
+    if d.ensaios_influentes:
+        lista = ", ".join(str(i) for i in d.ensaios_influentes)
+        partes.append(
+            f"<b>Ensaio(s) influente(s): {lista}</b> (distância de Cook &gt; 1 e "
+            "alavancagem alta): sozinhos, mudam bastante o ajuste; confira se não "
+            "houve erro de anotação ou de execução."
+        )
+    if d.possiveis_outliers:
+        lista = ", ".join(str(i) for i in d.possiveis_outliers)
+        partes.append(
+            f"<b>Possível(is) outlier(s): {lista}</b> (resíduo studentizado "
+            "externo acima de 3 em módulo): o valor destoa do que o modelo prevê."
+        )
+    if not partes:
+        return (
+            "Nenhum ensaio influente nem possível outlier: nenhum ponto sozinho "
+            "está puxando o modelo."
+        )
+    return " ".join(partes)
 
 
 def _texto_normalidade(ajuste: AjusteResposta, alfa: float) -> str:

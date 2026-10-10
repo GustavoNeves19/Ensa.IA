@@ -85,7 +85,12 @@ def fatos_por_secao(
         )
         diagnostico.extend(
             _rotular(
-                [_fato_falta_ajuste(ajuste, alfa), *_fatos_normalidade(ajuste, alfa)],
+                [
+                    _fato_falta_ajuste(ajuste, alfa),
+                    *_fatos_normalidade(ajuste, alfa),
+                    *_fatos_curvatura(ajuste, alfa),
+                    *_fatos_influencia(ajuste),
+                ],
                 ajuste.resposta,
                 multi=multi,
             )
@@ -172,6 +177,42 @@ def _fatos_normalidade(ajuste: AjusteResposta, alfa: float) -> list[str]:
         f"O teste de Shapiro-Wilk não indica desvio da normalidade dos resíduos "
         f"({teste} ≥ {_num(alfa, 2)})."
     ]
+
+
+def _fatos_curvatura(ajuste: AjusteResposta, alfa: float) -> list[str]:
+    ef = ajuste.efeitos_fatorial
+    if ef is None or not ef.curvatura.aplicavel:
+        return []
+    c = ef.curvatura
+    if c.valor_p is None or c.media_central is None or c.media_fatorial is None:
+        return []
+    medias = (
+        f"média no centro = {_num(c.media_central, 3)}; "
+        f"média nos vértices = {_num(c.media_fatorial, 3)}"
+    )
+    if c.significativa:
+        return [
+            f"Há curvatura significativa ({_sig(c.valor_p, alfa)}; {medias}): o "
+            "modelo linear não basta e convém ampliar o planejamento."
+        ]
+    return [
+        f"Não há evidência de curvatura (p = {_num(c.valor_p, 4)} ≥ "
+        f"{_num(alfa, 2)}; {medias})."
+    ]
+
+
+def _fatos_influencia(ajuste: AjusteResposta) -> list[str]:
+    d = ajuste.diagnostico
+    if d is None or not d.alavancagem:
+        return []
+    fatos: list[str] = []
+    if d.ensaios_influentes:
+        lista = ", ".join(str(i) for i in d.ensaios_influentes)
+        fatos.append(f"O(s) ensaio(s) {lista} tem(têm) influência alta no ajuste.")
+    if d.possiveis_outliers:
+        lista = ", ".join(str(i) for i in d.possiveis_outliers)
+        fatos.append(f"O(s) ensaio(s) {lista} destoa(m) do modelo (possível outlier).")
+    return fatos
 
 
 def _fato_falta_ajuste(ajuste: AjusteResposta, alfa: float) -> str:

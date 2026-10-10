@@ -109,3 +109,35 @@ def test_superficie_3d_pede_echarts_gl() -> None:
     assert any("3D" in chave for chave in op)  # a NiceGUI liga o echarts-gl por isso
     assert op["series"][0]["type"] == "surface"
     assert len(op["series"][0]["data"]) == 16
+
+
+def test_graficos_do_fatorial_e_da_ordem() -> None:
+    from ensaia.core.fatorial import pontos_meio_normal
+    from ensaia.core.termos import escolher_termos
+    from tests.unit.test_fatorial_diagnostico import _fatorial_com_centros
+
+    tabela, plan = _fatorial_com_centros()
+    sel = escolher_termos(tabela, plan)
+    ajuste = analisar(
+        tabela, plan, sel.termos, ["y"], versao_ensaia="t", coluna_ordem="ordem"
+    ).ajustes[0]
+    ef = ajuste.efeitos_fatorial
+    assert ef is not None
+
+    mn = graficos.opcoes_meio_normal(pontos_meio_normal(ef.efeitos), 1.0, {"temp"})
+    ativos, ruido = mn["series"]
+    assert [p[2] for p in ativos["data"]] == ["temp"]  # só o ativo ganha rótulo
+    assert len(ativos["data"]) + len(ruido["data"]) == len(ef.efeitos)
+    assert ativos["markLine"]["data"] == [{"xAxis": 1.0}]
+
+    m = ef.medias_principais[0]
+    op = graficos.opcoes_medias(m, 0.0, 100.0)
+    assert op["series"][0]["data"] == m.medias
+    assert (op["yAxis"]["min"], op["yAxis"]["max"]) == (0.0, 100.0)
+
+    inter = graficos.opcoes_interacao(ef.medias_interacoes[0])
+    assert len(inter["series"]) == 2  # nível baixo e alto do segundo fator
+
+    ordem = graficos.opcoes_residuos_ordem(ajuste)
+    xs = [p[0] for p in ordem["series"][0]["data"]]
+    assert xs == sorted(xs)  # na ordem de execução

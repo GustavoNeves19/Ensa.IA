@@ -307,6 +307,10 @@ def _css() -> str:
     .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
       gap: .55rem; padding: .35rem 0 .6rem; }}
     .ea-ajustar {{ margin: .2rem 0 .4rem; }}
+    /* Pequenos múltiplos (efeitos principais): mesma escala, lado a lado. */
+    .ea-multiplos {{ display: grid; gap: .25rem .75rem; width: 100%;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }}
+    .ea-multiplos > * {{ min-width: 0; }}
     .ea-fora {{ min-width: 260px; flex: 1; max-width: 520px; }}
     /* Equação: texto de dado, em tinta, quebrando onde precisar. */
     .ea-equacao {{ font-size: .95rem; line-height: 1.65; color: var(--tinta);

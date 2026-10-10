@@ -17,11 +17,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ensaia.core.anova import anova_regressao, erro_puro, teste_falta_ajuste
+from ensaia.core.descritiva import estatistica_descritiva
 from ensaia.core.design import Planejamento
 from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import diagnosticar
 from ensaia.core.effects import extrair_coeficientes, t_critico
 from ensaia.core.equacao import montar_equacao
+from ensaia.core.fatorial import analisar_fatorial
 from ensaia.core.identificacao import contar_pontos_centrais
 from ensaia.core.model import AjusteOLS, ajustar_ols, matriz_modelo
 from ensaia.core.results import (
@@ -56,6 +58,7 @@ def analisar(
     reduzir: bool = False,
     tipo_modelo: TipoModelo | None = None,
     objetivos: Mapping[str, Sentido] | None = None,
+    coluna_ordem: str | None = None,
     alvos: Mapping[str, float] | None = None,
 ) -> AnalysisResult:
     """Ajusta o modelo a cada resposta e devolve o resultado congelado.
@@ -69,6 +72,8 @@ def analisar(
     - `reduzir=True` aplica a eliminação backward por resposta (cada resposta
       pode terminar com termos diferentes).
     - `tipo_modelo` só é registrado nos metadados (os termos já chegam prontos).
+    - `coluna_ordem` (opcional) é a ordem de execução dos ensaios, para o
+      gráfico de resíduos × ordem (spec §9, D3).
     - `objetivos` (maximizar, minimizar ou alvo por resposta; `alvos` traz o
       valor-alvo) aciona a busca da condição ótima dentro da região
       experimental (spec §9, E4/E5), com limites pelos valores observados.
@@ -89,6 +94,9 @@ def analisar(
     ajustes: list[AjusteResposta] = []
     avisos: list[str] = list(avisos_planejamento)
     limite = limite_da_regiao(planejamento)
+    ordem = (
+        [float(v) for v in tabela.coluna(coluna_ordem)] if coluna_ordem else None
+    )
     for resposta in respostas:
         resposta = str(resposta)
         y = tabela.coluna(resposta)
@@ -129,6 +137,7 @@ def analisar(
                 termo_erro=usado,
                 descartados=descartados,
                 limite_codificado=limite,
+                ordem=ordem,
             )
         )
 
@@ -156,6 +165,7 @@ def analisar(
         ponto_otimo=ponto_otimo,
         avisos=avisos,
         planejamento=info_planejamento(tabela, planejamento, avisos_planejamento),
+        descritiva=estatistica_descritiva(tabela, [str(r) for r in respostas]),
     )
 
 
@@ -233,6 +243,7 @@ def _ajuste_resposta(
     termo_erro: TermoErro = "residuo",
     descartados: Sequence[str] = (),
     limite_codificado: float = 1.0,
+    ordem: list[float] | None = None,
 ) -> AjusteResposta:
     """Empacota um ajuste OLS no contrato congelado `AjusteResposta`.
 
@@ -259,18 +270,39 @@ def _ajuste_resposta(
         termos_incluidos=list(termos),
         termos_descartados=list(descartados),
         t_critico=t_critico(alfa, gl_teste),
-        diagnostico=diagnosticar(y, ajuste.valores_ajustados, alfa=alfa),
+        diagnostico=diagnosticar(
+            y,
+            ajuste.valores_ajustados,
+            alfa=alfa,
+            alavancagem=ajuste.alavancagem,
+            n_parametros=ajuste.n_parametros,
+            ordem=ordem,
+        ),
         anova_regressao=anova_regressao(ajuste, falta, alfa=alfa),
         r2_predicao=ajuste.r2_predicao,
         equacao=montar_equacao(coeficientes, planejamento.fatores),
         termo_erro=termo_erro,
     )
-    estacionario = ponto_estacionario(
-        ajuste_resposta, planejamento.fatores, limite_codificado=limite_codificado
+    # Peças que leem o próprio AjusteResposta (coeficientes já com o termo de
+    # erro escolhido): ponto estacionário (E3) e efeitos de fatorial (grupo B).
+    sq_ep, gl_ep = erro_puro(dados, resposta, fatores)
+    return ajuste_resposta.model_copy(
+        update={
+            "ponto_estacionario": ponto_estacionario(
+                ajuste_resposta,
+                planejamento.fatores,
+                limite_codificado=limite_codificado,
+            ),
+            "efeitos_fatorial": analisar_fatorial(
+                ajuste_resposta,
+                dados,
+                planejamento,
+                alfa=alfa,
+                qm_erro_puro=sq_ep / gl_ep if gl_ep > 0 else None,
+                gl_erro_puro=gl_ep,
+            ),
+        }
     )
-    if estacionario is None:
-        return ajuste_resposta
-    return ajuste_resposta.model_copy(update={"ponto_estacionario": estacionario})
 
 
 def _linhas_anova(

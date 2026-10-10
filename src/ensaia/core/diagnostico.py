@@ -24,11 +24,26 @@ from ensaia.core.results import Diagnostico
 _MINIMO_SHAPIRO = 3
 
 
+# Regras para apontar ensaios suspeitos (Cook, 1977; Montgomery, cap. 4):
+# - influente: distância de Cook > 1 E alavancagem hᵢᵢ > 2p/n. Só Cook > 1 não
+#   serve em DOE: num fatorial todos os vértices têm alavancagem alta e a regra
+#   dispara em ensaios comuns. Exigir alavancagem acima de 2p/n (o dobro da
+#   média) separa o ponto que de fato puxa o ajuste.
+# - possível outlier: |R-student| > 3. O resíduo studentizado externo (o ensaio
+#   fica fora da estimativa do erro) detecta melhor que o interno quando a
+#   alavancagem é alta.
+COOK_INFLUENTE = 1.0
+STUDENTIZADO_OUTLIER = 3.0
+
+
 def diagnosticar(
     observados: NDArray[np.float64],
     preditos: NDArray[np.float64],
     *,
     alfa: float = 0.05,
+    alavancagem: NDArray[np.float64] | None = None,
+    n_parametros: int | None = None,
+    ordem: list[float] | None = None,
 ) -> Diagnostico:
     """Monta o `Diagnostico` de uma resposta a partir de y e ŷ.
 
@@ -60,7 +75,7 @@ def diagnosticar(
         resultado = stats.shapiro(residuos)
         w, p = float(resultado.statistic), float(resultado.pvalue)
 
-    return Diagnostico(
+    diagnostico = Diagnostico(
         observados=[float(v) for v in y],
         preditos=[float(v) for v in y_chapeu],
         residuos=[float(v) for v in residuos],
@@ -68,7 +83,65 @@ def diagnosticar(
         shapiro_p=p,
         normalidade_rejeitada=None if p is None else p < alfa,
         motivo_sem_shapiro=motivo,
+        ordem=list(ordem) if ordem is not None else None,
     )
+    return diagnostico.model_copy(
+        update=_influencia(residuos, alavancagem, n_parametros)
+    )
+
+
+def _influencia(
+    residuos: NDArray[np.float64],
+    alavancagem: NDArray[np.float64] | None,
+    n_parametros: int | None,
+) -> dict[str, object]:
+    """Resíduo studentizado interno, distância de Cook e os ensaios marcados (D4).
+
+        rᵢ = eᵢ / √(QM_res·(1 − hᵢᵢ))      Dᵢ = rᵢ²·hᵢᵢ / (p·(1 − hᵢᵢ))
+
+    O resíduo studentizado põe todos os resíduos na mesma escala (um ponto de
+    alavancagem alta tem resíduo naturalmente menor). Cook mede quanto o ajuste
+    inteiro mudaria sem aquele ensaio.
+    """
+    if alavancagem is None or n_parametros is None:
+        return {}
+    n = residuos.size
+    gl = n - n_parametros
+    qm = float(residuos @ residuos) / gl if gl > 0 else 0.0
+    studentizados: list[float | None] = []
+    externos: list[float | None] = []
+    cook: list[float | None] = []
+    for e, h in zip(residuos, alavancagem, strict=True):
+        folga = 1.0 - float(h)
+        if folga < 1e-10 or qm <= 0.0:
+            studentizados.append(None)
+            externos.append(None)
+            cook.append(None)
+            continue
+        r = float(e) / np.sqrt(qm * folga)
+        studentizados.append(float(r))
+        cook.append(float(r**2 * h / (n_parametros * folga)))
+        # R-student: tᵢ = rᵢ·√((n − p − 1) / (n − p − rᵢ²))
+        resto = gl - r**2
+        externos.append(
+            float(r * np.sqrt((gl - 1) / resto)) if gl > 1 and resto > 1e-12 else None
+        )
+    corte_h = 2.0 * n_parametros / n
+    return {
+        "alavancagem": [float(h) for h in alavancagem],
+        "residuos_studentizados": studentizados,
+        "distancia_cook": cook,
+        "ensaios_influentes": [
+            i + 1
+            for i, (d, h) in enumerate(zip(cook, alavancagem, strict=True))
+            if d is not None and d > COOK_INFLUENTE and float(h) > corte_h
+        ],
+        "possiveis_outliers": [
+            i + 1
+            for i, t in enumerate(externos)
+            if t is not None and abs(t) > STUDENTIZADO_OUTLIER
+        ],
+    }
 
 
 @dataclass(frozen=True)

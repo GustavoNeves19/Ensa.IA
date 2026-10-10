@@ -18,7 +18,8 @@ from typing import Any
 
 from ensaia.core.design import INTERCEPTO
 from ensaia.core.diagnostico import PontosQQ
-from ensaia.core.results import AjusteResposta
+from ensaia.core.fatorial import PontosMeioNormal
+from ensaia.core.results import AjusteResposta, MediasInteracao, MediasNivel
 from ensaia.core.surface import GradeSuperficie
 from ensaia.ui.tema import (
     CINZA,
@@ -73,9 +74,7 @@ def _base() -> Opcoes:
     }
 
 
-def _eixo_valor(
-    nome: str, *, escala: bool = True, pontas: bool = True
-) -> Opcoes:
+def _eixo_valor(nome: str, *, escala: bool = True, pontas: bool = True) -> Opcoes:
     """Eixo numérico recessivo. `pontas=False` esconde os rótulos de mínimo e
     máximo quando a faixa é fixada à mão (senão aparecem números quebrados
     como 44,981 nas bordas)."""
@@ -198,12 +197,15 @@ def opcoes_pareto(ajuste: AjusteResposta, *, alfa: float) -> Opcoes:
                 "textStyle": {"color": CINZA, "fontSize": 12},
                 "data": ["Significativo", "Não significativo"],
             },
-            "grid": {"left": 4, "right": 28, "top": 34, "bottom": 40,
-                     "containLabel": True},
+            "grid": {
+                "left": 4,
+                "right": 28,
+                "top": 34,
+                "bottom": 40,
+                "containLabel": True,
+            },
             "xAxis": {
-                **_eixo_valor(
-                    "|t|  (efeito padronizado)", escala=False, pontas=False
-                ),
+                **_eixo_valor("|t|  (efeito padronizado)", escala=False, pontas=False),
                 "max": round(maior * 1.12, 2),
             },
             "yAxis": {
@@ -214,8 +216,13 @@ def opcoes_pareto(ajuste: AjusteResposta, *, alfa: float) -> Opcoes:
                 "axisTick": {"show": False},
                 # Nome longo quebra em duas linhas em vez de roubar a largura
                 # das barras (no celular chegava a metade do gráfico).
-                "axisLabel": {"color": TINTA, "fontSize": 12, "width": 128,
-                              "overflow": "break", "lineHeight": 14},
+                "axisLabel": {
+                    "color": TINTA,
+                    "fontSize": 12,
+                    "width": 128,
+                    "overflow": "break",
+                    "lineHeight": 14,
+                },
             },
             "series": [serie_sig, serie_nao],
         }
@@ -263,10 +270,17 @@ def opcoes_preditos_observados(ajuste: AjusteResposta) -> Opcoes:
     opcoes.update(
         {
             "grid": _GRADE_XY,
-            "xAxis": {**_eixo_valor("Observado", pontas=False), "min": baixo,
-                      "max": alto},
-            "yAxis": {**_eixo_valor("Previsto pelo modelo", pontas=False),
-                      "min": baixo, "max": alto, "nameGap": 40},
+            "xAxis": {
+                **_eixo_valor("Observado", pontas=False),
+                "min": baixo,
+                "max": alto,
+            },
+            "yAxis": {
+                **_eixo_valor("Previsto pelo modelo", pontas=False),
+                "min": baixo,
+                "max": alto,
+                "nameGap": 40,
+            },
             "series": [
                 {
                     "type": "scatter",
@@ -277,8 +291,12 @@ def opcoes_preditos_observados(ajuste: AjusteResposta) -> Opcoes:
                         "silent": True,
                         "symbol": "none",
                         "lineStyle": {"color": REFERENCIA, "width": 1, "type": "solid"},
-                        "label": {"position": "insideEndTop", "color": CINZA,
-                                  "fontSize": 11, "formatter": "y = x"},
+                        "label": {
+                            "position": "insideEndTop",
+                            "color": CINZA,
+                            "fontSize": 11,
+                            "formatter": "y = x",
+                        },
                         "data": [[{"coord": [baixo, baixo]}, {"coord": [alto, alto]}]],
                     },
                 }
@@ -298,10 +316,17 @@ def opcoes_residuos_preditos(ajuste: AjusteResposta) -> Opcoes:
     opcoes.update(
         {
             "grid": _GRADE_XY,
-            "xAxis": {**_eixo_valor("Previsto pelo modelo", pontas=False), "min": xb,
-                      "max": xa},
-            "yAxis": {**_eixo_valor("Resíduo", escala=False, pontas=False),
-                      "min": -maior * 1.25, "max": maior * 1.25, "nameGap": 40},
+            "xAxis": {
+                **_eixo_valor("Previsto pelo modelo", pontas=False),
+                "min": xb,
+                "max": xa,
+            },
+            "yAxis": {
+                **_eixo_valor("Resíduo", escala=False, pontas=False),
+                "min": -maior * 1.25,
+                "max": maior * 1.25,
+                "nameGap": 40,
+            },
             "series": [
                 {
                     "type": "scatter",
@@ -346,10 +371,17 @@ def opcoes_qq(qq: PontosQQ) -> Opcoes:
     opcoes.update(
         {
             "grid": _GRADE_XY,
-            "xAxis": {**_eixo_valor("Quantil teórico da normal", pontas=False),
-                      "min": xb, "max": xa},
-            "yAxis": {**_eixo_valor("Resíduo", pontas=False), "min": yb, "max": ya,
-                      "nameGap": 40},
+            "xAxis": {
+                **_eixo_valor("Quantil teórico da normal", pontas=False),
+                "min": xb,
+                "max": xa,
+            },
+            "yAxis": {
+                **_eixo_valor("Resíduo", pontas=False),
+                "min": yb,
+                "max": ya,
+                "nameGap": 40,
+            },
             "series": [
                 {
                     "type": "scatter",
@@ -434,12 +466,25 @@ def opcoes_contorno(
     )
     opcoes.update(
         {
-            "grid": {"left": 40, "right": 112, "top": 12, "bottom": 40,
-                     "containLabel": True},
-            "xAxis": {**eixo_cat, "data": categorias_x,
-                      "name": nome_legivel(grade.eixo_x), "nameGap": 28},
-            "yAxis": {**eixo_cat, "data": categorias_y,
-                      "name": nome_legivel(grade.eixo_y), "nameGap": 44},
+            "grid": {
+                "left": 40,
+                "right": 112,
+                "top": 12,
+                "bottom": 40,
+                "containLabel": True,
+            },
+            "xAxis": {
+                **eixo_cat,
+                "data": categorias_x,
+                "name": nome_legivel(grade.eixo_x),
+                "nameGap": 28,
+            },
+            "yAxis": {
+                **eixo_cat,
+                "data": categorias_y,
+                "name": nome_legivel(grade.eixo_y),
+                "nameGap": 44,
+            },
             "visualMap": {
                 "type": "piecewise",
                 "min": baixo,
@@ -503,9 +548,7 @@ def opcoes_contorno(
     return opcoes
 
 
-def _marcador(
-    grade: GradeSuperficie, destaque: tuple[float, float, str]
-) -> Opcoes:
+def _marcador(grade: GradeSuperficie, destaque: tuple[float, float, str]) -> Opcoes:
     """Anel com rótulo sobre o contorno (ex.: o ponto estacionário).
 
     Os eixos do contorno são categorias (uma por ponto da grade); a posição do
@@ -526,8 +569,11 @@ def _marcador(
         "z": 5,
         "symbol": "circle",
         "symbolSize": 16,
-        "itemStyle": {"color": "transparent", "borderColor": PAPEL_ALTO,
-                      "borderWidth": 3},
+        "itemStyle": {
+            "color": "transparent",
+            "borderColor": PAPEL_ALTO,
+            "borderWidth": 3,
+        },
         "label": {
             "show": True,
             "position": lado,
@@ -596,8 +642,13 @@ def opcoes_superficie_3d(grade: GradeSuperficie) -> Opcoes:
             "boxDepth": 100,
             "boxHeight": 66,
             "axisPointer": {"lineStyle": {"color": CINZA}},
-            "viewControl": {"alpha": 24, "beta": 38, "distance": 190,
-                            "rotateSensitivity": 1.2, "zoomSensitivity": 0.8},
+            "viewControl": {
+                "alpha": 24,
+                "beta": 38,
+                "distance": 190,
+                "rotateSensitivity": 1.2,
+                "zoomSensitivity": 0.8,
+            },
             "light": {
                 "main": {"intensity": 1.05, "alpha": 42, "beta": 28, "shadow": False},
                 "ambient": {"intensity": 0.38},
@@ -608,9 +659,10 @@ def opcoes_superficie_3d(grade: GradeSuperficie) -> Opcoes:
                 "type": "surface",
                 "name": nome_legivel(grade.resposta),
                 "shading": "lambert",
-                "wireframe": {"show": True,
-                              "lineStyle": {"color": "rgba(14,58,38,0.28)",
-                                            "width": 0.6}},
+                "wireframe": {
+                    "show": True,
+                    "lineStyle": {"color": "rgba(14,58,38,0.28)", "width": 0.6},
+                },
                 "data": dados,
             }
         ],
@@ -620,3 +672,294 @@ def opcoes_superficie_3d(grade: GradeSuperficie) -> Opcoes:
 def _js(texto: str) -> str:
     """Escapa texto para dentro de uma string JS entre aspas simples."""
     return texto.replace("\\", "\\\\").replace("'", "\\'")
+
+
+# --- B3/B4: fatoriais de 2 níveis -------------------------------------------------
+
+# Par ordinal para nível baixo/alto (validado: tom único, passo visível).
+NIVEL_BAIXO, NIVEL_ALTO = "#7FB074", "#1A4E2D"
+
+
+def opcoes_meio_normal(
+    pontos: PontosMeioNormal, me: float | None, ativos: set[str]
+) -> Opcoes:
+    """Gráfico meio-normal dos efeitos (B3), com a margem de erro de Lenth.
+
+    Efeitos de ruído se alinham perto da origem; os ativos se afastam para a
+    direita. Só os ativos ganham rótulo (rotular todos vira poluição).
+    """
+
+    def ponto(i: int) -> list[Any]:
+        return [pontos.absolutos[i], pontos.quantis[i], nome_legivel(pontos.termos[i])]
+
+    indices = range(len(pontos.termos))
+    ativos_dados = [ponto(i) for i in indices if pontos.termos[i] in ativos]
+    ruido_dados = [ponto(i) for i in indices if pontos.termos[i] not in ativos]
+    rotulo = {
+        "show": True,
+        "position": "left",
+        "color": TINTA,
+        "fontSize": 11,
+        ":formatter": "(p) => p.data[2]",
+    }
+    serie_ativos: Opcoes = {
+        "type": "scatter",
+        "name": "Ativo (Lenth)",
+        **_pontos(SERIE),
+        "label": rotulo,
+        "data": ativos_dados,
+    }
+    if me is not None:
+        serie_ativos["markLine"] = {
+            "silent": True,
+            "symbol": "none",
+            "lineStyle": {"color": TINTA, "width": 1, "type": "dashed"},
+            "label": {"show": False},
+            "data": [{"xAxis": me}],
+        }
+    maior = max([*pontos.absolutos, me or 0.0, 1e-9])
+    opcoes = _base()
+    opcoes["tooltip"].update(
+        {
+            "trigger": "item",
+            ":formatter": (
+                "(p) => { const f = " + _FMT_JS + "; "
+                "return '<b>' + p.data[2] + '</b><br/>|efeito| = ' + f(p.data[0]); }"
+            ),
+        }
+    )
+    opcoes.update(
+        {
+            "legend": {
+                "top": 0,
+                "left": 0,
+                "icon": "circle",
+                "itemWidth": 9,
+                "itemHeight": 9,
+                "textStyle": {"color": CINZA, "fontSize": 12},
+                "data": ["Ativo (Lenth)", "Ruído"],
+            },
+            "grid": {**_GRADE_XY, "top": 34},
+            "xAxis": {
+                **_eixo_valor("|efeito|", escala=False, pontas=False),
+                "max": round(maior * 1.15, 4),
+            },
+            "yAxis": {**_eixo_valor("Quantil meio-normal"), "nameGap": 40},
+            "series": [
+                serie_ativos,
+                {
+                    "type": "scatter",
+                    "name": "Ruído",
+                    **_pontos(SERIE_APAGADA),
+                    "data": ruido_dados,
+                },
+            ],
+        }
+    )
+    opcoes["xAxis"]["axisLabel"]["showMinLabel"] = True
+    return opcoes
+
+
+def opcoes_medias(medias: MediasNivel, y_min: float, y_max: float) -> Opcoes:
+    """Efeito principal (B4): média da resposta em cada nível do fator.
+
+    Pequenos múltiplos: um gráfico por fator, todos com o MESMO eixo vertical,
+    para a inclinação ser comparável entre fatores (linha mais inclinada =
+    efeito maior).
+    """
+    categorias = [_rotulo_eixo(v) for v in medias.niveis]
+    opcoes = _base()
+    opcoes["tooltip"].update(
+        {
+            "trigger": "item",
+            ":formatter": (
+                "(p) => { const f = " + _FMT_JS + "; "
+                f"return '{_js(nome_legivel(medias.fator))} = ' + p.name + "
+                "'<br/>média ' + f(p.value); }"
+            ),
+        }
+    )
+    opcoes.update(
+        {
+            "grid": {
+                "left": 8,
+                "right": 14,
+                "top": 14,
+                "bottom": 40,
+                "containLabel": True,
+            },
+            "xAxis": {
+                "type": "category",
+                "data": categorias,
+                "name": nome_legivel(medias.fator),
+                "nameLocation": "middle",
+                "nameGap": 26,
+                "nameTextStyle": {"color": TINTA, "fontSize": 12},
+                "axisLine": {"lineStyle": {"color": GRADE}},
+                "axisTick": {"show": False},
+                "axisLabel": {"color": CINZA, "fontSize": 11},
+            },
+            "yAxis": {
+                **_eixo_valor("", pontas=False),
+                "min": y_min,
+                "max": y_max,
+            },
+            "series": [
+                {
+                    "type": "line",
+                    "symbol": "circle",
+                    "data": medias.medias,
+                    "symbolSize": 9,
+                    "lineStyle": {"width": 2, "color": SERIE},
+                    "itemStyle": {
+                        "color": SERIE,
+                        "borderColor": PAPEL_ALTO,
+                        "borderWidth": 2,
+                    },
+                }
+            ],
+        }
+    )
+    return opcoes
+
+
+def opcoes_interacao(m: MediasInteracao) -> Opcoes:
+    """Interação (B4): uma linha por nível do segundo fator.
+
+    Linhas paralelas = sem interação; linhas que se abrem ou se cruzam = o
+    efeito de um fator depende do nível do outro.
+    """
+    categorias = [_rotulo_eixo(v) for v in m.niveis_a]
+    cores = [NIVEL_BAIXO, NIVEL_ALTO] if len(m.niveis_b) == 2 else RAMPA
+    nome_b = nome_legivel(m.fator_b)
+    series = []
+    for j, nivel in enumerate(m.niveis_b):
+        cor = cores[
+            min(j * (len(cores) - 1) // max(len(m.niveis_b) - 1, 1), len(cores) - 1)
+        ]
+        rotulo = f"{nome_b} = {_rotulo_eixo(nivel)}"
+        series.append(
+            {
+                "type": "line",
+                "symbol": "circle",
+                "name": rotulo,
+                "data": m.medias[j],
+                "symbolSize": 9,
+                "lineStyle": {"width": 2, "color": cor},
+                "itemStyle": {
+                    "color": cor,
+                    "borderColor": PAPEL_ALTO,
+                    "borderWidth": 2,
+                },
+                "endLabel": {
+                    "show": True,
+                    "formatter": _rotulo_eixo(nivel),
+                    "color": TINTA,
+                    "fontSize": 11,
+                },
+            }
+        )
+    valores = [v for linha in m.medias for v in linha]
+    baixo, alto = _limites(valores, folga=0.12)
+    opcoes = _base()
+    opcoes["tooltip"].update({"trigger": "axis"})
+    opcoes.update(
+        {
+            "legend": {
+                "top": 0,
+                "left": 0,
+                "icon": "roundRect",
+                "itemWidth": 14,
+                "itemHeight": 3,
+                "textStyle": {"color": CINZA, "fontSize": 12},
+            },
+            "grid": {
+                "left": 40,
+                "right": 40,
+                "top": 34,
+                "bottom": 40,
+                "containLabel": True,
+            },
+            "xAxis": {
+                "type": "category",
+                "data": categorias,
+                "name": nome_legivel(m.fator_a),
+                "nameLocation": "middle",
+                "nameGap": 26,
+                "nameTextStyle": {"color": TINTA, "fontSize": 12},
+                "axisLine": {"lineStyle": {"color": GRADE}},
+                "axisTick": {"show": False},
+                "axisLabel": {"color": CINZA, "fontSize": 11},
+            },
+            "yAxis": {
+                **_eixo_valor("Média da resposta", pontas=False),
+                "min": baixo,
+                "max": alto,
+                "nameGap": 40,
+            },
+            "series": series,
+        }
+    )
+    return opcoes
+
+
+def opcoes_residuos_ordem(ajuste: AjusteResposta) -> Opcoes:
+    """Resíduos na ordem de execução (D3): tendência no tempo denuncia deriva."""
+    d = ajuste.diagnostico
+    if d is None or d.ordem is None:
+        return {}
+    pares = sorted(
+        (o, r, i + 1) for i, (o, r) in enumerate(zip(d.ordem, d.residuos, strict=True))
+    )
+    maior = max([abs(r) for _, r, _ in pares] + [1e-9])
+    opcoes = _base()
+    opcoes["tooltip"].update(
+        {
+            "trigger": "item",
+            ":formatter": (
+                "(p) => { const f = " + _FMT_JS + "; "
+                "return '<b>Ensaio ' + p.data[2] + '</b><br/>ordem ' + f(p.data[0])"
+                " + '<br/>resíduo ' + f(p.data[1]); }"
+            ),
+        }
+    )
+    opcoes.update(
+        {
+            "grid": _GRADE_XY,
+            "xAxis": {
+                **_eixo_valor("Ordem de execução"),
+                "minInterval": 1,
+                "min": "dataMin",
+                "max": "dataMax",
+            },
+            "yAxis": {
+                **_eixo_valor("Resíduo", escala=False, pontas=False),
+                "min": -maior * 1.25,
+                "max": maior * 1.25,
+                "nameGap": 40,
+            },
+            "series": [
+                {
+                    "type": "line",
+                    "symbol": "circle",
+                    "name": "Resíduos",
+                    "data": [[o, r, n] for o, r, n in pares],
+                    "symbolSize": 9,
+                    "lineStyle": {"width": 1, "color": GRADE},
+                    "itemStyle": {
+                        "color": SERIE,
+                        "borderColor": PAPEL_ALTO,
+                        "borderWidth": 2,
+                    },
+                    "markLine": {
+                        "silent": True,
+                        "symbol": "none",
+                        "lineStyle": {"color": REFERENCIA, "width": 1, "type": "solid"},
+                        "label": {"show": False},
+                        "data": [{"yAxis": 0}],
+                    },
+                }
+            ],
+        }
+    )
+    return opcoes

@@ -69,8 +69,19 @@ def termos_do_tipo(
     return termos
 
 
-def tipo_padrao(niveis_por_fator: dict[str, int]) -> TipoModelo:
-    """Quadrático se todos os fatores têm ≥ 3 níveis; senão, com interações."""
+def tipo_padrao(
+    niveis_por_fator: dict[str, int], tipo_planejamento: str | None = None
+) -> TipoModelo:
+    """Quadrático se todos os fatores têm ≥ 3 níveis; senão, com interações.
+
+    Fatorial de 2 níveis com pontos centrais é exceção: os fatores têm 3 níveis
+    (−1, 0, +1), mas todas as colunas x² são iguais (1 nos vértices, 0 no
+    centro), então não dá para estimar a curvatura de cada fator. O modelo
+    certo ali é o com interações, e a curvatura é avaliada pelo teste próprio
+    (spec §9, B5).
+    """
+    if tipo_planejamento in ("fatorial_completo", "fatorial_fracionado"):
+        return "interacoes"
     if niveis_por_fator and all(n >= 3 for n in niveis_por_fator.values()):
         return "quadratico"
     return "interacoes"
@@ -88,7 +99,7 @@ def escolher_termos(
         f.nome: len(np.unique(np.round(tabela.coluna(f.nome), 9)))
         for f in planejamento.fatores
     }
-    pedido = tipo_modelo or tipo_padrao(niveis)
+    pedido = tipo_modelo or tipo_padrao(niveis, planejamento.tipo)
     avisos: list[str] = []
     if pedido == "quadratico" and not any(n >= 3 for n in niveis.values()):
         avisos.append(
