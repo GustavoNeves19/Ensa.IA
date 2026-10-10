@@ -15,7 +15,6 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.optimize import minimize
 
 from ensaia.core.design import Fator
 from ensaia.core.results import AjusteResposta, PontoOtimo, Sentido
@@ -240,6 +239,10 @@ def otimizar(
     Devolve `(ponto, avisos)`. Com R² abaixo de `r2_minimo` numa resposta
     usada, a otimização é recusada e o motivo vai nos avisos.
     """
+    # Importação tardia (spec §16.2): o scipy.optimize pesa na memória ociosa do
+    # servidor e só é preciso quando alguém pede o ótimo.
+    from scipy.optimize import minimize
+
     avisos: list[str] = []
     por_nome = {a.resposta: a for a in ajustes}
     metas = [m for m in metas if m.resposta in por_nome]

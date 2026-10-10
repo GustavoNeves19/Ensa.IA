@@ -295,17 +295,7 @@ class AjusteOLS:
             raise ValueError(self._motivo_sem_tipo2)
         qm = self._sigma2 if qm_erro is None else qm_erro
         gl = self._gl_residuo if gl_erro is None else gl_erro
-        linhas = [
-            LinhaAnova(
-                fonte=t,
-                soma_quadrados=sq,
-                graus_liberdade=1,
-                quadrado_medio=sq,
-                valor_f=sq / qm,
-                valor_p=float(stats.f.sf(sq / qm, 1, gl)),
-            )
-            for t, sq in self._sq_tipo2
-        ]
+        linhas = [self._linha_tipo2(t, sq, qm, gl) for t, sq in self._sq_tipo2]
         linhas.append(
             LinhaAnova(
                 fonte=RESIDUO,
@@ -315,6 +305,34 @@ class AjusteOLS:
             )
         )
         return linhas
+
+    def _linha_tipo2(self, termo: str, sq: float, qm: float, gl: int) -> LinhaAnova:
+        """Uma linha da Tipo II; com termo de erro nulo, F não existe.
+
+        Erro nulo acontece num ajuste exato (o modelo passa por todos os pontos)
+        ou com réplicas idênticas. Aí F seria infinito: o termo fica com F
+        ausente e p = 0 se explica alguma variação (p = 1 se não explica), como
+        no teste de falta de ajuste. Nada de `inf`, que não é JSON válido.
+        """
+        if qm <= 0.0:
+            explica = sq > 1e-12 * max(self._sst, 1.0)
+            return LinhaAnova(
+                fonte=termo,
+                soma_quadrados=sq,
+                graus_liberdade=1,
+                quadrado_medio=sq,
+                valor_f=None,
+                valor_p=0.0 if explica else 1.0,
+            )
+        f = sq / qm
+        return LinhaAnova(
+            fonte=termo,
+            soma_quadrados=sq,
+            graus_liberdade=1,
+            quadrado_medio=sq,
+            valor_f=f,
+            valor_p=float(stats.f.sf(f, 1, gl)),
+        )
 
     def _rss(self, termos: list[str]) -> float:
         """Soma de quadrados residual de um submodelo só com estes termos."""
