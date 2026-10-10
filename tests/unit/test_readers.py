@@ -66,9 +66,33 @@ def test_de_bytes_formato_nao_suportado() -> None:
         ler_dados_de_bytes(b"qualquer coisa", "relatorio.pdf")
 
 
-def test_de_bytes_colunas_repetidas() -> None:
-    with pytest.raises(ValueError, match="repetidas"):
-        ler_dados_de_bytes(b"x;x\n1;2\n", "dup.csv")
+def test_de_bytes_colunas_repetidas_ganham_sufixo() -> None:
+    dados = ler_dados_de_bytes(b"x;x\n1;2\n", "dup.csv")
+    assert dados.colunas == ("x", "x (2)")
+
+
+def test_linha_de_titulo_acima_do_cabecalho_e_pulada() -> None:
+    conteudo = (
+        b";Variaveis independentes;;Variaveis dependentes\n"
+        b"Ensaio;Tempo;pH;Rendimento\n1;30;5;61,2\n2;60;7;70,4\n"
+    )
+    dados = ler_dados_de_bytes(conteudo, "titulo.csv")
+    assert dados.colunas == ("Ensaio", "Tempo", "pH", "Rendimento")
+    assert len(dados) == 2
+
+
+def test_tabela_embaixo_da_matriz_nao_vira_ensaio() -> None:
+    conteudo = (
+        b"ensaio,tempo,rend\n1,30,61.2\n2,60,70.4\n,,\n,,\n"
+        b"Composicao do caroco,,\numidade,9.8,\n"
+    )
+    dados = ler_dados_de_bytes(conteudo, "duas_tabelas.csv")
+    assert len(dados) == 2 and dados.e_numerica("tempo")
+
+
+def test_coluna_sem_nome_com_dados_ganha_nome_e_sem_dados_some() -> None:
+    dados = ler_dados_de_bytes(b";x;;\n1;2;;\n2;3;;\n", "sem_nome.csv")
+    assert dados.colunas == ("Coluna 1", "x")
 
 
 def test_de_bytes_sem_ensaios() -> None:
