@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from ensaia.ai.client import ClienteModelo, ErroDeIA
-from ensaia.ai.fidelity import verificar_secao
+from ensaia.ai.fidelity import RelatorioFidelidade, verificar_secao, verificar_texto
 from ensaia.ai.prompts import (
     MAX_PALAVRAS_PADRAO,
     PROMPT_VERSION,
@@ -32,17 +32,25 @@ from ensaia.ai.prompts import (
 from ensaia.core.facts import SECOES, Secao, fatos_por_secao
 from ensaia.core.results import AnalysisResult
 
-# M0 não usa IA; M2 é Ollama local; M3 é nuvem com chave do usuário. O modo M1
-# (copiar prompt) não gera texto aqui — é a UI que mostra o prompt para o
-# usuário colar; por isso não aparece neste fluxo.
-Modo = Literal["m0", "m2", "m3"]
+# M0 não usa IA; M1 é o texto que o usuário trouxe de uma IA qualquer depois de
+# copiar o prompt (não chama modelo aqui: só é conferido, `relatorio_colado`);
+# M2 é Ollama local; M3 é nuvem (chave do usuário ou do servidor).
+Modo = Literal["m0", "m1", "m2", "m3"]
+
+NOME_MODO: dict[Modo, str] = {
+    "m0": "sem IA (M0)",
+    "m1": "IA escolhida pelo usuário, texto colado (M1)",
+    "m2": "IA local (M2)",
+    "m3": "IA em nuvem (M3)",
+}
 
 
 @dataclass(frozen=True)
 class SecaoTexto:
     """O texto final de uma seção do relatório."""
 
-    secao: Secao
+    # None no texto colado (M1), que chega inteiro, sem a divisão por seção.
+    secao: Secao | None
     titulo: str
     texto: str
     # Como o texto foi obtido: True = reescrito pelo modelo; False = texto M0
@@ -59,9 +67,22 @@ class RelatorioTextual:
     prompt_version: str
     modelo_usado: str | None = None
     avisos: list[str] = field(default_factory=list)
+    # Checagem do texto inteiro contra o resultado (spec §12.5), para a tela e o
+    # PDF dizerem quantos números conferem.
+    fidelidade: RelatorioFidelidade | None = None
 
     def texto_completo(self) -> str:
         return "\n\n".join(f"## {s.titulo}\n\n{s.texto}" for s in self.secoes)
+
+    def corpo(self) -> str:
+        """Só os textos das seções; as posições de `fidelidade` se referem a ele."""
+        return _corpo(self.secoes)
+
+    @property
+    def origem(self) -> str:
+        """Quem escreveu o texto, em uma linha (tela e PDF)."""
+        nome = NOME_MODO[self.modo]
+        return f"{nome}, modelo {self.modelo_usado}" if self.modelo_usado else nome
 
 
 def _texto_m0(fatos: Sequence[str]) -> str:
@@ -88,12 +109,17 @@ def gerar_relatorio(
     seção é reescrita pelo modelo e só é aceita se passar na checagem de
     fidelidade, caindo para o M0 quando falha.
     """
+    if modo == "m1":
+        raise ValueError("O modo M1 não chama modelo: use relatorio_colado.")
     if modo != "m0" and cliente is None:
         raise ValueError(f"O modo {modo!r} exige um cliente de modelo.")
 
     por_secao = fatos_por_secao(resultado)
     secoes: list[SecaoTexto] = []
     avisos: list[str] = []
+    # Se o modelo não responde (rede, chave recusada), as demais seções
+    # falhariam do mesmo jeito: desiste de vez, com um aviso só.
+    sem_conexao = False
 
     for secao in SECOES:
         fatos = por_secao[secao]
@@ -101,13 +127,22 @@ def gerar_relatorio(
             continue  # seção sem fatos (ex.: otimização sem ponto ótimo) não entra
         titulo = titulo_secao(secao)
 
-        if modo == "m0" or cliente is None:
+        if modo == "m0" or cliente is None or sem_conexao:
             secoes.append(SecaoTexto(secao, titulo, _texto_m0(fatos), com_ia=False))
             continue
 
-        texto = _gerar_secao_com_ia(
-            cliente, secao, fatos, max_palavras, tentativas_fidelidade, avisos, titulo
-        )
+        try:
+            texto = _gerar_secao_com_ia(
+                cliente, secao, fatos, max_palavras, tentativas_fidelidade,
+                avisos, titulo,
+            )
+        except ErroDeIA as exc:
+            sem_conexao = True
+            texto = None
+            avisos.append(
+                f"O texto ficou sem IA (M0) a partir da seção {titulo!r}: "
+                f"não foi possível falar com o modelo ({exc})."
+            )
         if texto is not None:
             secoes.append(SecaoTexto(secao, titulo, texto, com_ia=True))
         else:
@@ -119,7 +154,31 @@ def gerar_relatorio(
         prompt_version=PROMPT_VERSION,
         modelo_usado=cliente.config.modelo if cliente is not None else None,
         avisos=avisos,
+        fidelidade=verificar_texto(_corpo(secoes), resultado),
     )
+
+
+def relatorio_colado(resultado: AnalysisResult, texto: str) -> RelatorioTextual:
+    """O texto que o usuário trouxe de uma IA qualquer (M1), já conferido.
+
+    Nada aqui reescreve o texto: ele entra como veio, e a checagem de
+    fidelidade diz quantos números batem com o resultado — é o que separa o
+    EnsaIA de "jogar a planilha numa IA e confiar".
+    """
+    limpo = texto.strip()
+    if not limpo:
+        raise ValueError("Cole o texto que a IA devolveu.")
+    secoes = [SecaoTexto(None, "Texto da sua IA", limpo, com_ia=True)]
+    return RelatorioTextual(
+        secoes=secoes,
+        modo="m1",
+        prompt_version=PROMPT_VERSION,
+        fidelidade=verificar_texto(limpo, resultado),
+    )
+
+
+def _corpo(secoes: Sequence[SecaoTexto]) -> str:
+    return "\n\n".join(s.texto for s in secoes)
 
 
 def _gerar_secao_com_ia(
@@ -133,20 +192,13 @@ def _gerar_secao_com_ia(
 ) -> str | None:
     """Tenta obter um parágrafo fiel do modelo; devolve None se não conseguir.
 
-    Falha de rede (o cliente já tentou de novo internamente) cai direto para o
-    M0. Texto infiel é retentado até `tentativas` vezes antes de desistir.
+    Texto infiel é retentado até `tentativas` vezes antes de desistir. Falha de
+    rede (o cliente já tentou de novo internamente) sobe como `ErroDeIA` para
+    quem chamou parar de insistir nas outras seções.
     """
     mensagens = montar_mensagens(secao, fatos, max_palavras=max_palavras)
     for _ in range(max(1, tentativas)):
-        try:
-            resposta = cliente.completar(mensagens)
-        except ErroDeIA as exc:
-            avisos.append(
-                f"A seção {titulo!r} usou o texto sem IA (M0): "
-                f"não foi possível falar com o modelo ({exc})."
-            )
-            return None
-        texto = resposta.texto.strip()
+        texto = cliente.completar(mensagens).texto.strip()
         if verificar_secao(texto, fatos).fiel:
             return texto
 

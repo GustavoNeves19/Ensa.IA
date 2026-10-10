@@ -21,16 +21,23 @@ from ensaia.ai.client import (
     RespostaInvalida,
     RespostaModelo,
 )
-from ensaia.ai.fidelity import VerificacaoSecao, verificar_secao
+from ensaia.ai.fidelity import (
+    RelatorioFidelidade,
+    VerificacaoSecao,
+    verificar_secao,
+    verificar_texto,
+)
 from ensaia.ai.prompts import (
     PROMPT_VERSION,
     montar_mensagens,
+    montar_prompt_completo,
     montar_texto_para_copiar,
 )
 from ensaia.ai.report import (
     RelatorioTextual,
     SecaoTexto,
     gerar_relatorio,
+    relatorio_colado,
 )
 
 __all__ = [
@@ -41,6 +48,7 @@ __all__ = [
     "ErroDeIA",
     "ErroDeResposta",
     "Mensagem",
+    "RelatorioFidelidade",
     "RelatorioTextual",
     "RespostaInvalida",
     "RespostaModelo",
@@ -48,6 +56,9 @@ __all__ = [
     "VerificacaoSecao",
     "gerar_relatorio",
     "montar_mensagens",
+    "montar_prompt_completo",
     "montar_texto_para_copiar",
+    "relatorio_colado",
     "verificar_secao",
+    "verificar_texto",
 ]

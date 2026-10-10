@@ -193,6 +193,41 @@ class ClienteModelo:
         resposta = self._postar_com_retry(payload)
         return self._extrair(resposta)
 
+    def listar_modelos(self) -> list[str]:
+        """Nomes dos modelos que o provedor oferece (`GET /models`), em ordem.
+
+        Serve para a tela oferecer uma lista em vez de pedir que o usuário
+        adivinhe o nome exato — que muda a cada geração de modelos. É também o
+        teste de conexão: uma chave recusada aparece aqui, antes de narrar.
+        """
+        url = f"{self.config.url_base.rstrip('/')}/models"
+        try:
+            resposta = self._cliente.get(url)
+        except httpx.TimeoutException as exc:
+            raise ErroDeConexao(f"Tempo esgotado ao chamar {url}.") from exc
+        except httpx.TransportError as exc:
+            raise ErroDeConexao(f"Falha de conexão com {url}: {exc}") from exc
+        if resposta.status_code >= 400:
+            raise ErroDeResposta(
+                f"O provedor respondeu {resposta.status_code}: "
+                f"{_corpo_resumido(resposta)}",
+                status=resposta.status_code,
+            )
+        try:
+            dados = resposta.json()
+        except json.JSONDecodeError as exc:
+            raise RespostaInvalida("A lista de modelos não é um JSON válido.") from exc
+        itens = dados.get("data") if isinstance(dados, dict) else None
+        if not isinstance(itens, list):
+            raise RespostaInvalida("A resposta não trouxe a lista de modelos (data).")
+        # O Gemini devolve "models/gemini-…"; o chat aceita o nome sem o prefixo.
+        nomes = {
+            str(item["id"]).removeprefix("models/")
+            for item in itens
+            if isinstance(item, dict) and item.get("id")
+        }
+        return sorted(nomes)
+
     def fechar(self) -> None:
         self._cliente.close()
 

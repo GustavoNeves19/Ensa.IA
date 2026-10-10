@@ -8,8 +8,8 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
-    # A chave da IA (OPENAI_API_KEY) vem do .env, se ele existir. Sem o .env o
-    # app sobe do mesmo jeito: a análise e o texto fiel (sem IA) funcionam.
+    # A IA oferecida pelo servidor (ENSAIA_IA_CHAVE) vem do .env, se ele existir.
+    # Sem o .env o app sobe do mesmo jeito: sem IA, copiar pedido e chave própria.
     env_file:
       - path: .env
         required: false
