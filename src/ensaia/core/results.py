@@ -34,8 +34,9 @@ from pydantic import BaseModel, ConfigDict, Field
 # acrescentam campos opcionais (1.1: t crítico e diagnóstico por ensaio; 1.2:
 # informações do planejamento; 1.3: ANOVA da regressão, R² de predição,
 # equação e opções do modelo; 1.4: ponto estacionário e ótimo em unidades
-# reais); um JSON 1.0 continua sendo lido.
-SCHEMA_VERSION = "1.4"
+# reais; 1.5: efeitos de fatorial, pontos influentes e estatística
+# descritiva); um JSON 1.0 continua sendo lido.
+SCHEMA_VERSION = "1.5"
 
 TipoPlanejamento = Literal[
     "fatorial_completo",
@@ -214,6 +215,109 @@ class Diagnostico(_Congelado):
     shapiro_p: float | None = None
     normalidade_rejeitada: bool | None = None
     motivo_sem_shapiro: str | None = None
+    # D3: ordem de execução de cada ensaio, quando a planilha a informa.
+    ordem: list[float] | None = None
+    # D4: alavancagem hᵢᵢ, resíduo studentizado (interno) e distância de Cook.
+    # None num ensaio com hᵢᵢ = 1 (o modelo passa obrigatoriamente por ele).
+    alavancagem: list[float] = Field(default_factory=list)
+    residuos_studentizados: list[float | None] = Field(default_factory=list)
+    distancia_cook: list[float | None] = Field(default_factory=list)
+    # Ensaios (contando de 1) influentes (Cook > 1 e hᵢᵢ > 2p/n) e possíveis
+    # outliers (|R-student| > 3). Regras em core/diagnostico.py.
+    ensaios_influentes: list[int] = Field(default_factory=list)
+    possiveis_outliers: list[int] = Field(default_factory=list)
+
+
+class Efeito(_Congelado):
+    """Efeito de um termo num fatorial de 2 níveis (spec §9, B1).
+
+    Efeito = 2 × coeficiente codificado: a variação média da resposta quando o
+    fator vai do nível −1 ao +1 (o coeficiente mede só do centro ao +1). O t e
+    o p são os mesmos do coeficiente.
+    """
+
+    termo: str
+    efeito: float
+    erro_padrao: float
+    valor_t: float
+    valor_p: float
+    significativo: bool
+    ativo_lenth: bool | None = None
+
+
+class AnaliseLenth(_Congelado):
+    """Método de Lenth (1989) para fatoriais sem réplicas (spec §9, B3).
+
+    PSE é o pseudo erro-padrão estimado dos próprios efeitos; ME e SME são as
+    margens de erro individual e simultânea. Efeito com |e| > ME é ativo.
+    """
+
+    pse: float
+    me: float
+    sme: float
+    graus_liberdade: float
+
+
+class TesteCurvatura(_Congelado):
+    """Curvatura no fatorial com pontos centrais (spec §9, B5).
+
+    Compara a média dos vértices com a dos pontos centrais. Curvatura
+    significativa diz que o modelo linear não basta e que vale ampliar o
+    planejamento (por exemplo, para um composto central).
+    """
+
+    aplicavel: bool
+    media_fatorial: float | None = None
+    media_central: float | None = None
+    soma_quadrados: float | None = None
+    valor_f: float | None = None
+    valor_p: float | None = None
+    significativa: bool | None = None
+    motivo_inaplicavel: str | None = None
+
+
+class MediasNivel(_Congelado):
+    """Médias da resposta em cada nível de um fator (gráfico de efeito, B4)."""
+
+    fator: str
+    niveis: list[float]
+    medias: list[float]
+
+
+class MediasInteracao(_Congelado):
+    """Médias em cada combinação de níveis de dois fatores (gráfico de interação).
+
+    `medias[j][i]` é a média com `fator_b` no nível `niveis_b[j]` e `fator_a`
+    no nível `niveis_a[i]`.
+    """
+
+    fator_a: str
+    fator_b: str
+    niveis_a: list[float]
+    niveis_b: list[float]
+    medias: list[list[float]]
+
+
+class EfeitosFatorial(_Congelado):
+    """Tudo o que o grupo B da spec entrega para um fatorial de 2 níveis."""
+
+    efeitos: list[Efeito]
+    lenth: AnaliseLenth | None = None
+    curvatura: TesteCurvatura
+    medias_principais: list[MediasNivel] = Field(default_factory=list)
+    medias_interacoes: list[MediasInteracao] = Field(default_factory=list)
+
+
+class EstatisticaDescritiva(_Congelado):
+    """Resumo de uma resposta (spec §9, A1)."""
+
+    resposta: str
+    n: int
+    media: float
+    desvio_padrao: float
+    minimo: float
+    maximo: float
+    cv_percentual: float | None = None
 
 
 class AjusteResposta(_Congelado):
@@ -240,6 +344,7 @@ class AjusteResposta(_Congelado):
     # cair para o resíduo quando não há réplicas para o erro puro).
     termo_erro: TermoErro = "residuo"
     ponto_estacionario: PontoEstacionario | None = None
+    efeitos_fatorial: EfeitosFatorial | None = None
 
 
 class FatorCodificado(_Congelado):
@@ -303,6 +408,7 @@ class AnalysisResult(_Congelado):
     ponto_otimo: PontoOtimo | None = None
     avisos: list[str] = Field(default_factory=list)
     planejamento: InfoPlanejamento | None = None
+    descritiva: list[EstatisticaDescritiva] = Field(default_factory=list)
 
     def ajuste(self, resposta: str) -> AjusteResposta:
         """Recupera o ajuste de uma resposta pelo nome."""
