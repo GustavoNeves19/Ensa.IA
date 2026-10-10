@@ -14,21 +14,14 @@ import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
-import numpy as np
 import yaml
 
 from ensaia import __version__
 from ensaia.core.design import Fator, Planejamento, termos_do_modelo
-from ensaia.core.model import ajustar_ols, matriz_modelo
-from ensaia.core.pipeline import _ajuste_resposta
-from ensaia.core.results import (
-    SCHEMA_VERSION,
-    AjusteResposta,
-    AnalysisResult,
-    MetadadosExecucao,
-)
+from ensaia.core.pipeline import analisar
+from ensaia.core.results import SCHEMA_VERSION, AnalysisResult, TipoPlanejamento
 from ensaia.io.readers import ler_dados
 from ensaia.validation import metrics
 
@@ -81,45 +74,20 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
     if not isinstance(respostas, dict) or not respostas:
         raise ValueError(f"{caso.name}: 'respostas' deve conter ao menos uma resposta.")
 
-    colunas_exigidas = set(fatores) | set(respostas)
-    ausentes = sorted(colunas_exigidas - set(dados.colunas))
-    if ausentes:
-        raise ValueError(
-            f"{caso.name}: colunas ausentes em dados.csv: {ausentes}. "
-            f"Disponíveis: {list(dados.colunas)}."
+    # O mesmo pipeline da interface (fonte única da conta); aqui os parâmetros
+    # vêm de referencia.yaml em vez de serem inferidos dos dados.
+    try:
+        analise: AnalysisResult = analisar(
+            dados,
+            planejamento,
+            termos,
+            [str(r) for r in respostas],
+            versao_ensaia=__version__,
+            alfa=ALFA,
+            executado_em=executado_em,
         )
-
-    matriz = matriz_modelo(dados, planejamento, termos, codificar=True)
-    ajustes_resposta: list[AjusteResposta] = []
-    avisos: list[str] = []
-    for nome_resposta in respostas:
-        resposta = str(nome_resposta)
-        y_valores = dados.coluna(resposta)
-        if np.isnan(y_valores).any():
-            # +2: a linha 1 do CSV é o cabeçalho, então o ensaio i cai na linha i+2.
-            linhas = [int(i) + 2 for i in np.flatnonzero(np.isnan(y_valores))]
-            raise ValueError(
-                f"{caso.name}: a resposta {resposta!r} tem valores ausentes ou "
-                f"não numéricos nas linhas CSV {linhas}."
-            )
-        ajuste = ajustar_ols(matriz, y_valores)
-        ajustes_resposta.append(
-            _ajuste_resposta(
-                resposta, ajuste, termos, avisos, dados, fatores, alfa=ALFA
-            )
-        )
-
-    analise = AnalysisResult(
-        tipo_planejamento=planejamento.tipo,
-        fatores=fatores,
-        respostas=[str(r) for r in respostas],
-        ajustes=ajustes_resposta,
-        metadados=MetadadosExecucao(
-            versao_ensaia=__version__, alfa=ALFA, executado_em=executado_em
-        ),
-        ponto_otimo=None,
-        avisos=avisos,
-    )
+    except ValueError as erro:
+        raise ValueError(f"{caso.name}: {erro}") from erro
 
     metricas, condicao = _aplicar_metricas(analise, referencia, planejamento)
 
@@ -210,14 +178,7 @@ def _ler_referencia(caminho: Path) -> dict[str, Any]:
 
 def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
     tipo = referencia.get("tipo_planejamento")
-    tipos_validos = {
-        "fatorial_completo",
-        "fatorial_fracionado",
-        "composto_central",
-        "box_behnken",
-        "desconhecido",
-    }
-    if tipo not in tipos_validos:
+    if tipo not in get_args(TipoPlanejamento):
         raise ValueError(f"tipo_planejamento inválido: {tipo!r}.")
     fatores_ref = referencia.get("fatores")
     if not isinstance(fatores_ref, dict) or not fatores_ref:
