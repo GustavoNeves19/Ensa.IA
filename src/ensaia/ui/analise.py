@@ -65,7 +65,7 @@ from ensaia.core.results import (
     TesteCurvatura,
     TipoModelo,
 )
-from ensaia.core.surface import PONTOS_PADRAO, grade_superficie
+from ensaia.core.surface import PONTOS_PADRAO, grade_superficie, prever_condicao
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO, escolher_termos, termos_do_tipo
 from ensaia.ui import graficos
@@ -398,6 +398,8 @@ def _mostrar_resultados(
     sessao = _Sessao(analise)
     if sel & {"E4", "E5"}:
         _bloco_otimizacao(sessao, planejamento)
+    if "C1" in sel:
+        _bloco_prever(analise, planejamento)
 
     relatorio = ui.column().classes("w-full ea-slot")
     with ui.element("div").classes("ea-acoes"):
@@ -577,6 +579,62 @@ def _bloco_otimizacao(sessao: _Sessao, planejamento: Planejamento) -> None:
             "unelevated"
         ).classes("ea-botao")
         # O resultado aparece ABAIXO do botão, na ordem de leitura.
+        area = ui.column().classes("w-full ea-slot")
+
+
+def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
+    """Prever uma condição (US-15, "e se?"): valores dos fatores → respostas."""
+    with ui.element("div").classes("ea-otimizacao"):
+        ui.html('<div class="ea-secao-titulo">Prever uma condição</div>')
+        ui.html(
+            '<div class="ea-secao-sub">Digite os valores dos fatores, nas unidades do '
+            "laboratório, e veja o que o modelo prevê. Útil para planejar o próximo "
+            "ensaio ou conferir o ensaio de confirmação.</div>"
+        )
+        campos: dict[str, ui.number] = {}
+        with ui.element("div").classes("ea-mapa-grade"):
+            for fator in planejamento.fatores:
+                rotulo = nome_legivel(fator.nome)
+                if fator.unidade:
+                    rotulo += f" ({fator.unidade})"
+                campos[fator.nome] = ui.number(
+                    rotulo, value=round(fator.centro, 6), format="%.6g"
+                ).props("dense outlined")
+
+        def prever() -> None:
+            valores = {
+                n: float(c.value) for n, c in campos.items() if c.value is not None
+            }
+            try:
+                previstas, extrapola = prever_condicao(
+                    analise.ajustes,
+                    planejamento.fatores,
+                    valores,
+                    limite_codificado=limite_da_regiao(planejamento),
+                )
+            except ValueError as erro:
+                ui.notify(str(erro), type="warning", position="top")
+                return
+            area.clear()
+            with area:
+                linhas = [
+                    {"r": r, "v": _fmt(v, 3)} for r, v in previstas.items()
+                ]
+                colunas = [
+                    {"name": "r", "label": "Resposta", "field": "r", "align": "left"},
+                    {"name": "v", "label": "Prevista", "field": "v", "align": "right"},
+                ]
+                ui.table(columns=colunas, rows=linhas, row_key="r").props(
+                    "flat bordered dense hide-bottom"
+                ).classes("ensaia-previa w-full")
+                if extrapola:
+                    ui.html(
+                        '<div class="ea-aviso">Essa condição sai da região estudada: '
+                        "o modelo está extrapolando e a previsão pode não valer. "
+                        "Confirme com um ensaio antes de confiar nela.</div>"
+                    )
+
+        ui.button("Prever", on_click=prever).props("unelevated").classes("ea-botao")
         area = ui.column().classes("w-full ea-slot")
 
 

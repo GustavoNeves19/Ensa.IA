@@ -43,6 +43,9 @@ from ensaia.core.table import Table
 from ensaia.core.termos import reduzir_backward
 
 ALFA_PADRAO = 0.05
+# Spec §15: limites que evitam abuso de memória e modelos sem sentido.
+MAX_FATORES = 7
+MAX_RESPOSTAS = 5
 
 
 def analisar(
@@ -91,6 +94,16 @@ def analisar(
     if desconhecidas:
         raise ValueError(
             f"Análises desconhecidas: {desconhecidas}. Use os IDs {list(IDS)}."
+        )
+    if len(fatores) > MAX_FATORES:
+        raise ValueError(
+            f"O EnsaIA analisa até {MAX_FATORES} fatores por vez; foram "
+            f"marcados {len(fatores)}. Deixe só os que você variou de propósito."
+        )
+    if len(respostas) > MAX_RESPOSTAS:
+        raise ValueError(
+            f"O EnsaIA analisa até {MAX_RESPOSTAS} respostas por vez; foram "
+            f"marcadas {len(respostas)}."
         )
     exigidas = set(fatores) | set(respostas)
     ausentes = sorted(exigidas - set(tabela.colunas))

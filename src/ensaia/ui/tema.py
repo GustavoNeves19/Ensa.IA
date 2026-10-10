@@ -299,6 +299,7 @@ def _css() -> str:
     .ea-controles {{ display: flex; flex-wrap: wrap; gap: .6rem 1rem;
       align-items: flex-end; }}
     .ea-controles .q-field {{ min-width: 150px; }}
+    .ea-painel .ea-controles .q-field {{ min-width: 13rem; }}
     .ea-forma {{ border: 1px solid var(--linha); border-radius: 10px; }}
     /* Opções do modelo: recolhidas, sem caixa; o cabeçalho fala baixo. */
     .ea-opcoes {{ color: var(--cinza); }}
@@ -307,6 +308,18 @@ def _css() -> str:
     .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
       gap: .55rem; padding: .35rem 0 .6rem; }}
     .ea-ajustar {{ margin: .2rem 0 .4rem; }}
+    /* Exemplos e planilha-modelo abaixo da dropzone: rótulo e ações lado a lado. */
+    .ea-alternativas {{ display: grid; grid-template-columns: auto 1fr;
+      gap: .15rem 1.1rem; align-items: baseline; margin-top: .3rem; }}
+    .ea-alternativas .ea-acoes {{ gap: 0 1.1rem; }}
+    /* Ações como texto: a primeira letra alinha com a coluna, sem recuo. */
+    .ea-alternativas .ea-botao-sec.q-btn {{ padding: 0; min-height: 1.9rem; }}
+    .ea-alternativas .ea-botao-sec .q-btn__content {{ justify-content: flex-start;
+      text-align: left; }}
+    @media (max-width: 560px) {{
+      .ea-alternativas {{ grid-template-columns: 1fr; }}
+      .ea-alternativas > .ea-ler:not(:first-child) {{ margin-top: .5rem; }}
+    }}
     /* Catálogo de análises: um bloco por grupo da spec, lado a lado. */
     .ea-grupos {{ display: grid; gap: .9rem 1.4rem; width: 100%;
       grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }}

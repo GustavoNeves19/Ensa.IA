@@ -15,6 +15,10 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.13",
     "openpyxl>=3.1",
+    # .xls (Excel 97-2003) e .ods (LibreOffice), spec §7.4/§8.1; importados só
+    # quando um arquivo desses chega.
+    "xlrd>=2.0",
+    "odfpy>=1.4",
     "pydantic>=2.7",
     "pyyaml>=6.0",
 ]
@@ -127,5 +131,5 @@ files = ["src/ensaia"]
 strict = true
 # scipy e openpyxl não distribuem stubs de tipo completos.
 [[tool.mypy.overrides]]
-module = ["scipy.*", "openpyxl.*"]
+module = ["scipy.*", "openpyxl.*", "xlrd.*", "odf.*"]
 ignore_missing_imports = true

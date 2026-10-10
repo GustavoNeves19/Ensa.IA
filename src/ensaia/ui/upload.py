@@ -1,60 +1,102 @@
-"""Passo 1 do fluxo (spec §4): enviar o arquivo e conferir a prévia dos dados.
+"""Passos 1 e 2 do fluxo (spec §4): enviar o arquivo e conferir os dados.
 
 A planilha chega como bytes em memória (`ui.upload`) e é lida por
 `io.readers.ler_dados_de_bytes` — nunca gravada em disco (princípio P1). Erros de
-leitura viram avisos em português claro, não telas de exceção. A prévia mostra
-até 50 linhas, com os números no padrão brasileiro (vírgula decimal).
+leitura viram avisos em português claro, não telas de exceção.
 
-O mapeamento de colunas e a escolha de análises (passos 3 e 4) entram depois;
-aqui a `Table` carregada é entregue ao chamador por um callback.
+Conferir (passo 2): a prévia mostra até 50 linhas com os números no padrão
+brasileiro; em planilha com várias abas, o usuário escolhe a aba (RF-03); em
+arquivo de texto, aparecem o separador, o decimal e a codificação detectados, e
+o separador pode ser corrigido. Quem não tem uma planilha à mão pode abrir um
+dos exemplos públicos (RF-18) ou baixar a planilha-modelo com o guia (US-02).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from html import escape
 
 from nicegui import events, ui
 
 from ensaia.core.table import Table
-from ensaia.io.readers import ler_dados_de_bytes
+from ensaia.exemplos import EXEMPLOS, conteudo_exemplo
+from ensaia.io.modelo import planilha_modelo_xlsx
+from ensaia.io.readers import (
+    SEPARADORES,
+    FormatoCsv,
+    formato_csv,
+    ler_dados_de_bytes,
+    listar_abas,
+)
 from ensaia.ui.tema import CINZA, TINTA, VERDE_ESCURO
 
 # RF-01: aceita até 5 MB; acima disso o upload é recusado no próprio navegador.
 MAX_BYTES = 5 * 1024 * 1024
-_ACEITA = ".csv,.tsv,.txt,.xlsx,.xls"
+_ACEITA = ".csv,.tsv,.txt,.xlsx,.xls,.ods"
 _LIMITE_PREVIA = 50
+_MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-def construir_upload(ao_carregar: Callable[[Table, str], None] | None = None) -> None:
-    """Monta a dropzone e a área de prévia.
+def construir_upload(
+    ao_carregar: Callable[[Table | None, str], None] | None = None,
+) -> None:
+    """Monta a dropzone, os exemplos, a planilha-modelo e a área de conferência.
 
-    `ao_carregar` recebe a `Table` e o nome do arquivo quando a leitura dá certo —
-    o gancho para o próximo passo (mapear colunas), ainda não implementado.
+    `ao_carregar` recebe a `Table` e o nome do arquivo quando a leitura dá certo
+    — é o gancho para o passo seguinte (mapear colunas). Recebe `None` quando a
+    aba escolhida não tem dados, para o passo seguinte não ficar com a anterior.
     """
-    async def tratar_upload(evento: events.UploadEventArguments) -> None:
-        # Na NiceGUI 3.x o arquivo vem em `evento.file`, e `read()` é assíncrono.
+    def carregar(
+        conteudo: bytes,
+        nome: str,
+        *,
+        aba: str | None = None,
+        separador: str | None = None,
+    ) -> None:
         area_previa.clear()
-        conteudo = await evento.file.read()
-        nome = evento.file.name
         try:
-            tabela = ler_dados_de_bytes(conteudo, nome)
+            abas = listar_abas(conteudo, nome)
+            formato = formato_csv(conteudo, nome)
         except (ValueError, FileNotFoundError) as erro:
             ui.notify(str(erro), type="negative", position="top", timeout=8000)
+            return
+        tabela, aba, problema = _ler(conteudo, nome, abas, aba, separador)
+        if tabela is None and len(abas) <= 1:
+            ui.notify(problema, type="negative", position="top", timeout=8000)
             return
         if ao_carregar is not None:
             ao_carregar(tabela, nome)
         with area_previa:
-            _mostrar_previa(tabela, nome)
+            _conferencia(
+                abas,
+                aba,
+                formato.separador if formato and separador is None else separador,
+                formato,
+                lambda nova_aba: carregar(conteudo, nome, aba=nova_aba),
+                lambda novo_sep: carregar(conteudo, nome, separador=novo_sep),
+            )
+            if tabela is None:
+                # Com várias abas, o seletor continua na tela para trocar de aba.
+                ui.html(f'<div class="ea-aviso">{escape(problema)}</div>')
+            else:
+                _mostrar_previa(tabela, nome)
+
+    async def tratar_upload(evento: events.UploadEventArguments) -> None:
+        # Na NiceGUI 3.x o arquivo vem em `evento.file`, e `read()` é assíncrono.
+        carregar(await evento.file.read(), evento.file.name)
+        # Com max_files=1 a fila cheia esconde o seletor: esvazia para aceitar
+        # outra planilha (o arquivo já foi lido para a memória).
+        envio.reset()
 
     def tratar_recusa(_: events.UiEventArguments) -> None:
         ui.notify(
-            "Arquivo recusado. Envie um CSV, TSV, TXT, XLSX ou XLS de até 5 MB.",
+            "Arquivo recusado. Envie um CSV, TSV, TXT, XLSX, XLS ou ODS de até 5 MB.",
             type="warning",
             position="top",
             timeout=8000,
         )
 
-    ui.upload(
+    envio = ui.upload(
         on_upload=tratar_upload,
         on_rejected=tratar_recusa,
         max_file_size=MAX_BYTES,
@@ -63,12 +105,103 @@ def construir_upload(ao_carregar: Callable[[Table, str], None] | None = None) ->
         label="Arraste sua planilha aqui ou clique para escolher",
     ).props(f'accept="{_ACEITA}" flat').classes("ensaia-upload")
 
-    ui.label("Formatos aceitos: CSV, TSV, TXT, XLSX, XLS · até 5 MB").style(
+    ui.label("Formatos aceitos: CSV, TSV, TXT, XLSX, XLS, ODS · até 5 MB").style(
         f"color:{CINZA};font-size:0.8rem"
     )
 
+    # Sem planilha à mão: um rótulo por linha e as ações ao lado, alinhadas.
+    with ui.element("div").classes("ea-alternativas"):
+        ui.label("Exemplos publicados").classes("ea-ler")
+        with ui.element("div").classes("ea-acoes"):
+            for exemplo in EXEMPLOS.values():
+                ui.button(
+                    exemplo.titulo,
+                    on_click=lambda e=exemplo: carregar(
+                        conteudo_exemplo(e.id), e.arquivo
+                    ),
+                ).props("flat dense no-caps").classes("ea-botao-sec").tooltip(
+                    f"{exemplo.descricao} Fonte: {exemplo.citacao}"
+                )
+        ui.label("Planilha-modelo").classes("ea-ler")
+        with ui.element("div").classes("ea-acoes"):
+            ui.button(
+                "Baixar .xlsx com guia de preenchimento",
+                on_click=lambda: ui.download.content(
+                    planilha_modelo_xlsx(), "ensaia-planilha-modelo.xlsx", _MIME_XLSX
+                ),
+            ).props("flat dense no-caps").classes("ea-botao-sec")
+
     # A prévia fica ABAIXO da dropzone, preenchida quando um arquivo é lido.
     area_previa = ui.column().classes("w-full gap-2")
+
+
+def _ler(
+    conteudo: bytes,
+    nome: str,
+    abas: list[str],
+    aba: str | None,
+    separador: str | None,
+) -> tuple[Table | None, str | None, str]:
+    """Lê a aba pedida; sem pedido, a primeira aba que tiver dados.
+
+    Planilhas costumam abrir com uma aba de instruções ou capa antes dos dados;
+    pular as abas vazias poupa o usuário de um erro logo no primeiro passo.
+    Devolve a tabela (ou `None`), a aba usada e a mensagem do primeiro erro.
+    """
+    candidatas: list[str | None] = [aba] if aba else (list(abas) or [None])
+    primeiro_erro = ""
+    for candidata in candidatas:
+        try:
+            tabela = ler_dados_de_bytes(
+                conteudo, nome, aba=candidata, separador=separador
+            )
+        except (ValueError, FileNotFoundError) as erro:
+            if not primeiro_erro:
+                primeiro_erro = (
+                    f"A aba '{candidata}' não tem dados de ensaios."
+                    if candidata is not None and len(abas) > 1
+                    else str(erro)
+                )
+            continue
+        return tabela, candidata, ""
+    return None, candidatas[0], primeiro_erro
+
+
+def _conferencia(
+    abas: list[str],
+    aba: str | None,
+    separador: str | None,
+    formato: FormatoCsv | None,
+    trocar_aba: Callable[[str], None],
+    trocar_separador: Callable[[str], None],
+) -> None:
+    """Passo 2: a aba lida (planilhas) ou o formato detectado (texto)."""
+    if len(abas) > 1:
+        with ui.element("div").classes("ea-controles"):
+            ui.select(
+                abas, value=aba, label="Aba da planilha",
+                on_change=lambda e: trocar_aba(str(e.value)),
+            ).props("dense outlined")
+            ui.html(
+                f'<div class="ea-ler">A planilha tem {len(abas)} abas; os dados '
+                "devem estar numa só, com os nomes das colunas na primeira linha."
+                "</div>"
+            )
+    if formato is not None:
+        decimal, codificacao = formato.decimal, formato.codificacao
+        with ui.element("div").classes("ea-controles"):
+            ui.select(
+                {s: nome for s, nome in SEPARADORES.items()},
+                value=separador,
+                label="Separador de colunas",
+                on_change=lambda e: trocar_separador(str(e.value)),
+            ).props("dense outlined")
+            ui.html(
+                '<div class="ea-ler">Detectado: decimal '
+                f"<b>{'vírgula' if decimal == ',' else 'ponto'}</b>, "
+                f"codificação <b>{escape(codificacao)}</b>. Se as colunas saírem "
+                "grudadas, troque o separador.</div>"
+            )
 
 
 def _mostrar_previa(tabela: Table, nome: str) -> None:
