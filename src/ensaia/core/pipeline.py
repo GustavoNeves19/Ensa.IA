@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 from ensaia.core.anova import anova_regressao, erro_puro, teste_falta_ajuste
 from ensaia.core.catalogo import IDS
 from ensaia.core.descritiva import estatistica_descritiva
-from ensaia.core.design import Planejamento
+from ensaia.core.design import Fator, Planejamento
 from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import diagnosticar
 from ensaia.core.effects import extrair_coeficientes, t_critico
@@ -250,6 +250,18 @@ def info_planejamento(
         ],
         avisos=list(avisos),
     )
+
+
+def fatores_do_contrato(info: InfoPlanejamento) -> list[Fator]:
+    """Os fatores de volta a partir da seção `planejamento` do contrato.
+
+    É o inverso de `info_planejamento`: quem só tem o `AnalysisResult` (o PDF,
+    o servidor MCP) reconstrói a codificação sem reler a planilha.
+    """
+    return [
+        Fator(f.nome, f.centro - f.passo, f.centro + f.passo, f.unidade)
+        for f in info.fatores
+    ]
 
 
 def _ajuste_resposta(

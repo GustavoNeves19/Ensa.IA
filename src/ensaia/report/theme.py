@@ -41,6 +41,25 @@ class Tema:
     cinza_claro: Cor = (228, 226, 214)
     branco: Cor = (255, 255, 255)
 
+    # Cores dos gráficos: as mesmas da tela (ui/tema.py), já validadas para
+    # daltonismo e contraste. Série principal (termo significativo, ensaios),
+    # série apagada (não significativo), os dois níveis de um fator e a rampa
+    # sequencial de tom único da superfície (claro → escuro = menor → maior).
+    serie: Cor = (46, 133, 64)
+    serie_apagada: Cor = (150, 143, 122)
+    nivel_baixo: Cor = (127, 176, 116)
+    nivel_alto: Cor = (26, 78, 45)
+    grade: Cor = (231, 228, 216)
+    rampa: tuple[str, ...] = (
+        "#8FBD7D",
+        "#6FA96A",
+        "#529257",
+        "#3B7B47",
+        "#28643A",
+        "#1A4E2D",
+        "#0E3A26",
+    )
+
     # Fontes Unicode (DejaVu, livre), embutidas no pacote. A regular e a negrito
     # cobrem acentos do português e os símbolos dos fatos (≥, ², −).
     familia: str = "DejaVu"

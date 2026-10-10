@@ -123,6 +123,16 @@ def termos_do_modelo(
     return termos
 
 
+def nome_legivel(termo: str) -> str:
+    """Termo canônico em leitura humana: "a:b" → "a × b", "a^2" → "a²", "_" → " ".
+
+    A tela, o PDF e o texto falam do mesmo jeito; por isso mora aqui, junto da
+    notação canônica que ele traduz.
+    """
+    texto = termo.replace("^2", "²").replace("^3", "³").replace(":", " × ")
+    return texto.replace("_", " ")
+
+
 def interpretar_termo(termo: str) -> list[tuple[str, int]]:
     """Decompõe um termo canônico em pares (fator, potência).
 
