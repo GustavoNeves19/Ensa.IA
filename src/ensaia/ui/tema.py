@@ -251,8 +251,15 @@ def _css() -> str:
     .ea-botao.q-btn:hover {{ filter: brightness(1.14); }}
     .ea-botao-sec.q-btn {{ color: var(--verde-escuro); text-transform: none;
       letter-spacing: 0; font-weight: 600; }}
+    /* Sem a caixa cinza do Quasar no foco/clique; o retorno é só de tom. */
+    .ea-botao-sec .q-focus-helper {{ display: none; }}
+    .ea-botao-sec.q-btn:hover {{ color: var(--tinta); }}
     .ea-acoes {{ display: flex; flex-wrap: wrap; gap: .3rem 1rem;
       align-items: center; }}
+    /* Passo final do fluxo: separado das ações de texto por espaço, não por
+       linha nem caixa. */
+    .ea-baixar {{ display: flex; flex-direction: column; gap: .5rem;
+      margin-top: .9rem; }}
 
     .ea-resultado {{ display: flex; flex-direction: column; gap: .7rem;
       padding: 1.1rem 1.15rem; background: var(--papel-alto);

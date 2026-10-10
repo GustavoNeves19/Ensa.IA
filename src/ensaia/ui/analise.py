@@ -25,6 +25,7 @@ from __future__ import annotations
 import math
 import os
 from collections.abc import Callable
+from datetime import datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -188,15 +189,87 @@ def _mostrar_resultados(analise: AnalysisResult, planejamento: Planejamento) -> 
     for aviso in analise.avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
 
+    # O último texto mostrado (IA ou fiel) é o que vai para o PDF.
+    estado: dict[str, RelatorioTextual] = {}
     relatorio = ui.column().classes("w-full ea-slot")
     with ui.element("div").classes("ea-acoes"):
         ui.button(
-            "Narrar com IA", on_click=lambda: _gerar_ia(analise, relatorio)
+            "Narrar com IA", on_click=lambda: _gerar_ia(analise, relatorio, estado)
         ).props("unelevated").classes("ea-botao")
         ui.button(
             "ou ver o texto fiel (sem IA)",
-            on_click=lambda: _gerar_m0(analise, relatorio),
+            on_click=lambda: _gerar_m0(analise, relatorio, estado),
         ).props("flat").classes("ea-botao-sec")
+
+    _bloco_baixar(analise, estado)
+
+
+def _bloco_baixar(analise: AnalysisResult, estado: dict[str, RelatorioTextual]) -> None:
+    """Passo 7 do fluxo (spec §4): baixar o relatório em PDF e os resultados em JSON."""
+    with ui.element("div").classes("ea-baixar"):
+        with ui.element("div").classes("ea-acoes"):
+            botao_pdf = (
+                ui.button("Baixar relatório (PDF)")
+                .props("unelevated")
+                .classes("ea-botao")
+            )
+            ui.button(
+                "ou baixar os resultados (JSON)", on_click=lambda: _baixar_json(analise)
+            ).props("flat").classes("ea-botao-sec")
+        ui.html(
+            '<div class="ea-ler">O PDF leva o texto que estiver na tela; sem texto '
+            "gerado, vai o texto fiel (sem IA). Nada fica guardado: o arquivo é "
+            "montado na memória e entregue direto ao seu navegador.</div>"
+        )
+    botao_pdf.on_click(lambda: _baixar_pdf(analise, estado, botao_pdf))
+
+
+async def _baixar_pdf(
+    analise: AnalysisResult, estado: dict[str, RelatorioTextual], botao: ui.button
+) -> None:
+    try:
+        from ensaia.report import gerar_pdf  # extra [report]: fpdf2 + matplotlib
+    except ImportError:
+        ui.notify(
+            "Para gerar o PDF, instale o extra [report] (fpdf2 e matplotlib).",
+            type="warning",
+            position="top",
+            timeout=9000,
+        )
+        return
+
+    texto = estado.get("texto") or gerar_relatorio(analise, modo="m0")
+    agora = datetime.now()
+    botao.props("loading")
+    try:
+        # Fora da thread da interface: o matplotlib leva um instante na 1ª vez.
+        pdf = await run.io_bound(
+            gerar_pdf, analise, texto, gerado_em=agora.strftime("%d/%m/%Y %H:%M")
+        )
+    except Exception as erro:
+        ui.notify(
+            f"Não foi possível gerar o PDF: {erro}",
+            type="negative",
+            position="top",
+            timeout=9000,
+        )
+        return
+    finally:
+        botao.props(remove="loading")
+    if pdf is None:  # o servidor encerrou no meio da geração
+        return
+    ui.download.content(
+        pdf, f"ensaia-relatorio-{agora:%Y-%m-%d-%H%M}.pdf", "application/pdf"
+    )
+
+
+def _baixar_json(analise: AnalysisResult) -> None:
+    agora = datetime.now()
+    ui.download.content(
+        analise.to_json(),
+        f"ensaia-resultados-{agora:%Y-%m-%d-%H%M}.json",
+        "application/json",
+    )
 
 
 _ABA_EFEITOS = "Efeitos"
@@ -650,13 +723,19 @@ def _texto_falta(ajuste: AjusteResposta) -> str:
     return f"Sem evidência de falta de ajuste (p = {_fmt(falta.valor_p, 4)})."
 
 
-def _gerar_m0(analise: AnalysisResult, destino: ui.column) -> None:
+def _gerar_m0(
+    analise: AnalysisResult, destino: ui.column, estado: dict[str, RelatorioTextual]
+) -> None:
+    texto = gerar_relatorio(analise, modo="m0")
+    estado["texto"] = texto
     destino.clear()
     with destino:
-        _mostrar_relatorio(gerar_relatorio(analise, modo="m0"))
+        _mostrar_relatorio(texto)
 
 
-async def _gerar_ia(analise: AnalysisResult, destino: ui.column) -> None:
+async def _gerar_ia(
+    analise: AnalysisResult, destino: ui.column, estado: dict[str, RelatorioTextual]
+) -> None:
     cfg = _config_openai()
     if cfg is None:
         ui.notify(
@@ -666,7 +745,7 @@ async def _gerar_ia(analise: AnalysisResult, destino: ui.column) -> None:
             position="top",
             timeout=9000,
         )
-        _gerar_m0(analise, destino)
+        _gerar_m0(analise, destino, estado)
         return
 
     destino.clear()
@@ -688,12 +767,13 @@ async def _gerar_ia(analise: AnalysisResult, destino: ui.column) -> None:
             position="top",
             timeout=9000,
         )
-        _gerar_m0(analise, destino)
+        _gerar_m0(analise, destino, estado)
         return
 
     destino.clear()
     if relatorio is None:  # o servidor encerrou no meio da chamada
         return
+    estado["texto"] = relatorio
     with destino:
         _mostrar_relatorio(relatorio)
 
