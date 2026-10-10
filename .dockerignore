@@ -1,0 +1,43 @@
+# Contexto de build enxuto: o Dockerfile só usa pyproject.toml, uv.lock,
+# README.md e src/. O resto fica de fora para o build ser rápido e para nada
+# sensível (como o .env) entrar numa camada da imagem por acidente.
+
+# Git e configuração local de ferramentas
+.git
+.gitignore
+.gitattributes
+.github
+.claude/
+CLAUDE.md
+.vscode/
+.idea/
+
+# Segredos: a chave da API entra por variável de ambiente, nunca na imagem
+.env
+.env.*
+!.env.example
+*.key
+
+# Ambientes e caches de Python, testes e lint
+.venv/
+venv/
+**/__pycache__/
+**/*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+
+# Saídas geradas localmente
+resultados/
+site/
+docs/_build/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
