@@ -5,9 +5,10 @@ Depois que `ui/upload.py` lê a planilha numa `Table`, esta tela:
 1. **Mapear** — para cada coluna, o usuário diz se é fator (entrada), resposta
    (saída) ou se deve ser ignorada. O padrão é inteligente: colunas numéricas
    viram fatores, a última numérica vira resposta, texto é ignorado.
-2. **Analisar** — monta o delineamento a partir dos próprios dados (faixas dos
-   fatores pelo mín/máx, tipo inferido por `detectar_tipo`, termos do modelo
-   escolhidos conforme o tipo) e roda o núcleo determinístico (`core.pipeline`).
+2. **Analisar** — reconhece o planejamento a partir dos próprios dados
+   (`core.identificacao`: codificação de cada fator, com os ±1 certos no
+   composto central, e o tipo pela geometria dos pontos), escolhe os termos do
+   modelo conforme o tipo e roda o núcleo determinístico (`core.pipeline`).
 3. **Mostrar** — por resposta, abas Efeitos (Pareto + coeficientes), ANOVA,
    Diagnóstico (preditos × observados, resíduos, Q-Q) e Superfície (contorno e
    3D com os demais fatores ajustáveis). Cada aba só é montada quando aberta
@@ -40,25 +41,17 @@ from ensaia.core.design import (
     INTERCEPTO,
     Fator,
     Planejamento,
-    detectar_tipo,
     interpretar_termo,
     termos_do_modelo,
 )
 from ensaia.core.diagnostico import pontos_qq
+from ensaia.core.identificacao import Identificacao, identificar_planejamento
 from ensaia.core.pipeline import analisar
-from ensaia.core.results import AjusteResposta, AnalysisResult
+from ensaia.core.results import NOME_PLANEJAMENTO, AjusteResposta, AnalysisResult
 from ensaia.core.surface import PONTOS_PADRAO, grade_superficie
 from ensaia.core.table import Table
 from ensaia.ui import graficos
 from ensaia.ui.graficos import nome_legivel
-
-_TIPO_LEGIVEL = {
-    "fatorial_completo": "fatorial completo",
-    "fatorial_fracionado": "fatorial fracionado",
-    "composto_central": "composto central",
-    "box_behnken": "Box-Behnken",
-    "desconhecido": "não identificado",
-}
 
 
 def construir_analise(tabela: Table) -> None:
@@ -133,29 +126,33 @@ def _rodar_analise(
     Devolve também o `Planejamento`: a superfície precisa das faixas dos fatores
     para converter a grade codificada em unidades reais.
     """
-    objetos = [
-        Fator(nome, float(tabela.coluna(nome).min()), float(tabela.coluna(nome).max()))
-        for nome in fatores
-    ]
-    niveis = {nome: list(tabela.coluna(nome)) for nome in fatores}
-    tipo = detectar_tipo(niveis, len(tabela))
-    planejamento = Planejamento(tipo=tipo, fatores=objetos)
-    termos = _escolher_termos(fatores, tipo, len(tabela))
+    identificacao = identificar_planejamento(
+        {nome: [float(v) for v in tabela.coluna(nome)] for nome in fatores}
+    )
+    planejamento = identificacao.planejamento
+    termos = _escolher_termos(fatores, identificacao, len(tabela))
     analise = analisar(
-        tabela, planejamento, termos, respostas, versao_ensaia=__version__
+        tabela,
+        planejamento,
+        termos,
+        respostas,
+        versao_ensaia=__version__,
+        avisos_planejamento=identificacao.avisos,
     )
     return analise, planejamento
 
 
-def _escolher_termos(fatores: list[str], tipo: str, n_obs: int) -> list[str]:
+def _escolher_termos(
+    fatores: list[str], identificacao: Identificacao, n_obs: int
+) -> list[str]:
     """Escolhe os termos do modelo, degradando para caber nos graus de liberdade.
 
-    Fatorial de 2 níveis não tem como estimar curvatura (quadráticos), então
+    Planejamento de 2 níveis não tem como estimar curvatura (quadráticos), então
     entram só lineares + interações. Para os demais, tenta o modelo quadrático
     completo; se não houver observações suficientes (precisa sobrar grau de
     liberdade para o resíduo), cai para sem-quadráticos e, no limite, só lineares.
     """
-    quadraticos = tipo != "fatorial_completo"
+    quadraticos = all(len(f.niveis) >= 3 for f in identificacao.fatores)
     candidatos = [
         termos_do_modelo(fatores, incluir_quadraticos=quadraticos, grau_interacao=2),
         termos_do_modelo(fatores, incluir_quadraticos=False, grau_interacao=2),
@@ -168,14 +165,18 @@ def _escolher_termos(fatores: list[str], tipo: str, n_obs: int) -> list[str]:
 
 
 def _mostrar_resultados(analise: AnalysisResult, planejamento: Planejamento) -> None:
-    tipo = _TIPO_LEGIVEL.get(analise.tipo_planejamento, analise.tipo_planejamento)
+    tipo = NOME_PLANEJAMENTO.get(analise.tipo_planejamento, analise.tipo_planejamento)
     primeiro = analise.ajustes[0]
+    partes = [tipo[:1].upper() + tipo[1:], f"{primeiro.n_observacoes} ensaios"]
+    info = analise.planejamento
+    if info is not None:
+        if info.n_pontos_centrais:
+            partes[-1] += f" ({info.n_pontos_centrais} no ponto central)"
+        if info.alfa_axial is not None:
+            partes.append(f"α axial = {_fmt(info.alfa_axial, 3)}")
+    partes.append(f"modelo com {len(primeiro.termos_incluidos)} termos")
     ui.html('<div class="ea-secao-titulo">Resultados</div>')
-    ui.html(
-        f'<div class="ea-secao-sub">Delineamento {escape(tipo)} · '
-        f"{primeiro.n_observacoes} ensaios · modelo com "
-        f"{len(primeiro.termos_incluidos)} termos</div>"
-    )
+    ui.html(f'<div class="ea-secao-sub">{escape(" · ".join(partes))}</div>')
 
     for ajuste in analise.ajustes:
         with ui.element("div").classes("ea-resultado"):

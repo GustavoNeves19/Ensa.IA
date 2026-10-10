@@ -17,18 +17,18 @@ from pathlib import Path
 
 from ensaia.ai.report import RelatorioTextual
 from ensaia.core.design import INTERCEPTO
-from ensaia.core.results import AjusteResposta, AnalysisResult
+from ensaia.core.results import NOME_PLANEJAMENTO, AjusteResposta, AnalysisResult
 from ensaia.report.charts import grafico_coeficientes, grafico_pareto
 from ensaia.report.pdf import RelatorioPDF, numero_ptbr
 from ensaia.report.theme import TEMA, Tema
 
-_TIPO_LEGIVEL = {
-    "fatorial_completo": "Fatorial completo",
-    "fatorial_fracionado": "Fatorial fracionado",
-    "composto_central": "Delineamento composto central",
-    "box_behnken": "Delineamento Box-Behnken",
-    "desconhecido": "Delineamento não identificado",
-}
+
+def _nome_tipo(resultado: AnalysisResult) -> str:
+    """Nome do planejamento com inicial maiúscula (título e resumo do PDF)."""
+    nome = NOME_PLANEJAMENTO.get(
+        resultado.tipo_planejamento, resultado.tipo_planejamento
+    )
+    return nome[:1].upper() + nome[1:]
 
 
 def gerar_pdf(
@@ -71,7 +71,7 @@ def _capa(pdf: RelatorioPDF, resultado: AnalysisResult, gerado_em: str | None) -
     pdf.multi_cell(0, 12, "Relatório de Análise", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font(tema.familia, "", 13)
     pdf.set_text_color(*tema.cinza)
-    tipo = _TIPO_LEGIVEL.get(resultado.tipo_planejamento, resultado.tipo_planejamento)
+    tipo = _nome_tipo(resultado)
     pdf.multi_cell(0, 7, tipo, new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(*tema.tinta)
 
@@ -96,7 +96,7 @@ def _capa(pdf: RelatorioPDF, resultado: AnalysisResult, gerado_em: str | None) -
 def _resumo(pdf: RelatorioPDF, resultado: AnalysisResult) -> None:
     pdf.titulo_secao("Resumo")
     tema = pdf.tema
-    tipo = _TIPO_LEGIVEL.get(resultado.tipo_planejamento, resultado.tipo_planejamento)
+    tipo = _nome_tipo(resultado)
     pdf.paragrafo(
         f"{tipo} com {len(resultado.fatores)} fator(es) e "
         f"{len(resultado.respostas)} resposta(s)."

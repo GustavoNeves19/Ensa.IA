@@ -228,12 +228,39 @@
   ],
   "metadados": {
     "versao_ensaia": "0.1.0",
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "alfa": 0.05,
     "semente": null,
     "tempo_execucao_s": null,
     "executado_em": null
   },
   "ponto_otimo": null,
-  "avisos": []
+  "avisos": [],
+  "planejamento": {
+    "k": 3,
+    "n_ensaios": 15,
+    "n_pontos_centrais": 3,
+    "alfa_axial": null,
+    "fatores": [
+      {
+        "nome": "dose_catalisador",
+        "centro": 1.0,
+        "passo": 0.5,
+        "unidade": "g/L"
+      },
+      {
+        "nome": "concentracao_levofloxacino",
+        "centro": 7.0,
+        "passo": 3.0,
+        "unidade": "ppm"
+      },
+      {
+        "nome": "ph",
+        "centro": 7.0,
+        "passo": 3.0,
+        "unidade": ""
+      }
+    ],
+    "avisos": []
+  }
 }

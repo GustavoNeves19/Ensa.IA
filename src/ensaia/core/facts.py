@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import Literal
 
 from ensaia.core.design import INTERCEPTO
-from ensaia.core.results import AjusteResposta, AnalysisResult, TipoPlanejamento
+from ensaia.core.results import NOME_PLANEJAMENTO, AjusteResposta, AnalysisResult
 
 ALFA_PADRAO = 0.05
 
@@ -36,14 +36,6 @@ SECOES: tuple[Secao, ...] = (
     "otimizacao",
 )
 
-# Nome legível de cada tipo de delineamento, para a frase de planejamento.
-_TIPO_LEGIVEL: dict[TipoPlanejamento, str] = {
-    "fatorial_completo": "fatorial completo",
-    "fatorial_fracionado": "fatorial fracionado",
-    "composto_central": "delineamento composto central",
-    "box_behnken": "delineamento Box-Behnken",
-    "desconhecido": "delineamento não identificado",
-}
 
 
 def fatos_do_ajuste(ajuste: AjusteResposta, *, alfa: float = ALFA_PADRAO) -> list[str]:
@@ -144,7 +136,9 @@ def _fato_falta_ajuste(ajuste: AjusteResposta, alfa: float) -> str:
 
 
 def _fatos_planejamento(resultado: AnalysisResult) -> list[str]:
-    tipo = _TIPO_LEGIVEL.get(resultado.tipo_planejamento, resultado.tipo_planejamento)
+    tipo = NOME_PLANEJAMENTO.get(
+        resultado.tipo_planejamento, resultado.tipo_planejamento
+    )
     n_fatores = len(resultado.fatores)
     fatores = ", ".join(repr(f) for f in resultado.fatores)
     respostas = ", ".join(repr(r) for r in resultado.respostas)
