@@ -23,10 +23,11 @@ chama o pipeline e desenha o resultado.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from html import escape
+from html import escape, unescape
 from typing import Any, cast
 
 from nicegui import run, ui
@@ -37,6 +38,7 @@ from ensaia.ai.report import gerar_relatorio
 from ensaia.core.catalogo import CATALOGO, GRUPOS, IDS, disponibilidade
 from ensaia.core.descritiva import matriz_codificada, matriz_ensaios
 from ensaia.core.design import (
+    INTERCEPTO,
     Fator,
     Planejamento,
     interpretar_termo,
@@ -840,13 +842,23 @@ def _abas_resposta(
 def _grafico(
     opcoes: dict[str, Any],
     altura: int,
+    descricao: str,
     on_point_click: Callable[[EChartPointClickEventArguments], None] | None = None,
 ) -> ui.echart:
-    return (
+    """Um gráfico ECharts com texto alternativo para leitores de tela (RNF-04).
+
+    O canvas não tem texto que um leitor de tela consiga ler; `descricao` diz o
+    que o gráfico mostra e fica no próprio elemento, valendo também quando as
+    opções do gráfico são trocadas depois (superfície).
+    """
+    grafico = (
         ui.echart(opcoes, on_point_click=on_point_click)
         .classes("ea-grafico")
         .style(f"height:{altura}px")
     )
+    grafico.props["role"] = "img"
+    grafico.props["aria-label"] = descricao
+    return grafico
 
 
 def _aba_efeitos(
@@ -875,9 +887,14 @@ def _pareto(
         if ao_clicar and isinstance(evento.data, dict) and evento.data.get("termo"):
             ao_clicar(str(evento.data["termo"]))
 
+    efeitos = [c for c in ajuste.coeficientes if c.termo != INTERCEPTO]
+    fortes = [nome_legivel(c.termo) for c in efeitos if c.significativo]
     _grafico(
         graficos.opcoes_pareto(ajuste, alfa=alfa),
         graficos.altura_pareto(ajuste),
+        f"Pareto dos efeitos de {nome_legivel(ajuste.resposta)}: "
+        f"{len(fortes)} de {len(efeitos)} termos passam do t crítico"
+        + (f" ({', '.join(fortes)})." if fortes else "."),
         on_point_click=clique,
     )
     dica = (
@@ -948,6 +965,12 @@ def _meio_normal(ef: EfeitosFatorial) -> None:
             pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
         ),
         300,
+        "Gráfico meio-normal dos efeitos: "
+        + (
+            f"ativos pelo método de Lenth: {', '.join(map(nome_legivel, ativos))}."
+            if ativos
+            else "nenhum efeito ativo pelo método de Lenth."
+        ),
     )
     ui.html(
         '<div class="ea-ler">Efeitos que são só ruído se alinham perto da origem; '
@@ -966,7 +989,11 @@ def _efeitos_principais(ef: EfeitosFatorial) -> None:
     ui.html('<div class="ea-grafico-titulo">Efeitos principais</div>')
     with ui.element("div").classes("ea-multiplos"):
         for m in ef.medias_principais:
-            _grafico(graficos.opcoes_medias(m, baixo - folga, alto + folga), 200)
+            _grafico(
+                graficos.opcoes_medias(m, baixo - folga, alto + folga),
+                200,
+                f"Média da resposta em cada nível de {nome_legivel(m.fator)}.",
+            )
     ui.html(
         '<div class="ea-ler">Média da resposta em cada nível, na mesma escala: '
         "quanto mais inclinada a linha, maior o efeito do fator.</div>"
@@ -986,7 +1013,12 @@ def _interacao(ef: EfeitosFatorial) -> None:
         f"{escape(nome_legivel(mais_forte.fator_a))} × "
         f"{escape(nome_legivel(mais_forte.fator_b))}</div>"
     )
-    _grafico(graficos.opcoes_interacao(mais_forte), 280)
+    _grafico(
+        graficos.opcoes_interacao(mais_forte),
+        280,
+        f"Interação entre {nome_legivel(mais_forte.fator_a)} e "
+        f"{nome_legivel(mais_forte.fator_b)}: uma linha por nível do segundo fator.",
+    )
     ui.html(
         '<div class="ea-ler">A interação mais forte do modelo. Linhas paralelas: '
         "os fatores agem cada um por si; linhas que se abrem ou se cruzam: o "
@@ -1070,7 +1102,11 @@ def _aba_diagnostico(
 
     if "C6" in sel:
         ui.html('<div class="ea-grafico-titulo">Previsto × observado</div>')
-        _grafico(graficos.opcoes_preditos_observados(ajuste), 300)
+        _grafico(
+            graficos.opcoes_preditos_observados(ajuste),
+            300,
+            "Previsto contra observado, um ponto por ensaio, com a reta y = x.",
+        )
         ui.html(
             '<div class="ea-ler">Ponto sobre a linha <b>y = x</b> é ensaio que o '
             "modelo acerta; quanto mais longe da linha, maior o erro naquele "
@@ -1079,7 +1115,11 @@ def _aba_diagnostico(
 
     if "D1" in sel:
         ui.html('<div class="ea-grafico-titulo">Resíduos × previsto</div>')
-        _grafico(graficos.opcoes_residuos_preditos(ajuste), 280)
+        _grafico(
+            graficos.opcoes_residuos_preditos(ajuste),
+            280,
+            "Resíduos contra o valor previsto, um ponto por ensaio.",
+        )
         ui.html(
             '<div class="ea-ler">Os pontos devem se espalhar ao acaso em torno do '
             "zero. Funil, curva ou tendência indicam algo que o modelo deixou de "
@@ -1088,7 +1128,11 @@ def _aba_diagnostico(
 
     if d.ordem is not None and "D3" in sel:
         ui.html('<div class="ea-grafico-titulo">Resíduos × ordem de execução</div>')
-        _grafico(graficos.opcoes_residuos_ordem(ajuste), 260)
+        _grafico(
+            graficos.opcoes_residuos_ordem(ajuste),
+            260,
+            "Resíduos na ordem de execução dos ensaios.",
+        )
         ui.html(
             '<div class="ea-ler">Na ordem em que os ensaios foram feitos, os resíduos '
             "não devem subir ou descer aos poucos: tendência indica deriva do "
@@ -1097,7 +1141,12 @@ def _aba_diagnostico(
 
     if "D2" in sel:
         ui.html('<div class="ea-grafico-titulo">Normalidade dos resíduos (Q-Q)</div>')
-        _grafico(graficos.opcoes_qq(pontos_qq(d.residuos)), 280)
+        _grafico(
+            graficos.opcoes_qq(pontos_qq(d.residuos)),
+            280,
+            "Gráfico Q-Q normal dos resíduos. "
+            + _sem_html(_texto_normalidade(ajuste, alfa)),
+        )
         ui.html(f'<div class="ea-ler">{_texto_normalidade(ajuste, alfa)}</div>')
 
     if "D4" in sel:
@@ -1167,6 +1216,11 @@ def _texto_influencia(d: Diagnostico) -> str:
             "está puxando o modelo."
         )
     return " ".join(partes)
+
+
+def _sem_html(texto: str) -> str:
+    """Texto puro a partir de um trecho de HTML curto (para o aria-label)."""
+    return unescape(re.sub(r"<[^>]+>", "", texto))
 
 
 def _texto_normalidade(ajuste: AjusteResposta, alfa: float) -> str:
@@ -1383,13 +1437,19 @@ class _PainelSuperficie:
             graficos.opcoes_superficie_3d(grade) if tres_d
             else graficos.opcoes_contorno(grade, destaque=self._destaque())
         )
+        descricao = (
+            f"{'Superfície 3D' if tres_d else 'Curvas de contorno'} de "
+            f"{nome_legivel(self.ajuste.resposta)} prevista em função de "
+            f"{nome_legivel(x)} e {nome_legivel(y)}."
+        )
         if recriar or self.grafico is None:
             self.area_grafico.clear()
             with self.area_grafico:
-                self.grafico = _grafico(opcoes, 400 if tres_d else 380)
+                self.grafico = _grafico(opcoes, 400 if tres_d else 380, descricao)
         else:
             self.grafico.options.clear()
             self.grafico.options.update(opcoes)
+            self.grafico.props["aria-label"] = descricao
             self.grafico.update()
 
         fixos_txt = ", ".join(
