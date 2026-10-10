@@ -219,3 +219,33 @@ def grade_superficie(
         z=[[float(v) for v in linha] for linha in z],
         fixos=fixos_reais,
     )
+
+
+def ordem_por_forca(ajuste: AjusteResposta, nomes: list[str]) -> list[str]:
+    """Fatores do mais ao menos influente, pelo maior |t| entre os termos de cada um."""
+    forca = dict.fromkeys(nomes, 0.0)
+    for c in ajuste.coeficientes:
+        if c.termo == INTERCEPTO:
+            continue
+        for nome, _ in interpretar_termo(c.termo):
+            if nome in forca:
+                forca[nome] = max(forca[nome], abs(c.valor_t))
+    return sorted(nomes, key=lambda n: forca[n], reverse=True)
+
+
+def par_inicial(ajuste: AjusteResposta, nomes: list[str]) -> tuple[str, str]:
+    """Par de eixos de abertura: a interação mais forte ou os 2 fatores mais fortes.
+
+    É o par que a tela abre e o que o PDF desenha: onde a forma da superfície
+    mais tem a dizer.
+    """
+    interacoes = [
+        c for c in ajuste.coeficientes
+        if len({n for n, _ in interpretar_termo(c.termo)}) == 2
+    ]
+    if interacoes:
+        melhor = max(interacoes, key=lambda c: abs(c.valor_t))
+        a, b = list(dict.fromkeys(n for n, _ in interpretar_termo(melhor.termo)))
+        return a, b
+    ordem = ordem_por_forca(ajuste, nomes)
+    return ordem[0], ordem[1]

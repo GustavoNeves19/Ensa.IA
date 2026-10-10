@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ensaia.ai.report import RelatorioTextual
+from ensaia.core.descritiva import MatrizEnsaios
 from ensaia.core.results import AnalysisResult
 
 
@@ -22,6 +23,8 @@ class Sessao:
 
     analise: AnalysisResult
     texto: RelatorioTextual | None = None
+    # A planilha como o PDF a mostra (A3); o contrato não carrega as células.
+    dados: MatrizEnsaios | None = None
     # Um ouvinte por bloco: reinscrever com o mesmo nome substitui o anterior.
     ouvintes: dict[str, Callable[[], None]] = field(default_factory=dict)
 

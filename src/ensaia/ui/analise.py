@@ -36,12 +36,13 @@ from nicegui.events import EChartPointClickEventArguments
 from ensaia import __version__
 from ensaia.ai.report import gerar_relatorio
 from ensaia.core.catalogo import CATALOGO, GRUPOS, IDS, disponibilidade
-from ensaia.core.descritiva import matriz_codificada
+from ensaia.core.descritiva import matriz_codificada, matriz_ensaios
 from ensaia.core.design import (
     INTERCEPTO,
     Fator,
     Planejamento,
     interpretar_termo,
+    nome_legivel,
 )
 from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import pontos_qq
@@ -61,11 +62,16 @@ from ensaia.core.results import (
     TesteCurvatura,
     TipoModelo,
 )
-from ensaia.core.surface import PONTOS_PADRAO, grade_superficie, prever_condicao
+from ensaia.core.surface import (
+    PONTOS_PADRAO,
+    grade_superficie,
+    ordem_por_forca,
+    par_inicial,
+    prever_condicao,
+)
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO, escolher_termos, termos_do_tipo
 from ensaia.ui import graficos
-from ensaia.ui.graficos import nome_legivel
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.sessao import Sessao
 
@@ -93,8 +99,11 @@ class _Opcoes:
     excluidos: list[str] = field(default_factory=list)
 
 
-def construir_analise(tabela: Table) -> None:
-    """Monta o fluxo mapear → analisar → resultados para a `Table` carregada."""
+def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
+    """Monta o fluxo mapear → analisar → resultados para a `Table` carregada.
+
+    `nome_arquivo` vai para a capa do PDF.
+    """
     numericas = [c for c in tabela.colunas if tabela.e_numerica(c)]
     ultima_resposta = numericas[-1] if numericas else None
     selects: dict[str, ui.select] = {}
@@ -173,7 +182,13 @@ def construir_analise(tabela: Table) -> None:
         resultado.clear()
         with resultado:
             _mostrar_resultados(
-                analise, planejamento, candidatos, opcoes, analisar_e_mostrar, tabela
+                analise,
+                planejamento,
+                candidatos,
+                opcoes,
+                analisar_e_mostrar,
+                tabela,
+                nome_arquivo,
             )
 
     def ao_analisar() -> None:
@@ -345,6 +360,7 @@ def _mostrar_resultados(
     opcoes: _Opcoes,
     reanalisar: Callable[[], None],
     tabela: Table,
+    nome_arquivo: str | None = None,
 ) -> None:
     tipo = NOME_PLANEJAMENTO.get(analise.tipo_planejamento, analise.tipo_planejamento)
     primeiro = analise.ajustes[0]
@@ -393,7 +409,12 @@ def _mostrar_resultados(
     for aviso in analise.avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
 
-    sessao = Sessao(analise)
+    sessao = Sessao(
+        analise,
+        dados=matriz_ensaios(
+            tabela, planejamento, analise.respostas, nome_arquivo
+        ),
+    )
     if sel & {"E4", "E5"}:
         _bloco_otimizacao(sessao, planejamento)
     if "C1" in sel:
@@ -704,7 +725,12 @@ async def _baixar_pdf(sessao: Sessao, botao: ui.button) -> None:
     try:
         # Fora da thread da interface: o matplotlib leva um instante na 1ª vez.
         pdf = await run.io_bound(
-            gerar_pdf, analise, texto, gerado_em=agora.strftime("%d/%m/%Y %H:%M")
+            lambda: gerar_pdf(
+                analise,
+                texto,
+                gerado_em=agora.strftime("%d/%m/%Y %H:%M"),
+                dados=sessao.dados,
+            )
         )
     except Exception as erro:
         ui.notify(
@@ -1214,7 +1240,7 @@ class _PainelSuperficie:
         }
         self.fixos: dict[str, float] = {f.nome: f.centro for f in fatores}
         nomes = [f.nome for f in fatores]
-        x, y = _par_inicial(ajuste, nomes)
+        x, y = par_inicial(ajuste, nomes)
         self._eixos: tuple[str, str] = (x, y)
         self._sincronizando = False
         opcoes = {n: nome_legivel(n) for n in nomes}
@@ -1303,7 +1329,7 @@ class _PainelSuperficie:
         nomes = [f.nome for f in self.fatores]
         par = [n for n in envolvidos if n in nomes][:2]
         if len(par) == 1:  # termo de um fator só: completa com o outro mais forte
-            outros = [n for n in _ordem_por_forca(self.ajuste, nomes) if n != par[0]]
+            outros = [n for n in ordem_por_forca(self.ajuste, nomes) if n != par[0]]
             par.append(outros[0])
         if len(par) < 2:
             return
@@ -1412,32 +1438,6 @@ class _PainelSuperficie:
                 "Cada faixa de cor é uma curva de nível da resposta prevista pelo "
                 f"modelo: <b>quanto mais escuro, maior</b>.{sufixo}"
             )
-
-
-def _ordem_por_forca(ajuste: AjusteResposta, nomes: list[str]) -> list[str]:
-    """Fatores do mais ao menos influente, pelo maior |t| entre os termos de cada um."""
-    forca = dict.fromkeys(nomes, 0.0)
-    for c in ajuste.coeficientes:
-        if c.termo == INTERCEPTO:
-            continue
-        for nome, _ in interpretar_termo(c.termo):
-            if nome in forca:
-                forca[nome] = max(forca[nome], abs(c.valor_t))
-    return sorted(nomes, key=lambda n: forca[n], reverse=True)
-
-
-def _par_inicial(ajuste: AjusteResposta, nomes: list[str]) -> tuple[str, str]:
-    """Par de eixos de abertura: a interação mais forte ou os 2 fatores mais fortes."""
-    interacoes = [
-        c for c in ajuste.coeficientes
-        if len({n for n, _ in interpretar_termo(c.termo)}) == 2
-    ]
-    if interacoes:
-        melhor = max(interacoes, key=lambda c: abs(c.valor_t))
-        a, b = list(dict.fromkeys(n for n, _ in interpretar_termo(melhor.termo)))
-        return a, b
-    ordem = _ordem_por_forca(ajuste, nomes)
-    return ordem[0], ordem[1]
 
 
 def _fmt_curto(valor: float) -> str:

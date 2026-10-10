@@ -11,6 +11,7 @@ tema por grandeza.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from io import BytesIO
 
@@ -23,6 +24,21 @@ from ensaia.report.theme import TEMA, Tema
 def numero_ptbr(valor: float, casas: int) -> str:
     """Número com casas fixas e vírgula decimal."""
     return f"{valor:.{casas}f}".replace(".", ",")
+
+
+def numero_sig(valor: float, algarismos: int = 4) -> str:
+    """Número com `algarismos` significativos e vírgula decimal (spec §13).
+
+    É o formato dos coeficientes: 92,93 · 0,001234 · 1235. Fora da faixa
+    legível em casas fixas, cai para notação científica ("1,234e-07").
+    """
+    if valor == 0 or not math.isfinite(valor):
+        return numero_ptbr(valor, 0) if math.isfinite(valor) else "—"
+    ordem = math.floor(math.log10(abs(valor)))
+    if -5 <= ordem < 7:
+        casas = max(0, algarismos - 1 - ordem)
+        return numero_ptbr(valor, casas)
+    return f"{valor:.{algarismos - 1}e}".replace(".", ",")
 
 
 class RelatorioPDF(FPDF):
@@ -74,13 +90,36 @@ class RelatorioPDF(FPDF):
 
     # -- tijolos de conteúdo -----------------------------------------------
 
-    def titulo_secao(self, texto: str) -> None:
+    def titulo_secao(self, texto: str, *, reservar: float = 30.0) -> None:
+        """Título da seção, sempre junto do primeiro bloco que vem embaixo.
+
+        `reservar` é a altura (mm) desse bloco: se título e bloco não cabem no
+        resto da página, os dois vão para a próxima — título órfão no pé da
+        página, com o gráfico na folha seguinte, parece erro de impressão.
+        """
+        if self.get_y() + 15 + reservar > self.page_break_trigger:
+            self.add_page()
         self.ln(2)
         self.set_font(self.tema.familia, "B", 13)
         self.set_text_color(*self.tema.acento)
         self.multi_cell(0, 7, texto, new_x="LMARGIN", new_y="NEXT", align="L")
         self.set_text_color(*self.tema.tinta)
         self.ln(1)
+
+    def subtitulo(self, texto: str) -> None:
+        """Rótulo de um bloco dentro da seção (tabela, gráfico, equação)."""
+        if self.get_y() > self.page_break_trigger - 30:
+            self.add_page()
+        self.ln(1)
+        self.set_font(self.tema.familia, "B", 10)
+        self.multi_cell(0, 5.5, texto, new_x="LMARGIN", new_y="NEXT", align="L")
+        self.ln(0.5)
+
+    def nota(self, texto: str) -> None:
+        """Leitura curta de apoio, em cinza: como ler o bloco acima."""
+        self.set_text_color(*self.tema.cinza)
+        self.paragrafo(texto, tamanho=8)
+        self.set_text_color(*self.tema.tinta)
 
     def paragrafo(self, texto: str, *, tamanho: int = 10) -> None:
         # Alinhamento à esquerda (bandeira): justificar abriria vãos largos entre
@@ -131,6 +170,12 @@ class RelatorioPDF(FPDF):
                 for valor in linha:
                     registro.cell(valor)
         self.ln(2)
+
+    def altura_png(self, png: bytes, largura: float) -> float:
+        """Altura (mm) que a imagem ocupa na largura dada, lida do cabeçalho PNG."""
+        largura_px = int.from_bytes(png[16:20], "big")
+        altura_px = int.from_bytes(png[20:24], "big")
+        return largura * altura_px / max(largura_px, 1)
 
     def imagem_png(self, png: bytes, *, largura: float | None = None) -> None:
         if largura is None:

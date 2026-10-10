@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from ensaia.core.design import INTERCEPTO
+from ensaia.core.design import INTERCEPTO, nome_legivel
 from ensaia.core.diagnostico import PontosQQ
 from ensaia.core.fatorial import PontosMeioNormal
 from ensaia.core.results import AjusteResposta, MediasInteracao, MediasNivel
@@ -42,12 +42,6 @@ _FMT_JS = (
     " ? v.toLocaleString('pt-BR', {maximumFractionDigits: 3}) : v"
 )
 _FONTE = "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-
-
-def nome_legivel(termo: str) -> str:
-    """Termo canônico em leitura humana: "a:b" → "a × b", "a^2" → "a²", "_" → " "."""
-    texto = termo.replace("^2", "²").replace("^3", "³").replace(":", " × ")
-    return texto.replace("_", " ")
 
 
 def _base() -> Opcoes:
