@@ -58,7 +58,7 @@ def pagina_inicial() -> None:
 
 # Acopla a NiceGUI a este app (sem storage_secret: nada é persistido em disco —
 # princípio P1; usamos apenas o estado em memória da sessão).
-ui.run_with(app, title="EnsaIA", favicon="🧪", dark=False)
+ui.run_with(app, title="EnsaIA", favicon="🧪", dark=False, language="pt-BR")
 
 
 def main() -> None:

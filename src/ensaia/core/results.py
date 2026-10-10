@@ -27,11 +27,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Versão do esquema de serialização. Incrementar sempre que a forma de
-# AnalysisResult mudar de modo incompatível — os arquivos de resultado
+# Versão do esquema de serialização. Incrementar a parte maior sempre que a
+# forma de AnalysisResult mudar de modo incompatível — os arquivos de resultado
 # guardados em resultados/ e os valores de referência dos casos de estudo
-# dependem disso para continuarem legíveis.
-SCHEMA_VERSION = "1.0"
+# dependem disso para continuarem legíveis. A parte menor sobe quando só se
+# acrescentam campos opcionais (1.1: t crítico e diagnóstico por ensaio); um
+# JSON 1.0 continua sendo lido.
+SCHEMA_VERSION = "1.1"
 
 TipoPlanejamento = Literal[
     "fatorial_completo",
@@ -108,6 +110,31 @@ class PontoOtimo(_Congelado):
     desejabilidades_individuais: dict[str, float] = Field(default_factory=dict)
 
 
+class Diagnostico(_Congelado):
+    """Valores por ensaio e normalidade dos resíduos (spec §9: C6, D1, D2).
+
+    As três listas estão na ordem das linhas da planilha, para que "ensaio 7"
+    signifique a mesma coisa na tela, no PDF e no JSON. É daqui que saem os
+    gráficos de preditos × observados, resíduos × preditos e Q-Q: a interface
+    só desenha estes números, não os recalcula.
+
+    `shapiro_w`/`shapiro_p` ficam None quando o teste não se aplica (menos de 3
+    ensaios ou resíduos todos iguais, como num ajuste exato) — o motivo vai em
+    `motivo_sem_shapiro`, para a interface dizer "não deu para testar" em vez
+    de inventar normalidade. `normalidade_rejeitada` é a decisão no nível α
+    (p < α), tomada aqui pelo mesmo motivo que `Coeficiente.significativo`: quem
+    decide é o núcleo, a tela só mostra.
+    """
+
+    observados: list[float]
+    preditos: list[float]
+    residuos: list[float]
+    shapiro_w: float | None = None
+    shapiro_p: float | None = None
+    normalidade_rejeitada: bool | None = None
+    motivo_sem_shapiro: str | None = None
+
+
 class AjusteResposta(_Congelado):
     """Resultado completo do ajuste para UMA variável resposta."""
 
@@ -121,6 +148,10 @@ class AjusteResposta(_Congelado):
     graus_liberdade_residuo: int
     termos_incluidos: list[str]
     termos_descartados: list[str] = Field(default_factory=list)
+    # Limiar de |t| no nível α (bilateral): a linha de corte do Pareto (spec B2).
+    # None quando não sobra grau de liberdade para o resíduo.
+    t_critico: float | None = None
+    diagnostico: Diagnostico | None = None
 
 
 class MetadadosExecucao(_Congelado):

@@ -13,11 +13,26 @@ seção 3): parte dos artigos reporta o coeficiente (variação do centro ao ní
 
 from __future__ import annotations
 
+from scipy import stats
+
 from ensaia.core.design import INTERCEPTO, interpretar_termo
 from ensaia.core.model import AjusteOLS
 from ensaia.core.results import Coeficiente
 
 ALFA_PADRAO = 0.05
+
+
+def t_critico(alfa: float, graus_liberdade_residuo: int) -> float | None:
+    """Limiar de |t| acima do qual um termo é significativo no nível `alfa`.
+
+    É a linha vertical do gráfico de Pareto (spec §9, B2): barra que passa da
+    linha ⇔ p < alfa no teste t bilateral, a mesma regra de `significativo` em
+    `extrair_coeficientes`. Sem grau de liberdade no resíduo não há teste, e a
+    função devolve None em vez de um número sem sentido.
+    """
+    if graus_liberdade_residuo <= 0:
+        return None
+    return float(stats.t.ppf(1.0 - alfa / 2.0, df=graus_liberdade_residuo))
 
 
 def extrair_coeficientes(
