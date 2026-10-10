@@ -47,7 +47,8 @@ from ensaia.core.descritiva import matriz_ensaios
 from ensaia.core.design import INTERCEPTO, Planejamento
 from ensaia.core.facts import fatos_por_secao
 from ensaia.core.fluxo import AnaliseDaTabela, analisar_tabela, sugerir_mapeamento
-from ensaia.core.pipeline import fatores_do_contrato
+from ensaia.core.indicativos import proximos_passos
+from ensaia.core.pipeline import fatores_do_contrato, limite_da_regiao
 from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
@@ -63,7 +64,7 @@ from ensaia.io.readers import formato_csv, ler_dados_de_bytes, listar_abas
 # Mesmo teto do envio pela tela (RF-01).
 MAX_BYTES = 5 * 1024 * 1024
 _LINHAS_PREVIA = 10
-_CONTEUDO = files("ensaia.mcp_server") / "conteudo"
+_CONTEUDO = files("ensaia") / "conteudo"
 
 Modelo = Literal["auto", "linear", "interacoes", "quadratico"]
 
@@ -336,8 +337,9 @@ def run_full_analysis(
 
     `analyses` escolhe as análises pelos IDs do catálogo (A1–E5; padrão: todas
     as que os dados permitem). Devolve `analysis_result` (o resultado completo,
-    para render_pdf e verify_text) e `fatos`: frases prontas por seção, com os
-    números já verificados — escreva a explicação a partir delas.
+    para render_pdf e verify_text), `fatos`: frases prontas por seção, com os
+    números já verificados — escreva a explicação a partir delas — e
+    `proximos_passos`: o que o usuário pode fazer em seguida.
 
     Exemplo: run_full_analysis(data_csv, ["temp", "ph"], ["rend"])
     """
@@ -356,6 +358,9 @@ def run_full_analysis(
     return {
         "analysis_result": _json(resultado),
         "fatos": fatos_por_secao(resultado, alfa=resultado.metadados.alfa),
+        "proximos_passos": proximos_passos(
+            resultado, limite_codificado=limite_da_regiao(feita.planejamento)
+        ),
     }
 
 
