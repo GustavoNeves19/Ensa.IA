@@ -77,12 +77,37 @@ from ensaia.ui.ajuda import ajuda, titulo_com_ajuda
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.sessao import Sessao
 
-_ROTULO_PAPEL: dict[Papel, str] = {
-    "fator": "Fator",
-    "resposta": "Resposta",
-    "ordem": "Ordem",
-    "ignorar": "Ignorar",
-}
+# Os grupos do quadro de mapear, na ordem da tela: (papel, título, dica).
+_GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
+    (
+        "resposta",
+        "Variáveis Dependentes",
+        "As respostas: o que você mede no fim de cada ensaio (rendimento, "
+        "remoção, pureza). É o que o modelo vai explicar.",
+    ),
+    (
+        "fator",
+        "Variáveis Independentes",
+        "Os fatores: o que você controla no experimento (temperatura, pH, "
+        "tempo, dose). São as entradas do planejamento.",
+    ),
+    (
+        "ordem",
+        "Ordem dos ensaios",
+        "A coluna com a ordem em que os ensaios foram feitos, se houver. Serve "
+        "para ver se os resultados mudaram aos poucos ao longo do tempo.",
+    ),
+    (
+        "ignorar",
+        "Não usar",
+        "Colunas que ficam fora da análise, como observações. Colunas de texto "
+        "ficam sempre aqui.",
+    ),
+]
+
+# Prefixo do dado arrastado: o drop só aceita o que saiu de um cartão do quadro,
+# não um texto qualquer arrastado de outra janela.
+_ARRASTO = "ensaia-coluna:"
 
 _MODELOS = {
     "auto": "Automático (pelo planejamento)",
@@ -108,47 +133,26 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
 
     `nome_arquivo` vai para a capa do PDF.
     """
-    sugestao = sugerir_mapeamento(tabela)
-    selects: dict[str, ui.select] = {}
+    mapa = _Mapeamento(tabela)
 
     with ui.element("div").classes("ea-mapear"):
-        ui.html('<div class="ea-secao-titulo">Mapear colunas</div>')
-        ui.html(
-            '<div class="ea-secao-sub">Diga o que é <b>fator</b> (o que você '
-            "controla) e o que é <b>resposta</b> (o que você mede). Se a planilha "
-            "tem a ordem em que os ensaios foram feitos, marque como <b>ordem</b>. "
-            "O resto é ignorado.</div>"
-        )
-        with ui.element("div").classes("ea-mapa-grade"):
-            for coluna in tabela.colunas:
-                numerica = tabela.e_numerica(coluna)
-                padrao = _ROTULO_PAPEL[sugestao[coluna]]
-                with ui.element("div").classes("ea-mapa-item"):
-                    ui.html(f'<div class="ea-col-nome">{escape(coluna)}</div>')
-                    sel = (
-                        ui.select(
-                            ["Fator", "Resposta", "Ordem", "Ignorar"], value=padrao
-                        )
-                        .props("dense outlined")
-                        .classes("ea-col-sel")
-                    )
-                    if not numerica:
-                        sel.disable()  # coluna de texto só pode ser ignorada
-                    selects[coluna] = sel
+        with ui.element("div").classes("ea-titulo-linha"):
+            ui.label("Mapear colunas").classes("ea-secao-titulo")
+            _dica(
+                "Cada coluna da planilha vira um cartão. Arraste-o para o grupo "
+                "certo; sem mouse, clique no cartão e escolha o grupo no menu."
+            )
+        ui.label("Arraste cada coluna para o seu grupo.").classes("ea-secao-sub")
+        _QuadroMapeamento(mapa)
 
-    painel_analises = _PainelAnalises(tabela, selects)
+    painel_analises = _PainelAnalises(mapa)
     opcoes = _Opcoes()
     _painel_opcoes(opcoes)
 
     def analisar_e_mostrar() -> None:
-        fatores = [c for c, s in selects.items() if s.value == "Fator"]
-        respostas = [c for c, s in selects.items() if s.value == "Resposta"]
-        ordens = [c for c, s in selects.items() if s.value == "Ordem"]
-        if len(ordens) > 1:
-            ui.notify(
-                f"Só uma coluna pode ser a ordem; usando {ordens[0]!r}.",
-                type="warning",
-            )
+        fatores = mapa.colunas("fator")
+        respostas = mapa.colunas("resposta")
+        ordens = mapa.colunas("ordem")
         if not fatores:
             ui.notify("Escolha ao menos uma coluna como Fator.", type="warning")
             return
@@ -196,6 +200,163 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
     resultado = ui.column().classes("w-full ea-slot")
 
 
+class _Mapeamento:
+    """O papel de cada coluna da planilha, ponto de partida do passo "mapear".
+
+    Começa na sugestão do núcleo (`sugerir_mapeamento`) e avisa os `ouvintes`
+    a cada mudança: o quadro se redesenha e o painel de análises recalcula o
+    que se aplica.
+    """
+
+    def __init__(self, tabela: Table) -> None:
+        self.tabela = tabela
+        self.papeis: dict[str, Papel] = sugerir_mapeamento(tabela)
+        self.ouvintes: list[Callable[[], None]] = []
+
+    def colunas(self, papel: Papel) -> list[str]:
+        """As colunas de um papel, na ordem em que aparecem na planilha."""
+        return [c for c in self.tabela.colunas if self.papeis[c] == papel]
+
+    def pode_mover(self, coluna: str) -> bool:
+        """Coluna de texto só pode ser ignorada: o modelo precisa de números."""
+        return self.tabela.e_numerica(coluna)
+
+    def mover(self, coluna: str, papel: Papel) -> None:
+        if self.papeis[coluna] == papel:
+            return
+        if not self.pode_mover(coluna) and papel != "ignorar":
+            ui.notify(
+                f"{coluna!r} tem texto: só colunas numéricas entram na análise.",
+                type="warning",
+            )
+            return
+        if papel == "ordem":  # só uma ordem: a que estava lá deixa de ser usada
+            for outra in self.colunas("ordem"):
+                self.papeis[outra] = "ignorar"
+        self.papeis[coluna] = papel
+        for ouvinte in self.ouvintes:
+            ouvinte()
+
+
+class _QuadroMapeamento:
+    """Os grupos de colunas, com arrastar e soltar (e um menu, sem mouse).
+
+    O arrasto acontece todo no navegador; só o soltar vai ao servidor, levando
+    a posição da coluna na planilha. O menu "Mover para" de cada cartão faz o
+    mesmo pelo clique ou pelo teclado, e no celular, onde o arrastar do HTML
+    nem sempre funciona.
+    """
+
+    def __init__(self, mapa: _Mapeamento) -> None:
+        self.mapa = mapa
+        self.listas: dict[Papel, ui.element] = {}
+        with ui.element("div").classes("ea-quadro"):
+            for papel, titulo, dica in _GRUPOS_MAPA:
+                self.listas[papel] = self._zona(papel, titulo, dica)
+        mapa.ouvintes.append(self.desenhar)
+        self.desenhar()
+
+    def _zona(self, papel: Papel, titulo: str, dica: str) -> ui.element:
+        principal = papel in ("resposta", "fator")
+        zona = ui.element("div").classes(
+            f"ea-zona ea-zona-{papel}" + ("" if principal else " ea-zona-menor")
+        )
+        zona.props(f'role="group" aria-label="{escape(titulo)}"')
+        with zona:
+            with ui.element("div").classes("ea-zona-topo"):
+                with ui.element("div").classes("ea-titulo-linha"):
+                    ui.label(titulo).classes("ea-zona-titulo")
+                    _dica(dica)
+                with ui.element("div").classes("ea-zona-soltar"):
+                    ui.icon("move_to_inbox")
+                    ui.label("soltar aqui")
+            lista = ui.element("div").classes("ea-zona-lista")
+        # Arrastar por cima: realce e permissão para soltar, sem ir ao servidor.
+        zona.on(
+            "dragover",
+            js_handler="(e) => { e.preventDefault(); "
+            "e.currentTarget.classList.add('ea-zona-alvo'); }",
+        )
+        zona.on(
+            "dragleave",
+            js_handler="(e) => { if (!e.currentTarget.contains(e.relatedTarget)) "
+            "e.currentTarget.classList.remove('ea-zona-alvo'); }",
+        )
+        zona.on(
+            "drop",
+            lambda e, p=papel: self._soltar(e.args, p),
+            js_handler="(e) => { e.preventDefault(); "
+            "e.currentTarget.classList.remove('ea-zona-alvo'); "
+            "const dado = e.dataTransfer.getData('text/plain'); "
+            f"if (dado.startsWith('{_ARRASTO}')) "
+            f"emit(dado.slice({len(_ARRASTO)})); }}",
+        )
+        return lista
+
+    def _soltar(self, indice: Any, papel: Papel) -> None:
+        colunas = self.mapa.tabela.colunas
+        try:
+            coluna = colunas[int(indice)]
+        except (TypeError, ValueError, IndexError):
+            return
+        self.mapa.mover(coluna, papel)
+
+    def desenhar(self) -> None:
+        for papel, lista in self.listas.items():
+            lista.clear()
+            with lista:
+                colunas = self.mapa.colunas(papel)
+                for coluna in colunas:
+                    self._cartao(coluna)
+                if not colunas:
+                    ui.label("Nenhuma Coluna").classes("ea-zona-vazia")
+
+    def _cartao(self, coluna: str) -> None:
+        indice = self.mapa.tabela.colunas.index(coluna)
+        movel = self.mapa.pode_mover(coluna)
+        cartao = ui.element("div").classes(
+            "ea-cartao" + ("" if movel else " ea-cartao-fixo")
+        )
+        with cartao:
+            ui.icon("drag_indicator" if movel else "text_fields").classes(
+                "ea-cartao-alca"
+            )
+            ui.label(coluna).classes("ea-cartao-nome")
+        if not movel:
+            cartao.props('title="Coluna de texto: fica fora da análise."')
+            return
+        cartao.props(
+            f'draggable="true" tabindex="0" role="button" '
+            f'aria-label="{escape(coluna)}: clique para escolher o grupo"'
+        )
+        cartao.on(
+            "dragstart",
+            js_handler="(e) => { e.dataTransfer.effectAllowed = 'move'; "
+            f"e.dataTransfer.setData('text/plain', '{_ARRASTO}{indice}'); "
+            "e.currentTarget.classList.add('ea-arrastando'); }",
+        )
+        cartao.on(
+            "dragend",
+            js_handler="(e) => e.currentTarget.classList.remove('ea-arrastando')",
+        )
+        atual = self.mapa.papeis[coluna]
+        with cartao, ui.menu().classes("ea-cartao-menu"):
+            ui.label("Mover para").classes("ea-cartao-menu-titulo")
+            for papel, titulo, _ in _GRUPOS_MAPA:
+                if papel != atual:
+                    ui.menu_item(titulo, lambda p=papel: self.mapa.mover(coluna, p))
+
+
+def _dica(texto: str) -> None:
+    """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco)."""
+    with ui.icon("lightbulb").classes("ea-dica").props(
+        f'tabindex="0" role="img" aria-label="Dica: {escape(texto)}"'
+    ):
+        ui.tooltip(texto).classes("ea-dica-pop").props(
+            'anchor="top middle" self="bottom middle" :offset="[0, 6]"'
+        )
+
+
 class _PainelAnalises:
     """As caixas de seleção das análises, agrupadas como na spec (§9).
 
@@ -204,9 +365,9 @@ class _PainelAnalises:
     marcadas; incompatíveis ficam desabilitadas com o motivo no tooltip.
     """
 
-    def __init__(self, tabela: Table, selects: dict[str, ui.select]) -> None:
-        self.tabela = tabela
-        self.selects = selects
+    def __init__(self, mapa: _Mapeamento) -> None:
+        self.tabela = mapa.tabela
+        self.mapa = mapa
         self.caixas: dict[str, ui.checkbox] = {}
         self.dicas: dict[str, ui.tooltip] = {}
         self.expansao = (
@@ -232,21 +393,18 @@ class _PainelAnalises:
                                 self.dicas[analise.id] = ui.tooltip("")
                             caixa.on_value_change(lambda _: self._rotular())
                             self.caixas[analise.id] = caixa
-        for sel in selects.values():
-            sel.on_value_change(lambda _: self.atualizar())
+        mapa.ouvintes.append(self.atualizar)
         self.atualizar()
-
-    def _colunas(self, papel: str) -> list[str]:
-        return [c for c, s in self.selects.items() if s.value == papel]
 
     def atualizar(self) -> None:
         fatores = {
-            c: [float(v) for v in self.tabela.coluna(c)] for c in self._colunas("Fator")
+            c: [float(v) for v in self.tabela.coluna(c)]
+            for c in self.mapa.colunas("fator")
         }
         disponivel = disponibilidade(
             fatores,
-            n_respostas=len(self._colunas("Resposta")),
-            tem_ordem=bool(self._colunas("Ordem")),
+            n_respostas=len(self.mapa.colunas("resposta")),
+            tem_ordem=bool(self.mapa.colunas("ordem")),
         )
         for id_, motivo in disponivel.items():
             caixa = self.caixas[id_]

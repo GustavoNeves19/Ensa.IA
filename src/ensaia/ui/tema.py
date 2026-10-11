@@ -236,12 +236,64 @@ def _css() -> str:
     .ea-secao-sub {{ color: var(--cinza); font-size: .9rem; line-height: 1.5; }}
     .ea-secao-sub b {{ color: var(--tinta); font-weight: 600; }}
 
-    .ea-mapear {{ display: flex; flex-direction: column; gap: .7rem; }}
+    .ea-mapear {{ display: flex; flex-direction: column; gap: .7rem;
+      width: 100%; }}
     .ea-mapa-grade {{ display: grid; gap: .7rem 1rem;
       grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); }}
     .ea-mapa-item {{ display: flex; flex-direction: column; gap: .25rem; }}
     .ea-col-nome {{ font-weight: 600; font-size: .85rem; color: var(--tinta);
       overflow-wrap: anywhere; }}
+
+    /* Mapear colunas por arrastar e soltar: dois grupos principais (resposta e
+       fator) e, abaixo, dois menores (ordem e não usar). */
+    .ea-quadro {{ display: grid; gap: .8rem 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }}
+    .ea-zona {{ display: flex; flex-direction: column; gap: .55rem;
+      padding: .8rem .85rem; min-height: 9.5rem;
+      background: rgba(29,29,27,.035);
+      border: 1px solid rgba(29,29,27,.16); border-radius: 13px;
+      transition: background .12s, border-color .12s; }}
+    /* Lâmpada de dica: discreta até o mouse (ou o foco) chegar nela. */
+    .ea-dica {{ color: var(--oliva); opacity: .55; font-size: 1.05rem;
+      cursor: help; align-self: center; transition: opacity .12s; }}
+    .ea-dica:hover, .ea-dica:focus-visible {{ opacity: 1; outline: none; }}
+    .ea-dica-pop {{ background: var(--tinta); color: var(--papel);
+      font-size: .8rem; line-height: 1.45; max-width: 260px;
+      padding: .5rem .7rem; border-radius: 8px; }}
+    .ea-zona-menor {{ min-height: 0; padding: .6rem .85rem; }}
+    .ea-zona-alvo {{ background: rgba(64,165,81,.10); border-color: var(--verde); }}
+    .ea-zona-topo {{ display: flex; justify-content: space-between;
+      align-items: flex-start; gap: .5rem; }}
+    .ea-zona-titulo {{ font-weight: 600; font-size: .92rem; color: var(--tinta); }}
+    .ea-zona-menor .ea-zona-titulo {{ font-size: .84rem; color: var(--cinza); }}
+    .ea-zona-soltar {{ display: flex; flex-direction: column; align-items: center;
+      color: var(--cinza); font-size: .62rem; line-height: 1.1; flex-shrink: 0; }}
+    .ea-zona-soltar .q-icon {{ font-size: 1.25rem; }}
+    .ea-zona-menor .ea-zona-soltar {{ display: none; }}
+    .ea-zona-lista {{ display: flex; flex-direction: column; gap: .45rem;
+      flex: 1; }}
+    .ea-zona-menor .ea-zona-lista {{ flex-direction: row; flex-wrap: wrap; }}
+    /* Grupo vazio: um espaço tracejado onde a coluna cabe, com o aviso no meio. */
+    .ea-zona-vazia {{ flex: 1; width: 100%; display: flex; align-items: center;
+      justify-content: center; min-height: 2.6rem; padding: .5rem;
+      border: 1.5px dashed rgba(29,29,27,.22); border-radius: 9px;
+      color: var(--cinza); font-size: .85rem; text-align: center; }}
+    .ea-cartao {{ display: flex; align-items: center; gap: .45rem;
+      padding: .45rem .7rem .45rem .45rem; min-width: 0;
+      background: rgba(29,29,27,.06); border: 1px solid rgba(29,29,27,.22);
+      border-radius: 9px; cursor: grab; user-select: none;
+      color: var(--tinta); font-size: .9rem; }}
+    .ea-cartao:hover {{ background: rgba(29,29,27,.09); }}
+    .ea-cartao:focus-visible {{ outline: 2px solid var(--verde);
+      outline-offset: 2px; }}
+    .ea-cartao:active {{ cursor: grabbing; }}
+    .ea-arrastando {{ opacity: .45; }}
+    .ea-cartao-alca {{ color: var(--cinza); font-size: 1.15rem; flex-shrink: 0; }}
+    .ea-cartao-nome {{ overflow-wrap: anywhere; min-width: 0; }}
+    .ea-cartao-fixo {{ cursor: default; opacity: .7; background: transparent; }}
+    .ea-cartao-fixo:hover {{ background: transparent; }}
+    .ea-cartao-menu-titulo {{ font-size: .75rem; font-weight: 600;
+      color: var(--cinza); padding: .5rem 1rem .2rem; }}
 
     /* Um primário cheio (verde-mata) e uma ação secundária discreta em texto —
        nunca o par cheio+contorno. Sem salto no hover, só mudança de tom. */
