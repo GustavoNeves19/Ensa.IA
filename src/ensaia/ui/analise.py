@@ -73,37 +73,17 @@ from ensaia.core.surface import (
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO
 from ensaia.ui import graficos
-from ensaia.ui.ajuda import ajuda, dica, titulo_com_ajuda
+from ensaia.ui.ajuda import ajuda, titulo_com_ajuda
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.painel_analises import PainelAnalises
 from ensaia.ui.sessao import Sessao
 
-# Os grupos do quadro de mapear, na ordem da tela: (papel, título, dica).
-_GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
-    (
-        "resposta",
-        "Variáveis Dependentes",
-        "As respostas: o que você mede no fim de cada ensaio (rendimento, "
-        "remoção, pureza). É o que o modelo vai explicar.",
-    ),
-    (
-        "fator",
-        "Variáveis Independentes",
-        "Os fatores: o que você controla no experimento (temperatura, pH, "
-        "tempo, dose). São as entradas do planejamento.",
-    ),
-    (
-        "ordem",
-        "Ordem dos ensaios",
-        "A coluna com a ordem em que os ensaios foram feitos, se houver. Serve "
-        "para ver se os resultados mudaram aos poucos ao longo do tempo.",
-    ),
-    (
-        "ignorar",
-        "Não usar",
-        "Colunas que ficam fora da análise, como observações. Colunas de texto "
-        "ficam sempre aqui.",
-    ),
+# Os grupos do quadro de mapear, na ordem da tela: (papel, título).
+_GRUPOS_MAPA: list[tuple[Papel, str]] = [
+    ("resposta", "Variáveis Dependentes"),
+    ("fator", "Variáveis Independentes"),
+    ("ordem", "Ordem dos ensaios"),
+    ("ignorar", "Não usar"),
 ]
 
 # Prefixo do dado arrastado: o drop só aceita o que saiu de um cartão do quadro,
@@ -137,13 +117,10 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
     mapa = _Mapeamento(tabela)
 
     with ui.element("div").classes("ea-mapear"):
-        with ui.element("div").classes("ea-titulo-linha"):
-            ui.label("Mapear colunas").classes("ea-secao-titulo")
-            dica(
-                "Cada coluna da planilha vira um cartão. Arraste-o para o grupo "
-                "certo; sem mouse, clique no cartão e escolha o grupo no menu."
-            )
-        ui.label("Arraste cada coluna para o seu grupo.").classes("ea-secao-sub")
+        ui.label("Mapear colunas").classes("ea-secao-titulo")
+        ui.label(
+            "Arraste cada coluna para o seu grupo, ou clique nela e escolha o grupo."
+        ).classes("ea-secao-sub")
         _QuadroMapeamento(mapa)
 
     painel_analises = PainelAnalises(mapa)
@@ -252,12 +229,12 @@ class _QuadroMapeamento:
         self.mapa = mapa
         self.listas: dict[Papel, ui.element] = {}
         with ui.element("div").classes("ea-quadro"):
-            for papel, titulo, explica in _GRUPOS_MAPA:
-                self.listas[papel] = self._zona(papel, titulo, explica)
+            for papel, titulo in _GRUPOS_MAPA:
+                self.listas[papel] = self._zona(papel, titulo)
         mapa.ouvintes.append(self.desenhar)
         self.desenhar()
 
-    def _zona(self, papel: Papel, titulo: str, explica: str) -> ui.element:
+    def _zona(self, papel: Papel, titulo: str) -> ui.element:
         principal = papel in ("resposta", "fator")
         zona = ui.element("div").classes(
             f"ea-zona ea-zona-{papel}" + ("" if principal else " ea-zona-menor")
@@ -265,9 +242,7 @@ class _QuadroMapeamento:
         zona.props(f'role="group" aria-label="{escape(titulo)}"')
         with zona:
             with ui.element("div").classes("ea-zona-topo"):
-                with ui.element("div").classes("ea-titulo-linha"):
-                    ui.label(titulo).classes("ea-zona-titulo")
-                    dica(explica)
+                ui.label(titulo).classes("ea-zona-titulo")
                 with ui.element("div").classes("ea-zona-soltar"):
                     ui.icon("move_to_inbox")
                     ui.label("soltar aqui")
@@ -343,7 +318,7 @@ class _QuadroMapeamento:
         atual = self.mapa.papeis[coluna]
         with cartao, ui.menu().classes("ea-cartao-menu"):
             ui.label("Mover para").classes("ea-cartao-menu-titulo")
-            for papel, titulo, _ in _GRUPOS_MAPA:
+            for papel, titulo in _GRUPOS_MAPA:
                 if papel != atual:
                     ui.menu_item(titulo, lambda p=papel: self.mapa.mover(coluna, p))
 

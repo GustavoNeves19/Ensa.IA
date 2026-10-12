@@ -281,16 +281,11 @@ class PainelAnalises:
         self.contagens: dict[str, ui.label] = {}
 
         with ui.element("div").classes("ea-analises"):
-            with ui.element("div").classes("ea-titulo-linha"):
-                ui.label("Análises").classes("ea-secao-titulo")
-                dica(
-                    "Cada análise é um cartão: clique para incluir ou tirar do "
-                    "laudo. As que não se aplicam aos seus dados ficam apagadas, "
-                    "com o motivo escrito."
-                )
-            ui.label("Escolha o que entra no laudo, etapa por etapa.").classes(
-                "ea-secao-sub"
-            )
+            ui.label("Análises").classes("ea-secao-titulo")
+            ui.label(
+                "Escolha o que entra no laudo, etapa por etapa. Clique numa análise "
+                "para incluir ou tirar."
+            ).classes("ea-secao-sub")
             for i, (grupo, (curto, pergunta, serve)) in enumerate(ETAPAS.items(), 1):
                 self._etapa(grupo, i, curto, pergunta, serve)
         mapa.ouvintes.append(self.atualizar)
