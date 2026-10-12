@@ -217,6 +217,7 @@ def _css() -> str:
       border-top: 1px solid var(--linha); color: var(--cinza);
       font-size: .8rem; line-height: 1.5; max-width: 620px; }}
     .ea-rodape b {{ color: var(--tinta); font-weight: 600; }}
+    .ea-rodape-direitos {{ margin-top: .45rem; font-size: .75rem; }}
 
     /* --- Fluxo de análise: mapear → analisar → resultados → relatório -------- */
     /* Itens flexíveis crescem até o conteúdo por padrão (min-width: auto): uma

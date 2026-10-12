@@ -15,6 +15,8 @@ canto, e se dissolve no papel por uma máscara (ver `tema.aplicar_tema`).
 
 from __future__ import annotations
 
+from datetime import date
+
 from nicegui import ui
 
 from ensaia.core.table import Table
@@ -117,11 +119,12 @@ def _privacidade() -> None:
 
 def _rodape() -> None:
     ui.html(
-        '<div class="ea-rodape">'
-        "<b>EnsaIA</b> · núcleo estatístico offline e reprodutível, "
-        "com uma camada de linguagem que narra o resultado sem recalcular nada."
-        "<br>Gabriel Henrique Lemos de Athayde · Gustavo Neves da Paz Rafael "
-        "· Orientadora: Profa. Dra. Luiza Helena da Silva Martins</div>"
+        '<footer class="ea-rodape">'
+        '<div class="ea-rodape-sobre"><b>EnsaIA</b> analisa experimentos químicos '
+        "planejados (DOE), encontra a melhor condição e explica o resultado em "
+        "linguagem simples.</div>"
+        f'<div class="ea-rodape-direitos">© {date.today().year} EnsaIA · '
+        "Código aberto sob a licença MIT.</div></footer>"
     )
 
 
