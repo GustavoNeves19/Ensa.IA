@@ -191,7 +191,7 @@ FORMULAS: dict[str, str] = {
     "residuos_ordem": "eᵢ = yᵢ − ŷᵢ  na ordem de execução",
     "qq": "e₍ᵢ₎  contra  z = Φ⁻¹[(i − 3/8) / (n + 1/4)]",
     "superficie": "ŷ(x₁, x₂), com os demais fatores fixos",
-    "desejabilidade": "D = (d₁^w₁ · d₂^w₂ · … · dₘ^wₘ)^(1 / Σwᵢ)\ndᵢ ∈ [0, 1]",
+    "desejabilidade": "D = (d₁^w₁ · d₂^w₂ · … · dₘ^wₘ)^(1 / Σwᵢ)\n0 ≤ dᵢ ≤ 1",
     "descritiva": "ȳ = Σ yᵢ / n\ns = √[Σ (yᵢ − ȳ)² / (n − 1)]\nCV = 100 · s / ȳ",
     "matriz": "x = (X − centro) / meia-amplitude",
 }

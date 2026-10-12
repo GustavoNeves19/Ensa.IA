@@ -7,10 +7,13 @@ Trabalhamos sobre esses três, acrescidos de um verde-mata profundo derivado
 (para profundidade e ações) e de um papel quente levemente oliva como fundo —
 nada do cinza neutro dos UI kits nem do creme genérico.
 
-A fonte de assinatura é a **Sentient** (Indian Type Foundry, licença livre
-Fontshare), uma serifada editorial com caráter — carrega a marca e os títulos.
-O corpo fica num neutro de sistema, que sabe se calar. Os arquivos da fonte e a
-licença vivem em `ui/static/fonts/`.
+As fontes são da família **IBM Plex** (IBM, licença SIL OFL 1.1), desenhada
+para contexto técnico: a **Plex Serif** carrega a marca e os títulos, a **Plex
+Sans** o corpo, as tabelas e as fórmulas. Entram os recortes oficiais da IBM
+por alfabeto (`unicode-range`): o português cabe no Latin1, e o grego e os
+símbolos só são baixados quando aparecem (nas fórmulas). Os subscritos das
+fórmulas (eᵢ, hᵢᵢ, Xᵀ) não existem no Plex; vêm de um recorte mínimo da Noto
+Sans (OFL), o "EnsaIA Simbolos". Arquivos e licenças em `ui/static/fonts/`.
 
 Trocar a marca inteira é mexer só neste arquivo: as cores entram no tema do
 Quasar via `ui.colors` e todo o resto (fonte, fundo, atmosfera) via o CSS
@@ -60,21 +63,59 @@ with contextlib.suppress(Exception):
 _GRAO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/></svg>"  # noqa: E501
 
 
+# Recortes oficiais do IBM Plex (fonts/split da IBM) e os intervalos Unicode de
+# cada um, copiados do CSS que a própria IBM publica junto dos arquivos.
+_LATIN1 = (
+    "U+0000, U+000D, U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, "
+    "U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, "
+    "U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02"
+)
+_GREGO = "U+037E, U+0386-038A, U+038C, U+038E-03A1, U+03A3-03CE"
+_PI = (
+    "U+0E3F, U+2000-200D, U+2015, U+2028-2029, U+202F, U+2032-2033, U+2070, "
+    "U+2074-2079, U+2080-2089, U+2113, U+2116, U+2126, U+212E, U+2150-2151, "
+    "U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, "
+    "U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+2215, "
+    "U+221A, U+221E, U+222B, U+2248, U+2260, U+2264-2265, U+25CA, U+2713, "
+    "U+274C, U+2B0E-2B11, U+FEFF, U+FFFD"
+)
+# (família, arquivo, peso, estilo, intervalo)
+_ARQUIVOS_FONTE: tuple[tuple[str, str, int, str, str], ...] = (
+    ("IBM Plex Serif", "IBMPlexSerif-Medium-Latin1", 500, "normal", _LATIN1),
+    ("IBM Plex Serif", "IBMPlexSerif-SemiBold-Latin1", 600, "normal", _LATIN1),
+    ("IBM Plex Serif", "IBMPlexSerif-MediumItalic-Latin1", 500, "italic", _LATIN1),
+    ("IBM Plex Sans", "IBMPlexSans-Regular-Latin1", 400, "normal", _LATIN1),
+    ("IBM Plex Sans", "IBMPlexSans-Regular-Greek", 400, "normal", _GREGO),
+    ("IBM Plex Sans", "IBMPlexSans-Regular-Pi", 400, "normal", _PI),
+    ("IBM Plex Sans", "IBMPlexSans-SemiBold-Latin1", 600, "normal", _LATIN1),
+    (
+        "EnsaIA Simbolos",
+        "EnsaIA-Simbolos",
+        400,
+        "normal",
+        "U+0233, U+0304, U+1D2C-1D6A, U+2070-209F, U+2C7C",
+    ),
+)
+
+
+def _fontes() -> str:
+    """Os @font-face de cada recorte, servidos da pasta estática do pacote."""
+    return "\n".join(
+        f"""    @font-face {{
+      font-family: '{familia}';
+      src: url('/ensaia-static/fonts/{arquivo}.woff2') format('woff2');
+      font-weight: {peso}; font-style: {estilo}; font-display: swap;
+      unicode-range: {intervalo};
+    }}"""
+        for familia, arquivo, peso, estilo, intervalo in _ARQUIVOS_FONTE
+    )
+
+
 def _css() -> str:
     """Folha de estilo da marca: fontes, atmosfera, grão e o uploader."""
     return f"""
     <style>
-    /* Sentient — serifada de assinatura, variável (peso 200–800), self-hosted. */
-    @font-face {{
-      font-family: 'Sentient';
-      src: url('/ensaia-static/fonts/Sentient-Variable.woff2') format('woff2');
-      font-weight: 200 800; font-style: normal; font-display: swap;
-    }}
-    @font-face {{
-      font-family: 'Sentient';
-      src: url('/ensaia-static/fonts/Sentient-VariableItalic.woff2') format('woff2');
-      font-weight: 200 800; font-style: italic; font-display: swap;
-    }}
+{_fontes()}
 
     :root {{
       --tinta: {TINTA};
@@ -86,9 +127,9 @@ def _css() -> str:
       --papel: {PAPEL};
       --papel-alto: {PAPEL_ALTO};
       --linha: {LINHA};
-      --fonte-titulo: 'Sentient', Georgia, 'Times New Roman', serif;
-      --fonte-corpo: system-ui, -apple-system, 'Segoe UI', Roboto,
-        Helvetica, Arial, sans-serif;
+      --fonte-titulo: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+      --fonte-corpo: 'IBM Plex Sans', 'EnsaIA Simbolos', system-ui, -apple-system,
+        'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }}
 
     /* O corpo fala o neutro de sistema; o fundo é papel quente com um grão
@@ -182,7 +223,7 @@ def _css() -> str:
       color: var(--tinta); white-space: nowrap; }}
     .ea-headline {{ font-family: var(--fonte-titulo); font-weight: 500;
       font-size: clamp(1.9rem, 5vw, 2.85rem); line-height: 1.14;
-      color: var(--tinta); max-width: 19ch; }}
+      color: var(--tinta); max-width: 23ch; }}
     .ea-sub {{ color: var(--cinza); font-size: 1.02rem; line-height: 1.55;
       max-width: 36rem; }}
 
@@ -297,7 +338,7 @@ def _css() -> str:
     body.ea-dicas-formula .ea-dica-com-formula .ea-dica-txt {{ display: none; }}
     body.ea-dicas-formula .ea-dica-com-formula .ea-dica-form {{ display: block; }}
     .ea-dica-form {{ white-space: pre-line; font-size: .86rem; line-height: 1.6;
-      font-family: 'Cambria Math', 'STIX Two Math', 'Times New Roman', serif; }}
+      font-family: var(--fonte-corpo); font-variant-numeric: tabular-nums; }}
     .ea-ajuda-pop .ea-dica-form {{ color: var(--tinta); }}
     body.ea-dicas-formula .ea-dica-pop.ea-dica-com-formula {{ max-width: 380px; }}
     .ea-zona-menor {{ min-height: 0; padding: .6rem .85rem; }}
