@@ -35,7 +35,7 @@ from nicegui.events import EChartPointClickEventArguments
 
 from ensaia import __version__
 from ensaia.ai.report import gerar_relatorio
-from ensaia.core.catalogo import CATALOGO, GRUPOS, IDS, disponibilidade
+from ensaia.core.catalogo import IDS
 from ensaia.core.descritiva import matriz_codificada, matriz_ensaios
 from ensaia.core.design import (
     INTERCEPTO,
@@ -73,8 +73,9 @@ from ensaia.core.surface import (
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO
 from ensaia.ui import graficos
-from ensaia.ui.ajuda import ajuda, titulo_com_ajuda
+from ensaia.ui.ajuda import ajuda, dica, titulo_com_ajuda
 from ensaia.ui.narrar import construir_narracao
+from ensaia.ui.painel_analises import PainelAnalises
 from ensaia.ui.sessao import Sessao
 
 # Os grupos do quadro de mapear, na ordem da tela: (papel, título, dica).
@@ -138,14 +139,14 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
     with ui.element("div").classes("ea-mapear"):
         with ui.element("div").classes("ea-titulo-linha"):
             ui.label("Mapear colunas").classes("ea-secao-titulo")
-            _dica(
+            dica(
                 "Cada coluna da planilha vira um cartão. Arraste-o para o grupo "
                 "certo; sem mouse, clique no cartão e escolha o grupo no menu."
             )
         ui.label("Arraste cada coluna para o seu grupo.").classes("ea-secao-sub")
         _QuadroMapeamento(mapa)
 
-    painel_analises = _PainelAnalises(mapa)
+    painel_analises = PainelAnalises(mapa)
     opcoes = _Opcoes()
     _painel_opcoes(opcoes)
 
@@ -251,12 +252,12 @@ class _QuadroMapeamento:
         self.mapa = mapa
         self.listas: dict[Papel, ui.element] = {}
         with ui.element("div").classes("ea-quadro"):
-            for papel, titulo, dica in _GRUPOS_MAPA:
-                self.listas[papel] = self._zona(papel, titulo, dica)
+            for papel, titulo, explica in _GRUPOS_MAPA:
+                self.listas[papel] = self._zona(papel, titulo, explica)
         mapa.ouvintes.append(self.desenhar)
         self.desenhar()
 
-    def _zona(self, papel: Papel, titulo: str, dica: str) -> ui.element:
+    def _zona(self, papel: Papel, titulo: str, explica: str) -> ui.element:
         principal = papel in ("resposta", "fator")
         zona = ui.element("div").classes(
             f"ea-zona ea-zona-{papel}" + ("" if principal else " ea-zona-menor")
@@ -266,7 +267,7 @@ class _QuadroMapeamento:
             with ui.element("div").classes("ea-zona-topo"):
                 with ui.element("div").classes("ea-titulo-linha"):
                     ui.label(titulo).classes("ea-zona-titulo")
-                    _dica(dica)
+                    dica(explica)
                 with ui.element("div").classes("ea-zona-soltar"):
                     ui.icon("move_to_inbox")
                     ui.label("soltar aqui")
@@ -345,85 +346,6 @@ class _QuadroMapeamento:
             for papel, titulo, _ in _GRUPOS_MAPA:
                 if papel != atual:
                     ui.menu_item(titulo, lambda p=papel: self.mapa.mover(coluna, p))
-
-
-def _dica(texto: str) -> None:
-    """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco)."""
-    with ui.icon("lightbulb").classes("ea-dica").props(
-        f'tabindex="0" role="img" aria-label="Dica: {escape(texto)}"'
-    ):
-        ui.tooltip(texto).classes("ea-dica-pop").props(
-            'anchor="top middle" self="bottom middle" :offset="[0, 6]"'
-        )
-
-
-class _PainelAnalises:
-    """As caixas de seleção das análises, agrupadas como na spec (§9).
-
-    A disponibilidade depende do mapeamento (quantos fatores, se há ordem, se há
-    réplicas…), então é recalculada a cada mudança nele. Compatíveis vêm
-    marcadas; incompatíveis ficam desabilitadas com o motivo no tooltip.
-    """
-
-    def __init__(self, mapa: _Mapeamento) -> None:
-        self.tabela = mapa.tabela
-        self.mapa = mapa
-        self.caixas: dict[str, ui.checkbox] = {}
-        self.dicas: dict[str, ui.tooltip] = {}
-        self.expansao = (
-            ui.expansion("Análises").classes("ea-opcoes w-full").props(
-                "dense switch-toggle-side"
-            )
-        )
-        with self.expansao:
-            ui.html(
-                '<div class="ea-ler">As compatíveis com os seus dados já vêm '
-                "marcadas; as cinzas não se aplicam (passe o mouse para ver o "
-                "motivo). O que ficar desmarcado sai da tela e do PDF.</div>"
-            )
-            with ui.element("div").classes("ea-grupos"):
-                for grupo, titulo in GRUPOS.items():
-                    with ui.element("div").classes("ea-grupo"):
-                        ui.html(f'<div class="ea-grupo-titulo">{escape(titulo)}</div>')
-                        for analise in (a for a in CATALOGO if a.grupo == grupo):
-                            caixa = ui.checkbox(f"{analise.id} · {analise.nome}").props(
-                                "dense"
-                            )
-                            with caixa:
-                                self.dicas[analise.id] = ui.tooltip("")
-                            caixa.on_value_change(lambda _: self._rotular())
-                            self.caixas[analise.id] = caixa
-        mapa.ouvintes.append(self.atualizar)
-        self.atualizar()
-
-    def atualizar(self) -> None:
-        fatores = {
-            c: [float(v) for v in self.tabela.coluna(c)]
-            for c in self.mapa.colunas("fator")
-        }
-        disponivel = disponibilidade(
-            fatores,
-            n_respostas=len(self.mapa.colunas("resposta")),
-            tem_ordem=bool(self.mapa.colunas("ordem")),
-        )
-        for id_, motivo in disponivel.items():
-            caixa = self.caixas[id_]
-            caixa.set_value(motivo is None)
-            if motivo is None:
-                caixa.enable()
-                self.dicas[id_].set_text("Compatível com os seus dados.")
-            else:
-                caixa.disable()
-                self.dicas[id_].set_text(f"Não se aplica: {motivo}.")
-        self._rotular()
-
-    def _rotular(self) -> None:
-        marcadas = len(self.marcadas())
-        habilitadas = sum(1 for c in self.caixas.values() if c.enabled)
-        self.expansao.props(f'label="Análises ({marcadas} de {habilitadas} marcadas)"')
-
-    def marcadas(self) -> list[str]:
-        return [id_ for id_, c in self.caixas.items() if c.value and c.enabled]
 
 
 def _painel_opcoes(opcoes: _Opcoes) -> None:

@@ -293,6 +293,51 @@ def _css() -> str:
     .ea-cartao-nome {{ overflow-wrap: anywhere; min-width: 0; }}
     .ea-cartao-fixo {{ cursor: default; opacity: .7; background: transparent; }}
     .ea-cartao-fixo:hover {{ background: transparent; }}
+    /* Análises: título de seção e uma etapa por dropdown, com os cartões. */
+    .ea-analises {{ display: flex; flex-direction: column; gap: .55rem;
+      width: 100%; }}
+    .ea-etapa {{ border: 1px solid rgba(29,29,27,.14); border-radius: 12px;
+      background: transparent; }}
+    .ea-etapa .q-expansion-item__container > .q-item {{ padding: .55rem .8rem;
+      border-radius: 12px; min-height: 0; }}
+    .ea-etapa .q-focus-helper {{ display: none; }}
+    .ea-etapa .q-expansion-item__content {{ display: flex; flex-direction: column;
+      gap: .75rem; padding: .2rem .85rem .85rem; }}
+    .ea-etapa-cabeca {{ display: flex; align-items: center; gap: .7rem;
+      flex: 1; min-width: 0; }}
+    .ea-etapa-num {{ width: 1.6rem; height: 1.6rem; border-radius: 50%;
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 700; color: var(--papel);
+      background: var(--verde-escuro); }}
+    .ea-etapa-textos {{ display: flex; flex-direction: column; min-width: 0;
+      flex: 1; }}
+    .ea-etapa-nome {{ font-weight: 600; font-size: .95rem; color: var(--tinta); }}
+    .ea-etapa-pergunta {{ font-size: .82rem; color: var(--cinza); }}
+    .ea-etapa-conta {{ flex-shrink: 0; font-size: .75rem; color: var(--cinza);
+      font-variant-numeric: tabular-nums; }}
+    .ea-analise-grade {{ display: grid; gap: .6rem; width: 100%;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }}
+    .ea-analise-cartao {{ display: flex; flex-direction: column; gap: .3rem;
+      padding: .7rem .8rem; border-radius: 11px; cursor: pointer;
+      border: 1px solid rgba(29,29,27,.16); background: transparent;
+      user-select: none; transition: background .12s, border-color .12s; }}
+    .ea-analise-cartao:focus-visible {{ outline: 2px solid var(--verde);
+      outline-offset: 2px; }}
+    .ea-analise-on {{ border-color: rgba(46,133,64,.55);
+      background: rgba(64,165,81,.08); }}
+    .ea-analise-off:hover {{ background: rgba(29,29,27,.04); }}
+    .ea-analise-na {{ cursor: default; opacity: .62; background: transparent;
+      border-style: dashed; }}
+    .ea-analise-topo {{ display: flex; align-items: center; gap: .4rem; }}
+    .ea-analise-nome {{ font-weight: 600; font-size: .9rem; color: var(--tinta); }}
+    .ea-analise-selo {{ margin-left: auto; flex-shrink: 0; font-size: .7rem;
+      font-weight: 600; padding: .1rem .5rem; border-radius: 999px;
+      border: 1px solid rgba(29,29,27,.22); color: var(--cinza); }}
+    .ea-analise-on .ea-analise-selo {{ background: var(--verde-escuro);
+      border-color: var(--verde-escuro); color: var(--papel); }}
+    .ea-analise-texto {{ font-size: .82rem; color: var(--cinza); line-height: 1.45; }}
+    .ea-analise-motivo {{ font-size: .78rem; color: var(--oliva-escuro);
+      line-height: 1.4; }}
     .ea-cartao-menu-titulo {{ font-size: .75rem; font-weight: 600;
       color: var(--cinza); padding: .5rem 1rem .2rem; }}
 

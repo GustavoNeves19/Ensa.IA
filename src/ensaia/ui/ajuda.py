@@ -11,6 +11,7 @@ como recursos (`ensaia/conteudo/`): a tela e o assistente de IA ensinam igual.
 
 from __future__ import annotations
 
+from html import escape
 from importlib.resources import files
 
 from nicegui import ui
@@ -164,6 +165,19 @@ def ajuda(chave: str) -> None:
     ):
         ui.label(titulo).classes("ea-ajuda-titulo")
         ui.label(texto).classes("ea-ajuda-texto")
+
+
+def dica(texto: str) -> ui.icon:
+    """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco)."""
+    with (
+        ui.icon("lightbulb")
+        .classes("ea-dica")
+        .props(f'tabindex="0" role="img" aria-label="Dica: {escape(texto)}"') as icone
+    ):
+        ui.tooltip(texto).classes("ea-dica-pop").props(
+            'anchor="top middle" self="bottom middle" :offset="[0, 6]"'
+        )
+    return icone
 
 
 def titulo_com_ajuda(texto: str, chave: str, classe: str = "ea-grafico-titulo") -> None:
