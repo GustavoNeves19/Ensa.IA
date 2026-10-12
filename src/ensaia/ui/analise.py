@@ -73,7 +73,7 @@ from ensaia.core.surface import (
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO
 from ensaia.ui import graficos
-from ensaia.ui.ajuda import ajuda, dica, titulo_com_ajuda
+from ensaia.ui.ajuda import Dica, ajuda, dica, titulo_com_ajuda
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.painel_analises import PainelAnalises
 from ensaia.ui.sessao import Sessao
@@ -348,47 +348,97 @@ _PROPS_TOGGLE = (
     "toggle-color=primary toggle-text-color=white"
 )
 
-# Cada opção do modelo: (título, o que é, dica em texto, dica em fórmula).
-_OPCOES_MODELO: dict[str, tuple[str, str, str, str]] = {
+# Cada opção do modelo: título, o que ela decide e, para cada valor que o usuário
+# pode escolher, a dica em texto e em fórmula. A lâmpada mostra sempre a do valor
+# escolhido no momento.
+_OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
     "tipo_modelo": (
         "Termos do modelo",
         "Quais efeitos entram na equação.",
-        "Linear: só o efeito de cada fator. Com interações: soma o efeito "
-        "combinado de pares de fatores. Quadrático: soma também a curvatura. "
-        "Automático escolhe pelo planejamento: quadrático quando todos os fatores "
-        "têm 3 ou mais níveis (Box-Behnken, composto central), com interações nos "
-        "fatoriais de 2 níveis.",
-        "Linear: ŷ = b₀ + Σ bᵢxᵢ\n"
-        "Com interações: + Σ bᵢⱼxᵢxⱼ\n"
-        "Quadrático: + Σ bᵢᵢxᵢ²",
+        {
+            "auto": (
+                "Automático: o EnsaIA escolhe pelo planejamento. Quadrático quando "
+                "todos os fatores têm 3 ou mais níveis (Box-Behnken, composto "
+                "central); com interações nos fatoriais de 2 níveis. Se faltarem "
+                "ensaios para o modelo, ele simplifica e avisa.",
+                "Fatorial 2ᵏ: ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ\n"
+                "Box-Behnken e composto central: + Σ bᵢᵢxᵢ²",
+            ),
+            "linear": (
+                "Linear: só o efeito de cada fator, como se cada um agisse sozinho "
+                "e em linha reta. Serve para triagem; não enxerga interação nem "
+                "curvatura.",
+                "ŷ = b₀ + Σ bᵢxᵢ",
+            ),
+            "interacoes": (
+                "Com interações: soma o efeito combinado de cada par de fatores, "
+                "para quando o efeito de um depende do nível do outro. É o modelo "
+                "dos fatoriais de 2 níveis.",
+                "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ",
+            ),
+            "quadratico": (
+                "Quadrático: soma também a curvatura de cada fator, o que permite "
+                "achar um máximo ou um mínimo dentro da região estudada. Exige 3 "
+                "ou mais níveis por fator (Box-Behnken, composto central).",
+                "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²",
+            ),
+        },
     ),
     "termo_erro": (
         "Termo de erro",
         "Com que erro os efeitos são testados.",
-        "Resíduo: o que o modelo não explica (padrão do Minitab). Erro puro: só a "
-        "variação entre réplicas, como os pontos centrais (comum no Statistica e "
-        "em artigos brasileiros). Para reproduzir um artigo, use o mesmo que ele. "
-        "Sem réplicas, o EnsaIA usa o resíduo e avisa.",
-        "Resíduo: MQres = SQres / (n − p)\n"
-        "Erro puro: MQep = SQep / (n − m)\n"
-        "F = MQtermo / MQerro",
+        {
+            "residuo": (
+                "Resíduo: os testes usam o que o modelo não explica. É o padrão do "
+                "Minitab e funciona mesmo sem réplicas.",
+                "MQres = SQres / (n − p)\nF = MQtermo / MQres",
+            ),
+            "erro_puro": (
+                "Erro puro: os testes usam só a variação entre réplicas, como os "
+                "pontos centrais repetidos. É o do Statistica e de muitos artigos "
+                "brasileiros; para reproduzir um artigo, use o mesmo que ele. Sem "
+                "réplicas, o EnsaIA volta para o resíduo e avisa.",
+                "MQep = SQep / (n − m)\nm = condições distintas\nF = MQtermo / MQep",
+            ),
+        },
     ),
     "alfa": (
         "Nível de significância",
         "Abaixo de qual p-valor um efeito conta.",
-        "0,05 é o usual. 0,10 é mais tolerante, comum em triagem com poucos "
-        "ensaios, quando perder um fator importante custa mais que incluir um a "
-        "mais.",
-        "significativo se p < α\nt crítico = t(α/2; gl do erro)",
+        {
+            0.05: (
+                "α = 0,05: um efeito conta quando a chance de ele ser só acaso é "
+                "menor que 5%. É o padrão da maioria dos artigos.",
+                "significativo se p < 0,05\nt crítico = t(0,025; gl do erro)",
+            ),
+            0.10: (
+                "α = 0,10: mais tolerante, aceita até 10% de chance de acaso. Útil "
+                "em triagem com poucos ensaios, quando perder um fator importante "
+                "custa mais que incluir um a mais.",
+                "significativo se p < 0,10\nt crítico = t(0,05; gl do erro)",
+            ),
+        },
     ),
     "reduzir": (
         "Simplificar o modelo",
         "Tira os termos que não passam em α.",
-        "Remove, um de cada vez, o termo não significativo de maior p-valor e "
-        "reajusta, até sobrarem só termos significativos. O termo de um fator que "
-        "ainda está numa interação ou num quadrático não sai (hierarquia).",
-        "enquanto o maior p ≥ α:\n  remove esse termo (respeitando a hierarquia)\n"
-        "  e reajusta o modelo",
+        {
+            False: (
+                "Desligado: o modelo fica com todos os termos escolhidos, "
+                "significativos ou não. Os que não são aparecem no Pareto abaixo da "
+                "linha de corte.",
+                "ŷ com todos os termos do modelo escolhido",
+            ),
+            True: (
+                "Ligado: remove, um de cada vez, o termo não significativo de maior "
+                "p-valor e reajusta, até sobrarem só termos significativos. O termo "
+                "de um fator que ainda está numa interação ou num quadrático não "
+                "sai (hierarquia).",
+                "enquanto o maior p ≥ α:\n"
+                "  remove esse termo (respeitando a hierarquia)\n"
+                "  e reajusta o modelo",
+            ),
+        },
     ),
 }
 
@@ -409,7 +459,8 @@ def _painel_opcoes(opcoes: _Opcoes) -> None:
     """Opções do modelo, recolhidas como as etapas das análises.
 
     O padrão já serve a quem está começando; o cabeçalho mostra a escolha atual,
-    e cada opção é um cartão com o que ela faz e a dica (texto ou fórmula).
+    e cada opção é um cartão com o que ela faz e a dica do valor escolhido (em
+    texto ou fórmula), que muda junto com a escolha.
     """
     painel = ui.expansion().classes("ea-etapa ea-opcoes-modelo w-full").props(
         "dense"
@@ -423,45 +474,56 @@ def _painel_opcoes(opcoes: _Opcoes) -> None:
             ui.label("Opções do modelo").classes("ea-etapa-nome")
             resumo = ui.label(_resumo_opcoes(opcoes)).classes("ea-etapa-pergunta")
 
-    def atualizar() -> None:
-        resumo.set_text(_resumo_opcoes(opcoes))
-
     with painel:
         ui.label(
             "O padrão serve para a maioria dos casos; mude só se precisar."
         ).classes("ea-ler")
         with ui.element("div").classes("ea-analise-grade"):
-            with _cartao_opcao("tipo_modelo", largo=True):
-                ui.toggle(_MODELOS, on_change=lambda _: atualizar()).props(
-                    _PROPS_TOGGLE
-                ).classes("ea-forma").bind_value(opcoes, "tipo_modelo")
-            with _cartao_opcao("termo_erro"):
-                ui.toggle(_TERMOS_ERRO, on_change=lambda _: atualizar()).props(
-                    _PROPS_TOGGLE
-                ).classes("ea-forma").bind_value(opcoes, "termo_erro")
-            with _cartao_opcao("alfa"):
-                ui.toggle(_ALFAS, on_change=lambda _: atualizar()).props(
-                    _PROPS_TOGGLE
-                ).classes("ea-forma").bind_value(opcoes, "alfa")
-            with _cartao_opcao("reduzir", largo=True):
-                ui.switch(
-                    "Remover termos não significativos e reajustar",
-                    on_change=lambda _: atualizar(),
-                ).props("dense color=primary").bind_value(opcoes, "reduzir")
+            for chave, opcoes_do_controle, largo in (
+                ("tipo_modelo", _MODELOS, True),
+                ("termo_erro", _TERMOS_ERRO, False),
+                ("alfa", _ALFAS, False),
+                ("reduzir", None, True),
+            ):
+                _cartao_opcao(opcoes, chave, opcoes_do_controle, largo, resumo)
 
 
-def _cartao_opcao(chave: str, *, largo: bool = False) -> ui.element:
-    """Um cartão de opção: título, dica no canto, o que faz e (dentro) o controle."""
-    titulo, faz, texto, formula = _OPCOES_MODELO[chave]
-    cartao = ui.element("div").classes(
+def _cartao_opcao(
+    opcoes: _Opcoes,
+    chave: str,
+    escolhas: dict[Any, str] | None,
+    largo: bool,
+    resumo: ui.label,
+) -> None:
+    """Um cartão de opção: título, dica no canto, o que faz e o controle.
+
+    A dica mostra a explicação do valor escolhido e troca quando ele muda; o
+    resumo do cabeçalho do painel também.
+    """
+    titulo, faz, dicas = _OPCOES_MODELO[chave]
+    with ui.element("div").classes(
         "ea-opcao-cartao" + (" ea-opcao-larga" if largo else "")
-    )
-    with cartao:
+    ):
         with ui.element("div").classes("ea-analise-topo"):
             ui.label(titulo).classes("ea-analise-nome")
-            dica(texto, formula)
+            lampada = Dica(*dicas[getattr(opcoes, chave)])
         ui.label(faz).classes("ea-analise-texto")
-    return cartao
+
+        def mudou(evento: Any) -> None:
+            lampada.trocar(*dicas[evento.value])
+            resumo.set_text(_resumo_opcoes(opcoes))
+
+        if escolhas is None:
+            controle: ui.switch | ui.toggle = ui.switch(
+                "Remover termos não significativos e reajustar", on_change=mudou
+            ).props("dense color=primary")
+        else:
+            controle = (
+                ui.toggle(escolhas, on_change=mudou)
+                .props(_PROPS_TOGGLE)
+                .classes("ea-forma")
+            )
+        controle.bind_value(opcoes, chave)
 
 
 def _rodar_analise(

@@ -226,18 +226,39 @@ def ajuda(chave: str) -> None:
             _conteudo_dica(texto, formula)
 
 
+class Dica:
+    """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco).
+
+    `trocar` muda o texto e a fórmula depois de criada, para a dica acompanhar
+    uma escolha que o usuário faz ao lado dela.
+    """
+
+    def __init__(self, texto: str, formula: str | None = None) -> None:
+        with (
+            ui.icon("lightbulb")
+            .classes("ea-dica")
+            .props('tabindex="0" role="img"') as self.icone
+        ):
+            self.balao = (
+                ui.tooltip()
+                .classes("ea-dica-pop")
+                .props('anchor="top middle" self="bottom middle" :offset="[0, 6]"')
+            )
+            with self.balao:
+                self.texto = ui.label().classes("ea-dica-txt")
+                self.formula = ui.label().classes("ea-dica-form")
+        self.trocar(texto, formula)
+
+    def trocar(self, texto: str, formula: str | None = None) -> None:
+        self.texto.set_text(texto)
+        self.formula.set_text(formula or "")
+        self.balao.classes(**{"add" if formula else "remove": "ea-dica-com-formula"})
+        self.icone.props(f'aria-label="Dica: {escape(texto)}"')
+
+
 def dica(texto: str, formula: str | None = None) -> ui.icon:
-    """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco)."""
-    with (
-        ui.icon("lightbulb")
-        .classes("ea-dica")
-        .props(f'tabindex="0" role="img" aria-label="Dica: {escape(texto)}"') as icone,
-        ui.tooltip()
-        .classes("ea-dica-pop" + (" ea-dica-com-formula" if formula else ""))
-        .props('anchor="top middle" self="bottom middle" :offset="[0, 6]"'),
-    ):
-        _conteudo_dica(texto, formula)
-    return icone
+    """Lâmpada de dica fixa (ver `Dica`); devolve o ícone."""
+    return Dica(texto, formula).icone
 
 
 def seletor_dicas() -> None:
