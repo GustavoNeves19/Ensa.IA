@@ -343,14 +343,9 @@ def _css() -> str:
     body.ea-dicas-formula .ea-dica-pop.ea-dica-com-formula {{ max-width: 380px; }}
     .ea-zona-menor {{ min-height: 0; padding: .6rem .85rem; }}
     .ea-zona-alvo {{ background: rgba(64,165,81,.10); border-color: var(--verde); }}
-    .ea-zona-topo {{ display: flex; justify-content: space-between;
-      align-items: flex-start; gap: .5rem; }}
+    .ea-zona-topo {{ display: flex; align-items: center; gap: .4rem; }}
     .ea-zona-titulo {{ font-weight: 600; font-size: .92rem; color: var(--tinta); }}
     .ea-zona-menor .ea-zona-titulo {{ font-size: .84rem; color: var(--cinza); }}
-    .ea-zona-soltar {{ display: flex; flex-direction: column; align-items: center;
-      color: var(--cinza); font-size: .62rem; line-height: 1.1; flex-shrink: 0; }}
-    .ea-zona-soltar .q-icon {{ font-size: 1.25rem; }}
-    .ea-zona-menor .ea-zona-soltar {{ display: none; }}
     .ea-zona-lista {{ display: flex; flex-direction: column; gap: .45rem;
       flex: 1; }}
     .ea-zona-menor .ea-zona-lista {{ flex-direction: row; flex-wrap: wrap; }}
@@ -483,6 +478,11 @@ def _css() -> str:
     .ea-opcoes {{ color: var(--cinza); }}
     .ea-opcoes .q-focus-helper {{ display: none; }}
     .ea-opcoes .q-item {{ padding-left: 0; min-height: 36px; }}
+    .ea-opcoes .q-item__label {{ font-weight: 600; font-size: .9rem; }}
+    .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
+      gap: .55rem; padding: .35rem 0 .6rem; }}
+    .ea-ajustar {{ margin: .2rem 0 .4rem; }}
+    /* Exemplos e planilha-modelo abaixo da dropzone: rótulo e ações lado a lado. */
     /* Prévia dos dados: 5 linhas por página, sem o seletor de linhas por página;
        embaixo, o arquivo e o tamanho e, discreta, a linha de como foi lido. */
     .ea-previa-dados .q-table__bottom .q-table__select {{ display: none; }}
@@ -501,11 +501,6 @@ def _css() -> str:
       padding: .15rem .7rem; }}
     .ea-formato-atual {{ font-weight: 700; color: var(--verde-escuro); }}
     .ea-formato-dica {{ color: var(--cinza); font-size: .78rem; }}
-    .ea-opcoes .q-item__label {{ font-weight: 600; font-size: .9rem; }}
-    .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
-      gap: .55rem; padding: .35rem 0 .6rem; }}
-    .ea-ajustar {{ margin: .2rem 0 .4rem; }}
-    /* Exemplos e planilha-modelo abaixo da dropzone: rótulo e ações lado a lado. */
     .ea-alternativas {{ display: grid; grid-template-columns: auto 1fr;
       gap: .15rem 1.1rem; align-items: baseline; margin-top: .3rem; }}
     .ea-alternativas .ea-acoes {{ gap: 0 1.1rem; }}
