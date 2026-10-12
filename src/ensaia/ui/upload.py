@@ -200,10 +200,6 @@ def _linha_formato(
     """Como o arquivo de texto foi lido, numa linha discreta, e o "trocar"."""
     decimal = "vírgula" if formato.decimal == "," else "ponto"
     with ui.element("div").classes("ea-formato"):
-        ui.html(
-            f"Separador <b>{escape(SEPARADORES.get(separador, separador))}</b> · "
-            f"decimal <b>{decimal}</b> · {escape(formato.codificacao)}"
-        )
         with (
             ui.button("Trocar separador", icon="swap_horiz")
             .props("outline dense no-caps")
@@ -215,6 +211,10 @@ def _linha_formato(
                 ui.menu_item(nome, lambda s=sep: trocar_separador(s)).classes(
                     "ea-formato-atual" if sep == separador else ""
                 )
+        ui.html(
+            f"Separador <b>{escape(SEPARADORES.get(separador, separador))}</b> · "
+            f"decimal <b>{decimal}</b> · {escape(formato.codificacao)}"
+        ).classes("ea-formato-texto")
 
 
 def _mostrar_previa(tabela: Table, nome: str) -> None:

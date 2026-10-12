@@ -498,7 +498,8 @@ def _css() -> str:
       justify-content: space-between; gap: .4rem .8rem; width: 100%;
       color: var(--cinza); font-size: .8rem; }}
     .ea-formato b {{ color: var(--tinta); font-weight: 600; }}
-    .ea-formato-trocar.q-btn {{ margin-left: auto; border-radius: 9px;
+    .ea-formato-texto {{ margin-left: auto; text-align: right; }}
+    .ea-formato-trocar.q-btn {{ border-radius: 9px;
       color: var(--verde-escuro); font-size: .8rem; font-weight: 600;
       padding: .15rem .7rem; }}
     .ea-formato-atual {{ font-weight: 700; color: var(--verde-escuro); }}
