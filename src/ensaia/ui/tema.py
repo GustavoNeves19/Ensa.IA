@@ -483,6 +483,24 @@ def _css() -> str:
     .ea-opcoes {{ color: var(--cinza); }}
     .ea-opcoes .q-focus-helper {{ display: none; }}
     .ea-opcoes .q-item {{ padding-left: 0; min-height: 36px; }}
+    /* Prévia dos dados: 5 linhas por página, sem o seletor de linhas por página;
+       embaixo, o arquivo e o tamanho e, discreta, a linha de como foi lido. */
+    .ea-previa-dados .q-table__bottom .q-table__select {{ display: none; }}
+    .ea-previa-info {{ display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: .1rem .7rem; margin-top: .1rem; }}
+    .ea-previa-nome {{ color: var(--tinta); font-weight: 600; font-size: .95rem;
+      overflow-wrap: anywhere; }}
+    .ea-previa-tamanho {{ color: var(--verde-escuro); font-weight: 600;
+      font-size: .85rem; }}
+    .ea-formato {{ display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: space-between; gap: .4rem .8rem; width: 100%;
+      color: var(--cinza); font-size: .8rem; }}
+    .ea-formato b {{ color: var(--tinta); font-weight: 600; }}
+    .ea-formato-trocar.q-btn {{ margin-left: auto; border-radius: 9px;
+      color: var(--verde-escuro); font-size: .8rem; font-weight: 600;
+      padding: .15rem .7rem; }}
+    .ea-formato-atual {{ font-weight: 700; color: var(--verde-escuro); }}
+    .ea-formato-dica {{ color: var(--cinza); font-size: .78rem; }}
     .ea-opcoes .q-item__label {{ font-weight: 600; font-size: .9rem; }}
     .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
       gap: .55rem; padding: .35rem 0 .6rem; }}
