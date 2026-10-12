@@ -41,7 +41,7 @@ _FMT_JS = (
     "(v) => (typeof v === 'number' && isFinite(v))"
     " ? v.toLocaleString('pt-BR', {maximumFractionDigits: 3}) : v"
 )
-_FONTE = "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+_FONTE = "'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
 
 
 def _base() -> Opcoes:

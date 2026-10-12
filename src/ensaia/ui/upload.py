@@ -4,11 +4,13 @@ A planilha chega como bytes em memória (`ui.upload`) e é lida por
 `io.readers.ler_dados_de_bytes` — nunca gravada em disco (princípio P1). Erros de
 leitura viram avisos em português claro, não telas de exceção.
 
-Conferir (passo 2): a prévia mostra até 50 linhas com os números no padrão
-brasileiro; em planilha com várias abas, o usuário escolhe a aba (RF-03); em
-arquivo de texto, aparecem o separador, o decimal e a codificação detectados, e
-o separador pode ser corrigido. Quem não tem uma planilha à mão pode abrir um
-dos exemplos públicos (RF-18) ou baixar a planilha-modelo com o guia (US-02).
+Conferir (passo 2): a prévia mostra os dados 5 linhas por vez, com os números
+no padrão brasileiro, e embaixo dela o nome do arquivo e o tamanho; em planilha
+com várias abas, o usuário escolhe a aba (RF-03); em arquivo de texto, uma linha
+discreta diz o separador, o decimal e a codificação detectados, e o separador
+pode ser trocado. Quem não tem uma planilha à mão pode abrir um dos exemplos
+públicos (RF-18) ou baixar a planilha-modelo com o guia (US-02); essas opções
+saem da tela assim que uma planilha é lida.
 """
 
 from __future__ import annotations
@@ -28,12 +30,13 @@ from ensaia.io.readers import (
     ler_dados_de_bytes,
     listar_abas,
 )
-from ensaia.ui.tema import CINZA, TINTA, VERDE_ESCURO
+from ensaia.ui.tema import CINZA
 
 # RF-01: aceita até 5 MB; acima disso o upload é recusado no próprio navegador.
 MAX_BYTES = 5 * 1024 * 1024
 _ACEITA = ".csv,.tsv,.txt,.xlsx,.xls,.ods"
 _LIMITE_PREVIA = 50
+_LINHAS_POR_PAGINA = 5
 _MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -46,6 +49,7 @@ def construir_upload(
     — é o gancho para o passo seguinte (mapear colunas). Recebe `None` quando a
     aba escolhida não tem dados, para o passo seguinte não ficar com a anterior.
     """
+
     def carregar(
         conteudo: bytes,
         nome: str,
@@ -66,20 +70,23 @@ def construir_upload(
             return
         if ao_carregar is not None:
             ao_carregar(tabela, nome)
+        # Com uma planilha na tela, exemplos e modelo só atrapalham a leitura.
+        alternativas.set_visibility(False)
         with area_previa:
-            _conferencia(
-                abas,
-                aba,
-                formato.separador if formato and separador is None else separador,
-                formato,
-                lambda nova_aba: carregar(conteudo, nome, aba=nova_aba),
-                lambda novo_sep: carregar(conteudo, nome, separador=novo_sep),
+            _escolher_aba(
+                abas, aba, lambda nova_aba: carregar(conteudo, nome, aba=nova_aba)
             )
             if tabela is None:
                 # Com várias abas, o seletor continua na tela para trocar de aba.
                 ui.html(f'<div class="ea-aviso">{escape(problema)}</div>')
             else:
                 _mostrar_previa(tabela, nome)
+                if formato is not None:
+                    _linha_formato(
+                        formato,
+                        formato.separador if separador is None else separador,
+                        lambda novo_sep: carregar(conteudo, nome, separador=novo_sep),
+                    )
 
     async def tratar_upload(evento: events.UploadEventArguments) -> None:
         # Na NiceGUI 3.x o arquivo vem em `evento.file`, e `read()` é assíncrono.
@@ -110,7 +117,7 @@ def construir_upload(
     )
 
     # Sem planilha à mão: um rótulo por linha e as ações ao lado, alinhadas.
-    with ui.element("div").classes("ea-alternativas"):
+    with ui.element("div").classes("ea-alternativas") as alternativas:
         ui.label("Exemplos publicados").classes("ea-ler")
         with ui.element("div").classes("ea-acoes"):
             for exemplo in EXEMPLOS.values():
@@ -167,66 +174,79 @@ def _ler(
     return None, candidatas[0], primeiro_erro
 
 
-def _conferencia(
-    abas: list[str],
-    aba: str | None,
-    separador: str | None,
-    formato: FormatoCsv | None,
-    trocar_aba: Callable[[str], None],
-    trocar_separador: Callable[[str], None],
+def _escolher_aba(
+    abas: list[str], aba: str | None, trocar_aba: Callable[[str], None]
 ) -> None:
-    """Passo 2: a aba lida (planilhas) ou o formato detectado (texto)."""
-    if len(abas) > 1:
-        with ui.element("div").classes("ea-controles"):
-            ui.select(
-                abas, value=aba, label="Aba da planilha",
-                on_change=lambda e: trocar_aba(str(e.value)),
-            ).props("dense outlined")
-            ui.html(
-                f'<div class="ea-ler">A planilha tem {len(abas)} abas; os dados '
-                "devem estar numa só, com os nomes das colunas na primeira linha."
-                "</div>"
-            )
-    if formato is not None:
-        decimal, codificacao = formato.decimal, formato.codificacao
-        with ui.element("div").classes("ea-controles"):
-            ui.select(
-                {s: nome for s, nome in SEPARADORES.items()},
-                value=separador,
-                label="Separador de colunas",
-                on_change=lambda e: trocar_separador(str(e.value)),
-            ).props("dense outlined")
-            ui.html(
-                '<div class="ea-ler">Detectado: decimal '
-                f"<b>{'vírgula' if decimal == ',' else 'ponto'}</b>, "
-                f"codificação <b>{escape(codificacao)}</b>. Se as colunas saírem "
-                "grudadas, troque o separador.</div>"
-            )
+    """Passo 2 em planilha com várias abas: qual aba tem os dados (RF-03)."""
+    if len(abas) <= 1:
+        return
+    with ui.element("div").classes("ea-controles"):
+        ui.select(
+            abas,
+            value=aba,
+            label="Aba da planilha",
+            on_change=lambda e: trocar_aba(str(e.value)),
+        ).props("dense outlined")
+        ui.html(
+            f'<div class="ea-ler">A planilha tem {len(abas)} abas; os dados '
+            "devem estar numa só, com os nomes das colunas na primeira linha."
+            "</div>"
+        )
+
+
+def _linha_formato(
+    formato: FormatoCsv, separador: str, trocar_separador: Callable[[str], None]
+) -> None:
+    """Como o arquivo de texto foi lido, numa linha discreta, e o "trocar"."""
+    decimal = "vírgula" if formato.decimal == "," else "ponto"
+    with ui.element("div").classes("ea-formato"):
+        with (
+            ui.button("Trocar separador", icon="swap_horiz")
+            .props("outline dense no-caps")
+            .classes("ea-formato-trocar")
+            .tooltip("Se as colunas saírem grudadas na tabela, troque o separador."),
+            ui.menu(),
+        ):
+            for sep, nome in SEPARADORES.items():
+                ui.menu_item(nome, lambda s=sep: trocar_separador(s)).classes(
+                    "ea-formato-atual" if sep == separador else ""
+                )
+        ui.html(
+            f"Separador <b>{escape(SEPARADORES.get(separador, separador))}</b> · "
+            f"decimal <b>{decimal}</b> · {escape(formato.codificacao)}"
+        ).classes("ea-formato-texto")
 
 
 def _mostrar_previa(tabela: Table, nome: str) -> None:
+    """A tabela, 5 linhas por página, e embaixo o arquivo e o tamanho."""
     total = len(tabela)
-    ui.label(nome).style(f"color:{TINTA};font-weight:600;font-size:1rem;margin-top:0.5rem")
-    ui.label(
-        f"{total} {'ensaio' if total == 1 else 'ensaios'} · "
-        f"{len(tabela.colunas)} {'coluna' if len(tabela.colunas) == 1 else 'colunas'}"
-    ).style(f"color:{VERDE_ESCURO};font-size:0.85rem;font-weight:600")
-
     colunas = [
         {"name": c, "label": c, "field": c, "align": "left"} for c in tabela.colunas
     ]
     linhas = [
-        {c: _celula(tabela, c, i) for c in tabela.colunas}
+        {"_n": i, **{c: _celula(tabela, c, i) for c in tabela.colunas}}
         for i in range(min(total, _LIMITE_PREVIA))
     ]
-    ui.table(columns=colunas, rows=linhas, row_key=tabela.colunas[0]).props(
-        "flat bordered dense"
-    ).classes("ensaia-previa w-full")
+    ui.table(
+        columns=colunas,
+        rows=linhas,
+        row_key="_n",
+        pagination={"rowsPerPage": _LINHAS_POR_PAGINA},
+    ).props(
+        f":rows-per-page-options=[{_LINHAS_POR_PAGINA}] flat bordered dense"
+    ).classes("ensaia-previa ea-previa-dados w-full")
 
+    with ui.element("div").classes("ea-previa-info"):
+        ui.label(nome).classes("ea-previa-nome")
+        ui.label(
+            f"{total} {'ensaio' if total == 1 else 'ensaios'} · "
+            f"{len(tabela.colunas)} "
+            f"{'coluna' if len(tabela.colunas) == 1 else 'colunas'}"
+        ).classes("ea-previa-tamanho")
     if total > _LIMITE_PREVIA:
         ui.label(
-            f"Mostrando as primeiras {_LIMITE_PREVIA} de {total} linhas."
-        ).style(f"color:{CINZA};font-size:0.8rem")
+            f"A prévia mostra as primeiras {_LIMITE_PREVIA} de {total} linhas."
+        ).classes("ea-formato-dica")
 
 
 def _celula(tabela: Table, coluna: str, i: int) -> str:

@@ -15,10 +15,12 @@ canto, e se dissolve no papel por uma máscara (ver `tema.aplicar_tema`).
 
 from __future__ import annotations
 
+from datetime import date
+
 from nicegui import ui
 
 from ensaia.core.table import Table
-from ensaia.ui.ajuda import botao_glossario
+from ensaia.ui.ajuda import botao_glossario, seletor_dicas
 from ensaia.ui.analise import construir_analise
 from ensaia.ui.tema import TINTA, VERDE
 from ensaia.ui.upload import construir_upload
@@ -40,45 +42,50 @@ def construir_home() -> None:
     """Monta os elementos da página inicial."""
     with ui.element("div").classes("ea-page"):
         ui.html(_superficie_svg()).classes("ea-atmosfera")
-        with (
-            ui.element("div").classes("ea-col"),
-            ui.element("div").classes("ea-main"),
-        ):
-            _marca()
-            _headline()
-            _trilha()
-            botao_glossario()
+        with ui.element("div").classes("ea-col"):
+            # Abertura: o que é o EnsaIA à esquerda, os sete passos à direita
+            # (no celular, um embaixo do outro).
+            with ui.element("div").classes("ea-hero"):
+                with ui.element("div").classes("ea-hero-texto"):
+                    _marca()
+                    _headline()
+                _trilha()
+            _conteudo()
 
-            # O container da análise vive abaixo do painel; o upload o preenche
-            # (mapear → analisar → resultados) quando uma planilha é lida.
-            holder: dict[str, ui.column] = {}
 
-            def ao_carregar(tabela: Table | None, nome: str) -> None:
-                destino = holder["analise"]
-                destino.clear()
-                if tabela is not None:
-                    with destino:
-                        construir_analise(tabela, nome)
+def _conteudo() -> None:
+    """Glossário, envio da planilha, análise, privacidade e rodapé."""
+    with ui.element("div").classes("ea-main"):
+        botao_glossario()
 
-            with ui.element("div").classes("ea-painel"):
-                construir_upload(ao_carregar=ao_carregar)
-            holder["analise"] = ui.column().classes("w-full ea-analise")
+        # O container da análise vive abaixo do painel; o upload o preenche
+        # (mapear → analisar → resultados) quando uma planilha é lida.
+        holder: dict[str, ui.column] = {}
 
-            _privacidade()
-            _rodape()
+        def ao_carregar(tabela: Table | None, nome: str) -> None:
+            destino = holder["analise"]
+            destino.clear()
+            if tabela is not None:
+                with destino:
+                    construir_analise(tabela, nome)
+
+        with ui.element("div").classes("ea-painel"):
+            construir_upload(ao_carregar=ao_carregar)
+        holder["analise"] = ui.column().classes("w-full ea-analise")
+
+        _privacidade()
+        _rodape()
 
 
 def _marca() -> None:
+    """O nome como logo e, logo abaixo, como o visitante quer ver as dicas."""
     with ui.column().classes("gap-0"):
         ui.html(
-            f'<div class="ea-marca">'
+            f'<div class="ea-marca" role="img" aria-label="EnsaIA">'
             f'<span style="color:{TINTA}">Ensa</span>'
             f'<span style="color:{VERDE}">IA</span></div>'
         )
-        ui.html(
-            '<div class="ea-colofao">Universidade Federal Rural da Amazônia '
-            "· Trabalho de Conclusão de Curso</div>"
-        )
+        seletor_dicas()
 
 
 def _headline() -> None:
@@ -95,12 +102,12 @@ def _headline() -> None:
 
 def _trilha() -> None:
     itens = "".join(
-        f'<div class="ea-passo"><span class="n">{i}</span>'
+        f'<li class="ea-passo"><span class="n">{i}</span>'
         f'<span><span class="t">{titulo}</span> '
-        f'<span class="d">{detalhe}</span></span></div>'
+        f'<span class="d">{detalhe}</span></span></li>'
         for i, (titulo, detalhe) in enumerate(_PASSOS, start=1)
     )
-    ui.html(f'<div class="ea-passos">{itens}</div>')
+    ui.html(f'<ol class="ea-passos" aria-label="Como funciona">{itens}</ol>')
 
 
 def _privacidade() -> None:
@@ -117,11 +124,12 @@ def _privacidade() -> None:
 
 def _rodape() -> None:
     ui.html(
-        '<div class="ea-rodape">'
-        "<b>EnsaIA</b> · núcleo estatístico offline e reprodutível, "
-        "com uma camada de linguagem que narra o resultado sem recalcular nada."
-        "<br>Gabriel Henrique Lemos de Athayde · Gustavo Neves da Paz Rafael "
-        "· Orientadora: Profa. Dra. Luiza Helena da Silva Martins</div>"
+        '<footer class="ea-rodape">'
+        '<div class="ea-rodape-sobre"><b>EnsaIA</b> analisa experimentos químicos '
+        "planejados (DOE), encontra a melhor condição e explica o resultado em "
+        "linguagem simples.</div>"
+        f'<div class="ea-rodape-direitos">© {date.today().year} EnsaIA · '
+        "Código aberto sob a licença MIT.</div></footer>"
     )
 
 

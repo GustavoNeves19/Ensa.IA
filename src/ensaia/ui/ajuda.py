@@ -11,6 +11,7 @@ como recursos (`ensaia/conteudo/`): a tela e o assistente de IA ensinam igual.
 
 from __future__ import annotations
 
+from html import escape
 from importlib.resources import files
 
 from nicegui import ui
@@ -155,15 +156,118 @@ EXPLICACOES: dict[str, tuple[str, str]] = {
 }
 
 
+# chave → fórmula, para o modo "Dicas em fórmula". Mesma notação em todas:
+# n = ensaios, p = parâmetros do modelo (com o intercepto), e = resíduo.
+FORMULAS: dict[str, str] = {
+    "r2": "R² = 1 − SQres / SQtotal",
+    "r2_ajustado": "R²aj = 1 − (1 − R²) · (n − 1) / (n − p)",
+    "r2_predicao": "R²pred = 1 − PRESS / SQtotal\nPRESS = Σ [eᵢ / (1 − hᵢᵢ)]²",
+    "regressao": "F = MQreg / MQres\n   = [SQreg / (p − 1)] / [SQres / (n − p)]",
+    "falta_ajuste": (
+        "F = MQfaj / MQep\n   = [SQfaj / (m − p)] / [SQep / (n − m)]\n"
+        "m = condições distintas"
+    ),
+    "normalidade": "W = (Σ aᵢ · e₍ᵢ₎)² / Σ (eᵢ − ē)²\ne₍ᵢ₎ = resíduos em ordem",
+    "influentes": (
+        "Dᵢ = rᵢ² · hᵢᵢ / [p · (1 − hᵢᵢ)]\n"
+        "influente: Dᵢ > 1 e hᵢᵢ > 2p / n\noutlier: |tᵢ| > 3"
+    ),
+    "coeficientes": "b = (XᵀX)⁻¹ Xᵀ y\nt = bⱼ / EP(bⱼ)",
+    "pareto": "tⱼ = |bⱼ| / EP(bⱼ)\nsignificativo se tⱼ > t(α/2; gl do resíduo)",
+    "efeitos": "Efeito = ȳ(+1) − ȳ(−1) = 2 · b",
+    "meio_normal": (
+        "s₀ = 1,5 · mediana |cⱼ|\nPSE = 1,5 · mediana { |cⱼ| : |cⱼ| < 2,5 · s₀ }\n"
+        "ME = t(0,975; m/3) · PSE"
+    ),
+    "efeitos_principais": "ȳ(nível) = média de y nos ensaios com o fator nesse nível",
+    "interacao": "Efeito AB = [ȳ(++) − ȳ(−+) − ȳ(+−) + ȳ(−−)] / 2",
+    "equacao": (
+        "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²\nxᵢ = (Xᵢ − centroᵢ) / meia-amplitudeᵢ"
+    ),
+    "anova": "F = MQreg / MQres,  com MQ = SQ / gl",
+    "anova_tipo2": "F(termo) = [SQ(termo | demais termos) / gl] / MQres",
+    "previsto_observado": "ŷᵢ = xᵢᵀ b  contra  yᵢ;  reta y = x",
+    "residuos_previsto": "eᵢ = yᵢ − ŷᵢ  contra  ŷᵢ",
+    "residuos_ordem": "eᵢ = yᵢ − ŷᵢ  na ordem de execução",
+    "qq": "e₍ᵢ₎  contra  z = Φ⁻¹[(i − 3/8) / (n + 1/4)]",
+    "superficie": "ŷ(x₁, x₂), com os demais fatores fixos",
+    "desejabilidade": "D = (d₁^w₁ · d₂^w₂ · … · dₘ^wₘ)^(1 / Σwᵢ)\n0 ≤ dᵢ ≤ 1",
+    "descritiva": "ȳ = Σ yᵢ / n\ns = √[Σ (yᵢ − ȳ)² / (n − 1)]\nCV = 100 · s / ȳ",
+    "matriz": "x = (X − centro) / meia-amplitude",
+}
+
+# Modos de dica escolhidos no seletor da abertura, na ordem do controle.
+MODOS_DICA: tuple[tuple[str, str], ...] = (
+    ("nenhuma", "Sem Dicas"),
+    ("texto", "Dicas em Texto"),
+    ("formula", "Dicas em Fórmula"),
+)
+
+
+def _conteudo_dica(texto: str, formula: str | None) -> None:
+    """O texto e, quando há, a fórmula: o modo escolhido decide qual aparece."""
+    ui.label(texto).classes("ea-dica-txt")
+    if formula:
+        ui.label(formula).classes("ea-dica-form")
+
+
 def ajuda(chave: str) -> None:
     """O "o que é?" ao lado de um título: abre a explicação ao clicar."""
     titulo, texto = EXPLICACOES[chave]
+    formula = FORMULAS.get(chave)
     with (
         ui.button("o que é?").props("flat dense no-caps").classes("ea-ajuda"),
-        ui.menu().props("anchor='bottom left' self='top left'").classes("ea-ajuda-pop"),
+        ui.menu()
+        .props("anchor='bottom left' self='top left'")
+        .classes("ea-ajuda-pop" + (" ea-dica-com-formula" if formula else "")),
     ):
         ui.label(titulo).classes("ea-ajuda-titulo")
-        ui.label(texto).classes("ea-ajuda-texto")
+        with ui.element("div").classes("ea-ajuda-texto"):
+            _conteudo_dica(texto, formula)
+
+
+def dica(texto: str, formula: str | None = None) -> ui.icon:
+    """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco)."""
+    with (
+        ui.icon("lightbulb")
+        .classes("ea-dica")
+        .props(f'tabindex="0" role="img" aria-label="Dica: {escape(texto)}"') as icone,
+        ui.tooltip()
+        .classes("ea-dica-pop" + (" ea-dica-com-formula" if formula else ""))
+        .props('anchor="top middle" self="bottom middle" :offset="[0, 6]"'),
+    ):
+        _conteudo_dica(texto, formula)
+    return icone
+
+
+def seletor_dicas() -> None:
+    """Controle em degraus que escolhe como as dicas aparecem na página.
+
+    O modo vira uma classe no <body> (ea-dicas-nenhuma, -texto ou -formula) e o
+    CSS mostra ou esconde as lâmpadas, os "o que é?" e o texto ou a fórmula de
+    cada dica. Vale só para esta aba do navegador; começa em "Dicas em Texto".
+    """
+    classes = [f"ea-dicas-{modo}" for modo, _ in MODOS_DICA]
+    rotulos = [rotulo for _, rotulo in MODOS_DICA]
+
+    def aplicar(indice: int) -> None:
+        ui.query("body").classes(remove=" ".join(classes), add=classes[indice])
+
+    with ui.element("div").classes("ea-seletor-dicas"):
+        ui.label("Como mostrar as dicas").classes("ea-seletor-titulo")
+        nomes = ", ".join(f"'{r}'" for r in rotulos)
+        ui.slider(
+            min=0,
+            max=len(MODOS_DICA) - 1,
+            step=1,
+            value=1,
+            on_change=lambda e: aplicar(int(e.value)),
+        ).props(
+            f"markers snap color=primary "
+            f':marker-labels="v => [{nomes}][v]" '
+            f'aria-label="Como mostrar as dicas"'
+        ).classes("ea-seletor-slider")
+    aplicar(1)
 
 
 def titulo_com_ajuda(texto: str, chave: str, classe: str = "ea-grafico-titulo") -> None:

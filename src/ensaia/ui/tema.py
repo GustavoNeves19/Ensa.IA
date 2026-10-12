@@ -7,10 +7,13 @@ Trabalhamos sobre esses três, acrescidos de um verde-mata profundo derivado
 (para profundidade e ações) e de um papel quente levemente oliva como fundo —
 nada do cinza neutro dos UI kits nem do creme genérico.
 
-A fonte de assinatura é a **Sentient** (Indian Type Foundry, licença livre
-Fontshare), uma serifada editorial com caráter — carrega a marca e os títulos.
-O corpo fica num neutro de sistema, que sabe se calar. Os arquivos da fonte e a
-licença vivem em `ui/static/fonts/`.
+As fontes são da família **IBM Plex** (IBM, licença SIL OFL 1.1), desenhada
+para contexto técnico: a **Plex Serif** carrega a marca e os títulos, a **Plex
+Sans** o corpo, as tabelas e as fórmulas. Entram os recortes oficiais da IBM
+por alfabeto (`unicode-range`): o português cabe no Latin1, e o grego e os
+símbolos só são baixados quando aparecem (nas fórmulas). Os subscritos das
+fórmulas (eᵢ, hᵢᵢ, Xᵀ) não existem no Plex; vêm de um recorte mínimo da Noto
+Sans (OFL), o "EnsaIA Simbolos". Arquivos e licenças em `ui/static/fonts/`.
 
 Trocar a marca inteira é mexer só neste arquivo: as cores entram no tema do
 Quasar via `ui.colors` e todo o resto (fonte, fundo, atmosfera) via o CSS
@@ -60,21 +63,59 @@ with contextlib.suppress(Exception):
 _GRAO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/></svg>"  # noqa: E501
 
 
+# Recortes oficiais do IBM Plex (fonts/split da IBM) e os intervalos Unicode de
+# cada um, copiados do CSS que a própria IBM publica junto dos arquivos.
+_LATIN1 = (
+    "U+0000, U+000D, U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, "
+    "U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, "
+    "U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02"
+)
+_GREGO = "U+037E, U+0386-038A, U+038C, U+038E-03A1, U+03A3-03CE"
+_PI = (
+    "U+0E3F, U+2000-200D, U+2015, U+2028-2029, U+202F, U+2032-2033, U+2070, "
+    "U+2074-2079, U+2080-2089, U+2113, U+2116, U+2126, U+212E, U+2150-2151, "
+    "U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, "
+    "U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+2215, "
+    "U+221A, U+221E, U+222B, U+2248, U+2260, U+2264-2265, U+25CA, U+2713, "
+    "U+274C, U+2B0E-2B11, U+FEFF, U+FFFD"
+)
+# (família, arquivo, peso, estilo, intervalo)
+_ARQUIVOS_FONTE: tuple[tuple[str, str, int, str, str], ...] = (
+    ("IBM Plex Serif", "IBMPlexSerif-Medium-Latin1", 500, "normal", _LATIN1),
+    ("IBM Plex Serif", "IBMPlexSerif-SemiBold-Latin1", 600, "normal", _LATIN1),
+    ("IBM Plex Serif", "IBMPlexSerif-MediumItalic-Latin1", 500, "italic", _LATIN1),
+    ("IBM Plex Sans", "IBMPlexSans-Regular-Latin1", 400, "normal", _LATIN1),
+    ("IBM Plex Sans", "IBMPlexSans-Regular-Greek", 400, "normal", _GREGO),
+    ("IBM Plex Sans", "IBMPlexSans-Regular-Pi", 400, "normal", _PI),
+    ("IBM Plex Sans", "IBMPlexSans-SemiBold-Latin1", 600, "normal", _LATIN1),
+    (
+        "EnsaIA Simbolos",
+        "EnsaIA-Simbolos",
+        400,
+        "normal",
+        "U+0233, U+0304, U+1D2C-1D6A, U+2070-209F, U+2C7C",
+    ),
+)
+
+
+def _fontes() -> str:
+    """Os @font-face de cada recorte, servidos da pasta estática do pacote."""
+    return "\n".join(
+        f"""    @font-face {{
+      font-family: '{familia}';
+      src: url('/ensaia-static/fonts/{arquivo}.woff2') format('woff2');
+      font-weight: {peso}; font-style: {estilo}; font-display: swap;
+      unicode-range: {intervalo};
+    }}"""
+        for familia, arquivo, peso, estilo, intervalo in _ARQUIVOS_FONTE
+    )
+
+
 def _css() -> str:
     """Folha de estilo da marca: fontes, atmosfera, grão e o uploader."""
     return f"""
     <style>
-    /* Sentient — serifada de assinatura, variável (peso 200–800), self-hosted. */
-    @font-face {{
-      font-family: 'Sentient';
-      src: url('/ensaia-static/fonts/Sentient-Variable.woff2') format('woff2');
-      font-weight: 200 800; font-style: normal; font-display: swap;
-    }}
-    @font-face {{
-      font-family: 'Sentient';
-      src: url('/ensaia-static/fonts/Sentient-VariableItalic.woff2') format('woff2');
-      font-weight: 200 800; font-style: italic; font-display: swap;
-    }}
+{_fontes()}
 
     :root {{
       --tinta: {TINTA};
@@ -86,9 +127,9 @@ def _css() -> str:
       --papel: {PAPEL};
       --papel-alto: {PAPEL_ALTO};
       --linha: {LINHA};
-      --fonte-titulo: 'Sentient', Georgia, 'Times New Roman', serif;
-      --fonte-corpo: system-ui, -apple-system, 'Segoe UI', Roboto,
-        Helvetica, Arial, sans-serif;
+      --fonte-titulo: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+      --fonte-corpo: 'IBM Plex Sans', 'EnsaIA Simbolos', system-ui, -apple-system,
+        'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }}
 
     /* O corpo fala o neutro de sistema; o fundo é papel quente com um grão
@@ -169,22 +210,51 @@ def _css() -> str:
 
     /* Marca e títulos. */
     .ea-marca {{ font-family: var(--fonte-titulo); font-weight: 600;
-      font-size: clamp(2.6rem, 7vw, 3.4rem); line-height: 1;
+      font-size: clamp(3.6rem, 12vw, 5.4rem); line-height: .95;
       letter-spacing: -0.015em; }}
-    .ea-colofao {{ color: var(--cinza); font-size: .82rem; margin-top: .55rem; }}
+
+    /* Seletor de dicas, logo abaixo da marca: três degraus com os nomes embaixo.
+       A folga lateral evita que o primeiro e o último nome saiam da caixa. */
+    .ea-seletor-dicas {{ margin-top: 1.1rem; width: min(100%, 380px); }}
+    .ea-seletor-titulo {{ color: var(--cinza); font-size: .78rem; font-weight: 600;
+      letter-spacing: .02em; }}
+    .ea-seletor-slider {{ padding: 0 2.6rem; margin-top: .2rem; }}
+    .ea-seletor-slider .q-slider__marker-labels {{ font-size: .78rem;
+      color: var(--tinta); white-space: nowrap; }}
     .ea-headline {{ font-family: var(--fonte-titulo); font-weight: 500;
       font-size: clamp(1.9rem, 5vw, 2.85rem); line-height: 1.14;
-      color: var(--tinta); max-width: 19ch; }}
+      color: var(--tinta); max-width: 23ch; }}
     .ea-sub {{ color: var(--cinza); font-size: 1.02rem; line-height: 1.55;
       max-width: 36rem; }}
 
+    /* Abertura: texto à esquerda, os sete passos à direita. No celular, a
+       lista desce para baixo do texto. */
+    .ea-hero {{ display: grid; align-items: start;
+      grid-template-columns: minmax(0, 620px) minmax(220px, 270px);
+      justify-content: space-between; gap: 2rem 3rem;
+      margin-bottom: clamp(1.9rem, 4vw, 2.7rem); }}
+    .ea-hero-texto {{ display: flex; flex-direction: column; min-width: 0;
+      gap: clamp(1.9rem, 4vw, 2.7rem); }}
+    @media (max-width: 860px) {{
+      .ea-hero {{ grid-template-columns: minmax(0, 1fr); }}
+    }}
+
     /* Trilha dos sete passos — sem trilho nem seta; a ordem é a numeração. */
-    .ea-passos {{ display: flex; flex-wrap: wrap; gap: 1rem 1.7rem; }}
-    .ea-passo {{ display: flex; align-items: baseline; gap: .5rem; }}
-    .ea-passo .n {{ color: var(--oliva-escuro); font-weight: 700; font-size: .78rem;
-      font-variant-numeric: tabular-nums; min-width: .95rem; }}
+    .ea-passos {{ list-style: none; margin: 0; padding: .45rem 0 0;
+      display: flex; flex-direction: column; gap: .95rem;
+      /* As curvas de nível do canto passam por trás da lista: um véu do papel,
+         de borda esfumada, apaga as linhas sob o texto sem desenhar caixa. */
+      background: rgba(243,242,234,.88); border-radius: 18px;
+      box-shadow: 0 0 22px 20px rgba(243,242,234,.88); }}
+    .ea-passo {{ display: flex; align-items: baseline; gap: .75rem; }}
+    .ea-passo .n {{ color: var(--oliva-escuro); font-weight: 600; font-size: 1.1rem;
+      font-variant-numeric: tabular-nums; min-width: .8rem; }}
     .ea-passo .t {{ color: var(--tinta); font-weight: 600; font-size: .95rem; }}
-    .ea-passo .d {{ color: var(--cinza); font-size: .78rem; }}
+    .ea-passo .d {{ color: var(--tinta); font-size: .92rem; }}
+    @media (max-width: 860px) {{
+      .ea-passos {{ padding: 0; gap: .6rem; background: none; box-shadow: none; }}
+      .ea-passo .n {{ font-size: 1rem; }}
+    }}
 
     /* Painel do envio: superfície elevada por tom (não por contraste de linha),
        sombra curta e direcional tingida de verde, e UM canto chanfrado (geometria
@@ -217,6 +287,7 @@ def _css() -> str:
       border-top: 1px solid var(--linha); color: var(--cinza);
       font-size: .8rem; line-height: 1.5; max-width: 620px; }}
     .ea-rodape b {{ color: var(--tinta); font-weight: 600; }}
+    .ea-rodape-direitos {{ margin-top: .45rem; font-size: .75rem; }}
 
     /* --- Fluxo de análise: mapear → analisar → resultados → relatório -------- */
     /* Itens flexíveis crescem até o conteúdo por padrão (min-width: auto): uma
@@ -236,12 +307,116 @@ def _css() -> str:
     .ea-secao-sub {{ color: var(--cinza); font-size: .9rem; line-height: 1.5; }}
     .ea-secao-sub b {{ color: var(--tinta); font-weight: 600; }}
 
-    .ea-mapear {{ display: flex; flex-direction: column; gap: .7rem; }}
+    .ea-mapear {{ display: flex; flex-direction: column; gap: .7rem;
+      width: 100%; }}
     .ea-mapa-grade {{ display: grid; gap: .7rem 1rem;
       grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); }}
     .ea-mapa-item {{ display: flex; flex-direction: column; gap: .25rem; }}
     .ea-col-nome {{ font-weight: 600; font-size: .85rem; color: var(--tinta);
       overflow-wrap: anywhere; }}
+
+    /* Mapear colunas por arrastar e soltar: dois grupos principais (resposta e
+       fator) e, abaixo, dois menores (ordem e não usar). */
+    .ea-quadro {{ display: grid; gap: .8rem 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }}
+    .ea-zona {{ display: flex; flex-direction: column; gap: .55rem;
+      padding: .8rem .85rem; min-height: 9.5rem;
+      background: rgba(29,29,27,.035);
+      border: 1px solid rgba(29,29,27,.16); border-radius: 13px;
+      transition: background .12s, border-color .12s; }}
+    /* Lâmpada de dica: discreta até o mouse (ou o foco) chegar nela. */
+    .ea-dica {{ color: var(--oliva); opacity: .55; font-size: 1.05rem;
+      cursor: help; align-self: center; transition: opacity .12s; }}
+    .ea-dica:hover, .ea-dica:focus-visible {{ opacity: 1; outline: none; }}
+    .ea-dica-pop {{ background: var(--tinta); color: var(--papel);
+      font-size: .8rem; line-height: 1.45; max-width: 260px;
+      padding: .5rem .7rem; border-radius: 8px; }}
+    /* Modos de dica (classe no body, escolhida no seletor da abertura). */
+    body.ea-dicas-nenhuma .ea-dica,
+    body.ea-dicas-nenhuma .ea-ajuda {{ display: none !important; }}
+    .ea-dica-form {{ display: none; }}
+    body.ea-dicas-formula .ea-dica-com-formula .ea-dica-txt {{ display: none; }}
+    body.ea-dicas-formula .ea-dica-com-formula .ea-dica-form {{ display: block; }}
+    .ea-dica-form {{ white-space: pre-line; font-size: .86rem; line-height: 1.6;
+      font-family: var(--fonte-corpo); font-variant-numeric: tabular-nums; }}
+    .ea-ajuda-pop .ea-dica-form {{ color: var(--tinta); }}
+    body.ea-dicas-formula .ea-dica-pop.ea-dica-com-formula {{ max-width: 380px; }}
+    .ea-zona-menor {{ min-height: 0; padding: .6rem .85rem; }}
+    .ea-zona-alvo {{ background: rgba(64,165,81,.10); border-color: var(--verde); }}
+    .ea-zona-topo {{ display: flex; align-items: center; gap: .4rem; }}
+    .ea-zona-titulo {{ font-weight: 600; font-size: .92rem; color: var(--tinta); }}
+    .ea-zona-menor .ea-zona-titulo {{ font-size: .84rem; color: var(--cinza); }}
+    .ea-zona-lista {{ display: flex; flex-direction: column; gap: .45rem;
+      flex: 1; }}
+    .ea-zona-menor .ea-zona-lista {{ flex-direction: row; flex-wrap: wrap; }}
+    /* Grupo vazio: um espaço tracejado onde a coluna cabe, com o aviso no meio. */
+    .ea-zona-vazia {{ flex: 1; width: 100%; display: flex; align-items: center;
+      justify-content: center; min-height: 2.6rem; padding: .5rem;
+      border: 1.5px dashed rgba(29,29,27,.22); border-radius: 9px;
+      color: var(--cinza); font-size: .85rem; text-align: center; }}
+    .ea-cartao {{ display: flex; align-items: center; gap: .45rem;
+      padding: .45rem .7rem .45rem .45rem; min-width: 0;
+      background: rgba(29,29,27,.06); border: 1px solid rgba(29,29,27,.22);
+      border-radius: 9px; cursor: grab; user-select: none;
+      color: var(--tinta); font-size: .9rem; }}
+    .ea-cartao:hover {{ background: rgba(29,29,27,.09); }}
+    .ea-cartao:focus-visible {{ outline: 2px solid var(--verde);
+      outline-offset: 2px; }}
+    .ea-cartao:active {{ cursor: grabbing; }}
+    .ea-arrastando {{ opacity: .45; }}
+    .ea-cartao-alca {{ color: var(--cinza); font-size: 1.15rem; flex-shrink: 0; }}
+    .ea-cartao-nome {{ overflow-wrap: anywhere; min-width: 0; }}
+    .ea-cartao-fixo {{ cursor: default; opacity: .7; background: transparent; }}
+    .ea-cartao-fixo:hover {{ background: transparent; }}
+    /* Análises: título de seção e uma etapa por dropdown, com os cartões. */
+    .ea-analises {{ display: flex; flex-direction: column; gap: .55rem;
+      width: 100%; }}
+    .ea-etapa {{ border: 1px solid rgba(29,29,27,.14); border-radius: 12px;
+      background: transparent; }}
+    .ea-etapa .q-expansion-item__container > .q-item {{ padding: .55rem .8rem;
+      border-radius: 12px; min-height: 0; }}
+    .ea-etapa .q-focus-helper {{ display: none; }}
+    .ea-etapa .q-expansion-item__content {{ display: flex; flex-direction: column;
+      gap: .75rem; padding: .2rem .85rem .85rem; }}
+    .ea-etapa-cabeca {{ display: flex; align-items: center; gap: .7rem;
+      flex: 1; min-width: 0; }}
+    .ea-etapa-num {{ width: 1.6rem; height: 1.6rem; border-radius: 50%;
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 700; color: var(--papel);
+      background: var(--verde-escuro); }}
+    .ea-etapa-textos {{ display: flex; flex-direction: column; min-width: 0;
+      flex: 1; }}
+    .ea-etapa-nome {{ font-weight: 600; font-size: .95rem; color: var(--tinta); }}
+    .ea-etapa-pergunta {{ font-size: .82rem; color: var(--cinza); }}
+    .ea-etapa-conta {{ flex-shrink: 0; font-size: .75rem; color: var(--cinza);
+      font-variant-numeric: tabular-nums; }}
+    .ea-analise-grade {{ display: grid; gap: .6rem; width: 100%;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }}
+    .ea-analise-cartao {{ display: flex; flex-direction: column; gap: .3rem;
+      padding: .7rem .8rem; border-radius: 11px; cursor: pointer;
+      border: 1px solid rgba(29,29,27,.16); background: transparent;
+      user-select: none; transition: background .12s, border-color .12s; }}
+    .ea-analise-cartao:focus-visible {{ outline: 2px solid var(--verde);
+      outline-offset: 2px; }}
+    .ea-analise-on {{ border-color: rgba(46,133,64,.55);
+      background: rgba(64,165,81,.08); }}
+    .ea-analise-off:hover {{ background: rgba(29,29,27,.04); }}
+    .ea-analise-na {{ cursor: default; opacity: .62; background: transparent;
+      border-style: dashed; }}
+    .ea-analise-topo {{ display: flex; align-items: flex-start; gap: .4rem; }}
+    .ea-analise-nome {{ font-weight: 600; font-size: .9rem; color: var(--tinta); }}
+    /* A lâmpada vai para o canto superior direito do cartão. */
+    .ea-analise-topo .ea-dica {{ margin-left: auto; flex-shrink: 0;
+      align-self: flex-start; margin-top: .1rem; }}
+    /* Embaixo dos cartões, à esquerda: incluir ou tirar todas da etapa. */
+    .ea-etapa-todas.q-btn {{ align-self: flex-start; border-radius: 9px;
+      color: var(--verde-escuro); font-size: .8rem; font-weight: 600;
+      padding: .15rem .7rem; }}
+    .ea-analise-texto {{ font-size: .82rem; color: var(--cinza); line-height: 1.45; }}
+    .ea-analise-motivo {{ font-size: .78rem; color: var(--oliva-escuro);
+      line-height: 1.4; }}
+    .ea-cartao-menu-titulo {{ font-size: .75rem; font-weight: 600;
+      color: var(--cinza); padding: .5rem 1rem .2rem; }}
 
     /* Um primário cheio (verde-mata) e uma ação secundária discreta em texto —
        nunca o par cheio+contorno. Sem salto no hover, só mudança de tom. */
@@ -310,6 +485,25 @@ def _css() -> str:
       gap: .55rem; padding: .35rem 0 .6rem; }}
     .ea-ajustar {{ margin: .2rem 0 .4rem; }}
     /* Exemplos e planilha-modelo abaixo da dropzone: rótulo e ações lado a lado. */
+    /* Prévia dos dados: 5 linhas por página, sem o seletor de linhas por página;
+       embaixo, o arquivo e o tamanho e, discreta, a linha de como foi lido. */
+    .ea-previa-dados .q-table__bottom .q-table__select {{ display: none; }}
+    .ea-previa-info {{ display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: .1rem .7rem; margin-top: .1rem; }}
+    .ea-previa-nome {{ color: var(--tinta); font-weight: 600; font-size: .95rem;
+      overflow-wrap: anywhere; }}
+    .ea-previa-tamanho {{ color: var(--verde-escuro); font-weight: 600;
+      font-size: .85rem; }}
+    .ea-formato {{ display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: space-between; gap: .4rem .8rem; width: 100%;
+      color: var(--cinza); font-size: .8rem; }}
+    .ea-formato b {{ color: var(--tinta); font-weight: 600; }}
+    .ea-formato-texto {{ margin-left: auto; text-align: right; }}
+    .ea-formato-trocar.q-btn {{ border-radius: 9px;
+      color: var(--verde-escuro); font-size: .8rem; font-weight: 600;
+      padding: .15rem .7rem; }}
+    .ea-formato-atual {{ font-weight: 700; color: var(--verde-escuro); }}
+    .ea-formato-dica {{ color: var(--cinza); font-size: .78rem; }}
     .ea-alternativas {{ display: grid; grid-template-columns: auto 1fr;
       gap: .15rem 1.1rem; align-items: baseline; margin-top: .3rem; }}
     .ea-alternativas .ea-acoes {{ gap: 0 1.1rem; }}
