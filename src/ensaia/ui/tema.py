@@ -408,6 +408,16 @@ def _css() -> str:
     /* A lâmpada vai para o canto superior direito do cartão. */
     .ea-analise-topo .ea-dica {{ margin-left: auto; flex-shrink: 0;
       align-self: flex-start; margin-top: .1rem; }}
+    /* Opções do modelo: o mesmo card recolhível das etapas, com um ícone no
+       lugar do número e a escolha atual no subtítulo. Os cartões de opção não
+       são clicáveis: o controle fica dentro deles. */
+    .ea-opcoes-modelo .ea-etapa-num {{ font-size: 1rem; }}
+    .ea-opcao-cartao {{ display: flex; flex-direction: column; gap: .45rem;
+      padding: .7rem .8rem; border-radius: 11px;
+      border: 1px solid rgba(29,29,27,.16); background: var(--papel-alto); }}
+    .ea-opcao-larga {{ grid-column: 1 / -1; }}
+    .ea-opcao-cartao .ea-forma {{ align-self: flex-start; flex-wrap: wrap; }}
+    .ea-opcao-cartao .q-toggle__label {{ font-size: .88rem; color: var(--tinta); }}
     /* Embaixo dos cartões, à esquerda: incluir ou tirar todas da etapa. */
     .ea-etapa-todas.q-btn {{ align-self: flex-start; border-radius: 9px;
       color: var(--verde-escuro); font-size: .8rem; font-weight: 600;

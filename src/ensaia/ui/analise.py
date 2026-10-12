@@ -110,12 +110,6 @@ _GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
 # não um texto qualquer arrastado de outra janela.
 _ARRASTO = "ensaia-coluna:"
 
-_MODELOS = {
-    "auto": "Automático (pelo planejamento)",
-    "linear": "Linear",
-    "interacoes": "Com interações",
-    "quadratico": "Quadrático",
-}
 
 
 @dataclass
@@ -341,32 +335,133 @@ class _QuadroMapeamento:
                     ui.menu_item(titulo, lambda p=papel: self.mapa.mover(coluna, p))
 
 
+_MODELOS = {
+    "auto": "Automático",
+    "linear": "Linear",
+    "interacoes": "Com interações",
+    "quadratico": "Quadrático",
+}
+_TERMOS_ERRO = {"residuo": "Resíduo", "erro_puro": "Erro puro"}
+_ALFAS = {0.05: "α = 0,05", 0.10: "α = 0,10"}
+_PROPS_TOGGLE = (
+    "no-caps unelevated dense color=white text-color=primary "
+    "toggle-color=primary toggle-text-color=white"
+)
+
+# Cada opção do modelo: (título, o que é, dica em texto, dica em fórmula).
+_OPCOES_MODELO: dict[str, tuple[str, str, str, str]] = {
+    "tipo_modelo": (
+        "Termos do modelo",
+        "Quais efeitos entram na equação.",
+        "Linear: só o efeito de cada fator. Com interações: soma o efeito "
+        "combinado de pares de fatores. Quadrático: soma também a curvatura. "
+        "Automático escolhe pelo planejamento: quadrático quando todos os fatores "
+        "têm 3 ou mais níveis (Box-Behnken, composto central), com interações nos "
+        "fatoriais de 2 níveis.",
+        "Linear: ŷ = b₀ + Σ bᵢxᵢ\n"
+        "Com interações: + Σ bᵢⱼxᵢxⱼ\n"
+        "Quadrático: + Σ bᵢᵢxᵢ²",
+    ),
+    "termo_erro": (
+        "Termo de erro",
+        "Com que erro os efeitos são testados.",
+        "Resíduo: o que o modelo não explica (padrão do Minitab). Erro puro: só a "
+        "variação entre réplicas, como os pontos centrais (comum no Statistica e "
+        "em artigos brasileiros). Para reproduzir um artigo, use o mesmo que ele. "
+        "Sem réplicas, o EnsaIA usa o resíduo e avisa.",
+        "Resíduo: MQres = SQres / (n − p)\n"
+        "Erro puro: MQep = SQep / (n − m)\n"
+        "F = MQtermo / MQerro",
+    ),
+    "alfa": (
+        "Nível de significância",
+        "Abaixo de qual p-valor um efeito conta.",
+        "0,05 é o usual. 0,10 é mais tolerante, comum em triagem com poucos "
+        "ensaios, quando perder um fator importante custa mais que incluir um a "
+        "mais.",
+        "significativo se p < α\nt crítico = t(α/2; gl do erro)",
+    ),
+    "reduzir": (
+        "Simplificar o modelo",
+        "Tira os termos que não passam em α.",
+        "Remove, um de cada vez, o termo não significativo de maior p-valor e "
+        "reajusta, até sobrarem só termos significativos. O termo de um fator que "
+        "ainda está numa interação ou num quadrático não sai (hierarquia).",
+        "enquanto o maior p ≥ α:\n  remove esse termo (respeitando a hierarquia)\n"
+        "  e reajusta o modelo",
+    ),
+}
+
+
+def _resumo_opcoes(opcoes: _Opcoes) -> str:
+    """A escolha atual numa linha, para o cabeçalho recolhido."""
+    partes = [
+        f"Modelo {_MODELOS[opcoes.tipo_modelo].lower()}",
+        _TERMOS_ERRO[opcoes.termo_erro].lower(),
+        _ALFAS[opcoes.alfa],
+    ]
+    if opcoes.reduzir:
+        partes.append("simplificado")
+    return " · ".join(partes)
+
+
 def _painel_opcoes(opcoes: _Opcoes) -> None:
-    """Opções avançadas, recolhidas: o padrão já serve a quem está começando."""
-    with ui.expansion("Opções do modelo").classes("ea-opcoes w-full").props(
-        "dense switch-toggle-side"
+    """Opções do modelo, recolhidas como as etapas das análises.
+
+    O padrão já serve a quem está começando; o cabeçalho mostra a escolha atual,
+    e cada opção é um cartão com o que ela faz e a dica (texto ou fórmula).
+    """
+    painel = ui.expansion().classes("ea-etapa ea-opcoes-modelo w-full").props(
+        "dense"
+    )
+    with (
+        painel.add_slot("header"),
+        ui.element("div").classes("ea-etapa-cabeca"),
     ):
-        with ui.element("div").classes("ea-controles"):
-            ui.select(_MODELOS, label="Modelo").props("dense outlined").bind_value(
-                opcoes, "tipo_modelo"
-            )
-            ui.toggle({"residuo": "Resíduo", "erro_puro": "Erro puro"}).props(
-                "no-caps unelevated dense color=white text-color=primary "
-                "toggle-color=primary toggle-text-color=white"
-            ).classes("ea-forma").bind_value(opcoes, "termo_erro")
-            ui.toggle({0.05: "α = 0,05", 0.10: "α = 0,10"}).props(
-                "no-caps unelevated dense color=white text-color=primary "
-                "toggle-color=primary toggle-text-color=white"
-            ).classes("ea-forma").bind_value(opcoes, "alfa")
-        ui.checkbox("Remover termos não significativos e reajustar").bind_value(
-            opcoes, "reduzir"
-        )
-        ui.html(
-            '<div class="ea-ler">Para reproduzir um artigo, use o mesmo termo de '
-            "erro dele: o Minitab costuma usar o <b>resíduo</b>; o Statistica e "
-            "muitos artigos brasileiros, o <b>erro puro</b> (exige réplicas, "
-            "como os pontos centrais).</div>"
-        )
+        ui.icon("tune").classes("ea-etapa-num")
+        with ui.element("div").classes("ea-etapa-textos"):
+            ui.label("Opções do modelo").classes("ea-etapa-nome")
+            resumo = ui.label(_resumo_opcoes(opcoes)).classes("ea-etapa-pergunta")
+
+    def atualizar() -> None:
+        resumo.set_text(_resumo_opcoes(opcoes))
+
+    with painel:
+        ui.label(
+            "O padrão serve para a maioria dos casos; mude só se precisar."
+        ).classes("ea-ler")
+        with ui.element("div").classes("ea-analise-grade"):
+            with _cartao_opcao("tipo_modelo", largo=True):
+                ui.toggle(_MODELOS, on_change=lambda _: atualizar()).props(
+                    _PROPS_TOGGLE
+                ).classes("ea-forma").bind_value(opcoes, "tipo_modelo")
+            with _cartao_opcao("termo_erro"):
+                ui.toggle(_TERMOS_ERRO, on_change=lambda _: atualizar()).props(
+                    _PROPS_TOGGLE
+                ).classes("ea-forma").bind_value(opcoes, "termo_erro")
+            with _cartao_opcao("alfa"):
+                ui.toggle(_ALFAS, on_change=lambda _: atualizar()).props(
+                    _PROPS_TOGGLE
+                ).classes("ea-forma").bind_value(opcoes, "alfa")
+            with _cartao_opcao("reduzir", largo=True):
+                ui.switch(
+                    "Remover termos não significativos e reajustar",
+                    on_change=lambda _: atualizar(),
+                ).props("dense color=primary").bind_value(opcoes, "reduzir")
+
+
+def _cartao_opcao(chave: str, *, largo: bool = False) -> ui.element:
+    """Um cartão de opção: título, dica no canto, o que faz e (dentro) o controle."""
+    titulo, faz, texto, formula = _OPCOES_MODELO[chave]
+    cartao = ui.element("div").classes(
+        "ea-opcao-cartao" + (" ea-opcao-larga" if largo else "")
+    )
+    with cartao:
+        with ui.element("div").classes("ea-analise-topo"):
+            ui.label(titulo).classes("ea-analise-nome")
+            dica(texto, formula)
+        ui.label(faz).classes("ea-analise-texto")
+    return cartao
 
 
 def _rodar_analise(
