@@ -169,9 +169,17 @@ def _css() -> str:
 
     /* Marca e títulos. */
     .ea-marca {{ font-family: var(--fonte-titulo); font-weight: 600;
-      font-size: clamp(2.6rem, 7vw, 3.4rem); line-height: 1;
+      font-size: clamp(3.6rem, 12vw, 5.4rem); line-height: .95;
       letter-spacing: -0.015em; }}
-    .ea-colofao {{ color: var(--cinza); font-size: .82rem; margin-top: .55rem; }}
+
+    /* Seletor de dicas, logo abaixo da marca: três degraus com os nomes embaixo.
+       A folga lateral evita que o primeiro e o último nome saiam da caixa. */
+    .ea-seletor-dicas {{ margin-top: 1.1rem; width: min(100%, 380px); }}
+    .ea-seletor-titulo {{ color: var(--cinza); font-size: .78rem; font-weight: 600;
+      letter-spacing: .02em; }}
+    .ea-seletor-slider {{ padding: 0 2.6rem; margin-top: .2rem; }}
+    .ea-seletor-slider .q-slider__marker-labels {{ font-size: .78rem;
+      color: var(--tinta); white-space: nowrap; }}
     .ea-headline {{ font-family: var(--fonte-titulo); font-weight: 500;
       font-size: clamp(1.9rem, 5vw, 2.85rem); line-height: 1.14;
       color: var(--tinta); max-width: 19ch; }}
@@ -282,6 +290,16 @@ def _css() -> str:
     .ea-dica-pop {{ background: var(--tinta); color: var(--papel);
       font-size: .8rem; line-height: 1.45; max-width: 260px;
       padding: .5rem .7rem; border-radius: 8px; }}
+    /* Modos de dica (classe no body, escolhida no seletor da abertura). */
+    body.ea-dicas-nenhuma .ea-dica,
+    body.ea-dicas-nenhuma .ea-ajuda {{ display: none !important; }}
+    .ea-dica-form {{ display: none; }}
+    body.ea-dicas-formula .ea-dica-com-formula .ea-dica-txt {{ display: none; }}
+    body.ea-dicas-formula .ea-dica-com-formula .ea-dica-form {{ display: block; }}
+    .ea-dica-form {{ white-space: pre-line; font-size: .86rem; line-height: 1.6;
+      font-family: 'Cambria Math', 'STIX Two Math', 'Times New Roman', serif; }}
+    .ea-ajuda-pop .ea-dica-form {{ color: var(--tinta); }}
+    body.ea-dicas-formula .ea-dica-pop.ea-dica-com-formula {{ max-width: 380px; }}
     .ea-zona-menor {{ min-height: 0; padding: .6rem .85rem; }}
     .ea-zona-alvo {{ background: rgba(64,165,81,.10); border-color: var(--verde); }}
     .ea-zona-topo {{ display: flex; justify-content: space-between;

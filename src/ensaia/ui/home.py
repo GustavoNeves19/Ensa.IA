@@ -20,7 +20,7 @@ from datetime import date
 from nicegui import ui
 
 from ensaia.core.table import Table
-from ensaia.ui.ajuda import botao_glossario
+from ensaia.ui.ajuda import botao_glossario, seletor_dicas
 from ensaia.ui.analise import construir_analise
 from ensaia.ui.tema import TINTA, VERDE
 from ensaia.ui.upload import construir_upload
@@ -78,16 +78,14 @@ def _conteudo() -> None:
 
 
 def _marca() -> None:
+    """O nome como logo e, logo abaixo, como o visitante quer ver as dicas."""
     with ui.column().classes("gap-0"):
         ui.html(
-            f'<div class="ea-marca">'
+            f'<div class="ea-marca" role="img" aria-label="EnsaIA">'
             f'<span style="color:{TINTA}">Ensa</span>'
             f'<span style="color:{VERDE}">IA</span></div>'
         )
-        ui.html(
-            '<div class="ea-colofao">Universidade Federal Rural da Amazônia '
-            "· Trabalho de Conclusão de Curso</div>"
-        )
+        seletor_dicas()
 
 
 def _headline() -> None:

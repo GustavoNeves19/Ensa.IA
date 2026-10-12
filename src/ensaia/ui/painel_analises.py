@@ -20,7 +20,7 @@ from nicegui import ui
 from ensaia.core.catalogo import CATALOGO, disponibilidade
 from ensaia.core.fluxo import Papel
 from ensaia.core.table import Table
-from ensaia.ui.ajuda import dica
+from ensaia.ui.ajuda import FORMULAS, dica
 
 
 class FonteMapeamento(Protocol):
@@ -179,6 +179,37 @@ GUIA: dict[str, tuple[str, str]] = {
 }
 
 
+# Cada análise → a fórmula do modo "Dicas em fórmula". Onde a análise é uma
+# métrica que aparece nos resultados, a fórmula é a mesma do "o que é?".
+FORMULA_ANALISE: dict[str, str] = {
+    "A1": FORMULAS["descritiva"],
+    "A2": (
+        "Fatorial: níveis ±1;  centro: 0\nComposto central rotacional: α = (2ᵏ)^(1/4)"
+    ),
+    "A3": FORMULAS["matriz"],
+    "B1": FORMULAS["efeitos"],
+    "B2": FORMULAS["pareto"],
+    "B3": FORMULAS["meio_normal"],
+    "B4": FORMULAS["efeitos_principais"] + "\n" + FORMULAS["interacao"],
+    "B5": "SQcurv = n_F · n_C · (ȳ_F − ȳ_C)² / (n_F + n_C)\nF = vértices;  C = centro",
+    "C1": FORMULAS["coeficientes"],
+    "C2": FORMULAS["regressao"],
+    "C3": "\n".join(FORMULAS[c] for c in ("r2", "r2_ajustado", "r2_predicao")),
+    "C4": FORMULAS["falta_ajuste"],
+    "C5": FORMULAS["equacao"],
+    "C6": FORMULAS["previsto_observado"],
+    "D1": FORMULAS["residuos_previsto"],
+    "D2": FORMULAS["normalidade"],
+    "D3": FORMULAS["residuos_ordem"],
+    "D4": FORMULAS["influentes"],
+    "E1": FORMULAS["superficie"],
+    "E2": "Curvas  ŷ(x₁, x₂) = c,  para vários valores de c",
+    "E3": "xₛ = −½ · B⁻¹ · b\nb: coeficientes lineares;  B: quadráticos e interações",
+    "E4": "x* = o x que maximiza (ou minimiza) ŷ(x)\ndentro da região estudada",
+    "E5": FORMULAS["desejabilidade"],
+}
+
+
 class _Cartao:
     """Uma análise: clicar (ou Enter/Espaço) inclui ou tira do laudo."""
 
@@ -193,7 +224,9 @@ class _Cartao:
             with ui.element("div").classes("ea-analise-topo"):
                 ui.label(nome).classes("ea-analise-nome")
                 # A lâmpada não alterna o cartão: só abre a dica.
-                dica(como_ler).on("click", js_handler="(e) => e.stopPropagation()")
+                dica(como_ler, FORMULA_ANALISE.get(id_)).on(
+                    "click", js_handler="(e) => e.stopPropagation()"
+                )
                 self.selo = ui.label().classes("ea-analise-selo")
             ui.label(mostra).classes("ea-analise-texto")
             self.porque = ui.label().classes("ea-analise-motivo")
