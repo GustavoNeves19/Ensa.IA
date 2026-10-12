@@ -42,32 +42,39 @@ def construir_home() -> None:
     """Monta os elementos da página inicial."""
     with ui.element("div").classes("ea-page"):
         ui.html(_superficie_svg()).classes("ea-atmosfera")
-        with (
-            ui.element("div").classes("ea-col"),
-            ui.element("div").classes("ea-main"),
-        ):
-            _marca()
-            _headline()
-            _trilha()
-            botao_glossario()
+        with ui.element("div").classes("ea-col"):
+            # Abertura: o que é o EnsaIA à esquerda, os sete passos à direita
+            # (no celular, um embaixo do outro).
+            with ui.element("div").classes("ea-hero"):
+                with ui.element("div").classes("ea-hero-texto"):
+                    _marca()
+                    _headline()
+                _trilha()
+            _conteudo()
 
-            # O container da análise vive abaixo do painel; o upload o preenche
-            # (mapear → analisar → resultados) quando uma planilha é lida.
-            holder: dict[str, ui.column] = {}
 
-            def ao_carregar(tabela: Table | None, nome: str) -> None:
-                destino = holder["analise"]
-                destino.clear()
-                if tabela is not None:
-                    with destino:
-                        construir_analise(tabela, nome)
+def _conteudo() -> None:
+    """Glossário, envio da planilha, análise, privacidade e rodapé."""
+    with ui.element("div").classes("ea-main"):
+        botao_glossario()
 
-            with ui.element("div").classes("ea-painel"):
-                construir_upload(ao_carregar=ao_carregar)
-            holder["analise"] = ui.column().classes("w-full ea-analise")
+        # O container da análise vive abaixo do painel; o upload o preenche
+        # (mapear → analisar → resultados) quando uma planilha é lida.
+        holder: dict[str, ui.column] = {}
 
-            _privacidade()
-            _rodape()
+        def ao_carregar(tabela: Table | None, nome: str) -> None:
+            destino = holder["analise"]
+            destino.clear()
+            if tabela is not None:
+                with destino:
+                    construir_analise(tabela, nome)
+
+        with ui.element("div").classes("ea-painel"):
+            construir_upload(ao_carregar=ao_carregar)
+        holder["analise"] = ui.column().classes("w-full ea-analise")
+
+        _privacidade()
+        _rodape()
 
 
 def _marca() -> None:
@@ -97,12 +104,12 @@ def _headline() -> None:
 
 def _trilha() -> None:
     itens = "".join(
-        f'<div class="ea-passo"><span class="n">{i}</span>'
+        f'<li class="ea-passo"><span class="n">{i}</span>'
         f'<span><span class="t">{titulo}</span> '
-        f'<span class="d">{detalhe}</span></span></div>'
+        f'<span class="d">{detalhe}</span></span></li>'
         for i, (titulo, detalhe) in enumerate(_PASSOS, start=1)
     )
-    ui.html(f'<div class="ea-passos">{itens}</div>')
+    ui.html(f'<ol class="ea-passos" aria-label="Como funciona">{itens}</ol>')
 
 
 def _privacidade() -> None:

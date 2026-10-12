@@ -178,13 +178,34 @@ def _css() -> str:
     .ea-sub {{ color: var(--cinza); font-size: 1.02rem; line-height: 1.55;
       max-width: 36rem; }}
 
+    /* Abertura: texto à esquerda, os sete passos à direita. No celular, a
+       lista desce para baixo do texto. */
+    .ea-hero {{ display: grid; align-items: start;
+      grid-template-columns: minmax(0, 620px) minmax(220px, 270px);
+      justify-content: space-between; gap: 2rem 3rem;
+      margin-bottom: clamp(1.9rem, 4vw, 2.7rem); }}
+    .ea-hero-texto {{ display: flex; flex-direction: column; min-width: 0;
+      gap: clamp(1.9rem, 4vw, 2.7rem); }}
+    @media (max-width: 860px) {{
+      .ea-hero {{ grid-template-columns: minmax(0, 1fr); }}
+    }}
+
     /* Trilha dos sete passos — sem trilho nem seta; a ordem é a numeração. */
-    .ea-passos {{ display: flex; flex-wrap: wrap; gap: 1rem 1.7rem; }}
-    .ea-passo {{ display: flex; align-items: baseline; gap: .5rem; }}
-    .ea-passo .n {{ color: var(--oliva-escuro); font-weight: 700; font-size: .78rem;
-      font-variant-numeric: tabular-nums; min-width: .95rem; }}
+    .ea-passos {{ list-style: none; margin: 0; padding: .45rem 0 0;
+      display: flex; flex-direction: column; gap: .95rem;
+      /* As curvas de nível do canto passam por trás da lista: um véu do papel,
+         de borda esfumada, apaga as linhas sob o texto sem desenhar caixa. */
+      background: rgba(243,242,234,.88); border-radius: 18px;
+      box-shadow: 0 0 22px 20px rgba(243,242,234,.88); }}
+    .ea-passo {{ display: flex; align-items: baseline; gap: .75rem; }}
+    .ea-passo .n {{ color: var(--oliva-escuro); font-weight: 600; font-size: 1.1rem;
+      font-variant-numeric: tabular-nums; min-width: .8rem; }}
     .ea-passo .t {{ color: var(--tinta); font-weight: 600; font-size: .95rem; }}
-    .ea-passo .d {{ color: var(--cinza); font-size: .78rem; }}
+    .ea-passo .d {{ color: var(--tinta); font-size: .92rem; }}
+    @media (max-width: 860px) {{
+      .ea-passos {{ padding: 0; gap: .6rem; background: none; box-shadow: none; }}
+      .ea-passo .n {{ font-size: 1rem; }}
+    }}
 
     /* Painel do envio: superfície elevada por tom (não por contraste de linha),
        sombra curta e direcional tingida de verde, e UM canto chanfrado (geometria
