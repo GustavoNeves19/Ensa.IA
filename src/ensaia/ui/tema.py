@@ -403,13 +403,15 @@ def _css() -> str:
     .ea-analise-off:hover {{ background: rgba(29,29,27,.04); }}
     .ea-analise-na {{ cursor: default; opacity: .62; background: transparent;
       border-style: dashed; }}
-    .ea-analise-topo {{ display: flex; align-items: center; gap: .4rem; }}
+    .ea-analise-topo {{ display: flex; align-items: flex-start; gap: .4rem; }}
     .ea-analise-nome {{ font-weight: 600; font-size: .9rem; color: var(--tinta); }}
-    .ea-analise-selo {{ margin-left: auto; flex-shrink: 0; font-size: .7rem;
-      font-weight: 600; padding: .1rem .5rem; border-radius: 999px;
-      border: 1px solid rgba(29,29,27,.22); color: var(--cinza); }}
-    .ea-analise-on .ea-analise-selo {{ background: var(--verde-escuro);
-      border-color: var(--verde-escuro); color: var(--papel); }}
+    /* A lâmpada vai para o canto superior direito do cartão. */
+    .ea-analise-topo .ea-dica {{ margin-left: auto; flex-shrink: 0;
+      align-self: flex-start; margin-top: .1rem; }}
+    /* Embaixo dos cartões, à esquerda: incluir ou tirar todas da etapa. */
+    .ea-etapa-todas.q-btn {{ align-self: flex-start; border-radius: 9px;
+      color: var(--verde-escuro); font-size: .8rem; font-weight: 600;
+      padding: .15rem .7rem; }}
     .ea-analise-texto {{ font-size: .82rem; color: var(--cinza); line-height: 1.45; }}
     .ea-analise-motivo {{ font-size: .78rem; color: var(--oliva-escuro);
       line-height: 1.4; }}

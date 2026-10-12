@@ -223,11 +223,11 @@ class _Cartao:
         with self.el:
             with ui.element("div").classes("ea-analise-topo"):
                 ui.label(nome).classes("ea-analise-nome")
-                # A lâmpada não alterna o cartão: só abre a dica.
+                # A lâmpada fica no canto e não alterna o cartão: só abre a dica.
+                # Incluída ou não, quem diz é a cor do cartão (e o aria-checked).
                 dica(como_ler, FORMULA_ANALISE.get(id_)).on(
                     "click", js_handler="(e) => e.stopPropagation()"
                 )
-                self.selo = ui.label().classes("ea-analise-selo")
             ui.label(mostra).classes("ea-analise-texto")
             self.porque = ui.label().classes("ea-analise-motivo")
         self.el.on("click", self.alternar)
@@ -256,12 +256,10 @@ class _Cartao:
         self.el.classes(**{"add" if aplica else "remove": "ea-analise-aplica"})
         self.el.classes(**{"remove" if aplica else "add": "ea-analise-na"})
         if aplica:
-            self.selo.set_text("Incluída" if self.incluida else "Fora")
             marcado = str(self.incluida).lower()
             self.el.props(f'role="switch" tabindex="0" aria-checked="{marcado}"')
             self.el.props(remove="aria-disabled")
         else:
-            self.selo.set_text("Não se aplica")
             self.el.props('role="switch" tabindex="-1" aria-checked="false"')
             self.el.props('aria-disabled="true"')
         self.porque.set_text(f"Por quê: {self.motivo}." if self.motivo else "")
@@ -272,13 +270,15 @@ class PainelAnalises:
     """As análises em etapas, recalculadas a cada mudança no mapeamento.
 
     Cada etapa é um dropdown: o cabeçalho diz a pergunta que ela responde e
-    quantas análises estão incluídas; aberto, mostra os cartões.
+    quantas análises estão incluídas; aberto, mostra os cartões e um botão que
+    inclui todas as da etapa ou, se já estão todas, tira todas.
     """
 
     def __init__(self, mapa: FonteMapeamento) -> None:
         self.mapa = mapa
         self.cartoes: dict[str, _Cartao] = {}
         self.contagens: dict[str, ui.label] = {}
+        self.botoes: dict[str, ui.button] = {}
 
         with ui.element("div").classes("ea-analises"):
             ui.label("Análises").classes("ea-secao-titulo")
@@ -311,21 +311,24 @@ class PainelAnalises:
                     self.cartoes[analise.id] = _Cartao(
                         analise.id, analise.nome, self._rotular
                     )
-            with ui.element("div").classes("ea-acoes"):
-                ui.button(
-                    "Incluir todas desta etapa",
-                    on_click=lambda g=grupo: self._todas(g, True),
-                ).props("flat dense no-caps").classes("ea-botao-sec")
-                ui.button(
-                    "Tirar todas",
-                    on_click=lambda g=grupo: self._todas(g, False),
-                ).props("flat dense no-caps").classes("ea-botao-sec")
+            self.botoes[grupo] = (
+                ui.button(on_click=lambda g=grupo: self._alternar_todas(g))
+                .props("outline dense no-caps")
+                .classes("ea-etapa-todas")
+            )
 
-    def _todas(self, grupo: str, incluir: bool) -> None:
-        for id_, cartao in self.cartoes.items():
-            if id_[0] == grupo and cartao.motivo is None:
-                cartao.incluida = incluir
-                cartao.desenhar()
+    def _aplicaveis(self, grupo: str) -> list[_Cartao]:
+        return [
+            c for i, c in self.cartoes.items() if i[0] == grupo and c.motivo is None
+        ]
+
+    def _alternar_todas(self, grupo: str) -> None:
+        """Inclui todas as análises da etapa; se já estão todas, tira todas."""
+        aplicaveis = self._aplicaveis(grupo)
+        incluir = not all(c.incluida for c in aplicaveis)
+        for cartao in aplicaveis:
+            cartao.incluida = incluir
+            cartao.desenhar()
         self._rotular()
 
     def atualizar(self) -> None:
@@ -344,10 +347,17 @@ class PainelAnalises:
 
     def _rotular(self) -> None:
         for grupo, contagem in self.contagens.items():
-            do_grupo = [c for i, c in self.cartoes.items() if i[0] == grupo]
-            aplicaveis = [c for c in do_grupo if c.motivo is None]
+            aplicaveis = self._aplicaveis(grupo)
             dentro = sum(1 for c in aplicaveis if c.incluida)
-            contagem.set_text(f"{dentro}/{len(aplicaveis)} incluídas")
+            contagem.set_text(f"{dentro}/{len(aplicaveis)}")
+            contagem.props(
+                f'aria-label="{dentro} de {len(aplicaveis)} análises incluídas"'
+            )
+            todas = bool(aplicaveis) and dentro == len(aplicaveis)
+            botao = self.botoes[grupo]
+            botao.set_text("Tirar todas" if todas else "Incluir todas")
+            botao.props(f"icon={'remove_done' if todas else 'done_all'}")
+            botao.set_enabled(bool(aplicaveis))
 
     def marcadas(self) -> list[str]:
         return [
