@@ -73,7 +73,13 @@ from ensaia.core.surface import (
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO
 from ensaia.ui import graficos
-from ensaia.ui.ajuda import ajuda, dica, titulo_com_ajuda
+from ensaia.ui.ajuda import (
+    EXPLICACOES,
+    FORMULAS,
+    Dica,
+    dica,
+    titulo_com_dica,
+)
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.painel_analises import PainelAnalises
 from ensaia.ui.sessao import Sessao
@@ -109,13 +115,6 @@ _GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
 # Prefixo do dado arrastado: o drop só aceita o que saiu de um cartão do quadro,
 # não um texto qualquer arrastado de outra janela.
 _ARRASTO = "ensaia-coluna:"
-
-_MODELOS = {
-    "auto": "Automático (pelo planejamento)",
-    "linear": "Linear",
-    "interacoes": "Com interações",
-    "quadratico": "Quadrático",
-}
 
 
 @dataclass
@@ -341,32 +340,209 @@ class _QuadroMapeamento:
                     ui.menu_item(titulo, lambda p=papel: self.mapa.mover(coluna, p))
 
 
-def _painel_opcoes(opcoes: _Opcoes) -> None:
-    """Opções avançadas, recolhidas: o padrão já serve a quem está começando."""
-    with ui.expansion("Opções do modelo").classes("ea-opcoes w-full").props(
-        "dense switch-toggle-side"
+_MODELOS = {
+    "auto": "Automático",
+    "linear": "Linear",
+    "interacoes": "Com interações",
+    "quadratico": "Quadrático",
+}
+_TERMOS_ERRO = {"residuo": "Resíduo", "erro_puro": "Erro puro"}
+_ALFAS = {0.05: "α = 0,05", 0.10: "α = 0,10"}
+_PROPS_TOGGLE = (
+    "no-caps unelevated dense color=white text-color=primary "
+    "toggle-color=primary toggle-text-color=white"
+)
+
+# Cada opção do modelo: título, o que ela decide e, para cada valor que o usuário
+# pode escolher, a dica em texto e em fórmula. A lâmpada mostra sempre a do valor
+# escolhido no momento.
+_OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
+    "tipo_modelo": (
+        "Termos do modelo",
+        "Quais efeitos entram na equação.",
+        {
+            "auto": (
+                "Automático: o EnsaIA escolhe pelo planejamento. Quadrático quando "
+                "todos os fatores têm 3 ou mais níveis (Box-Behnken, composto "
+                "central); com interações nos fatoriais de 2 níveis. Se faltarem "
+                "ensaios para o modelo, ele simplifica e avisa.",
+                "Fatorial 2ᵏ: ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ\n"
+                "Box-Behnken e composto central: + Σ bᵢᵢxᵢ²",
+            ),
+            "linear": (
+                "Linear: só o efeito de cada fator, como se cada um agisse sozinho "
+                "e em linha reta. Serve para triagem; não enxerga interação nem "
+                "curvatura.",
+                "ŷ = b₀ + Σ bᵢxᵢ",
+            ),
+            "interacoes": (
+                "Com interações: soma o efeito combinado de cada par de fatores, "
+                "para quando o efeito de um depende do nível do outro. É o modelo "
+                "dos fatoriais de 2 níveis.",
+                "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ",
+            ),
+            "quadratico": (
+                "Quadrático: soma também a curvatura de cada fator, o que permite "
+                "achar um máximo ou um mínimo dentro da região estudada. Exige 3 "
+                "ou mais níveis por fator (Box-Behnken, composto central).",
+                "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²",
+            ),
+        },
+    ),
+    "termo_erro": (
+        "Termo de erro",
+        "Com que erro os efeitos são testados.",
+        {
+            "residuo": (
+                "Resíduo: os testes usam o que o modelo não explica. É o padrão do "
+                "Minitab e funciona mesmo sem réplicas.",
+                "MQres = SQres / (n − p)\nF = MQtermo / MQres",
+            ),
+            "erro_puro": (
+                "Erro puro: os testes usam só a variação entre réplicas, como os "
+                "pontos centrais repetidos. É o do Statistica e de muitos artigos "
+                "brasileiros; para reproduzir um artigo, use o mesmo que ele. Sem "
+                "réplicas, o EnsaIA volta para o resíduo e avisa.",
+                "MQep = SQep / (n − m)\nm = condições distintas\nF = MQtermo / MQep",
+            ),
+        },
+    ),
+    "alfa": (
+        "Nível de significância",
+        "Abaixo de qual p-valor um efeito conta.",
+        {
+            0.05: (
+                "α = 0,05: um efeito conta quando a chance de ele ser só acaso é "
+                "menor que 5%. É o padrão da maioria dos artigos.",
+                "significativo se p < 0,05\nt crítico = t(0,025; gl do erro)",
+            ),
+            0.10: (
+                "α = 0,10: mais tolerante, aceita até 10% de chance de acaso. Útil "
+                "em triagem com poucos ensaios, quando perder um fator importante "
+                "custa mais que incluir um a mais.",
+                "significativo se p < 0,10\nt crítico = t(0,05; gl do erro)",
+            ),
+        },
+    ),
+    "reduzir": (
+        "Simplificar o modelo",
+        "Tira os termos que não passam em α.",
+        {
+            False: (
+                "Desligado: o modelo fica com todos os termos escolhidos, "
+                "significativos ou não. Os que não são aparecem no Pareto abaixo da "
+                "linha de corte.",
+                "ŷ com todos os termos do modelo escolhido",
+            ),
+            True: (
+                "Ligado: remove, um de cada vez, o termo não significativo de maior "
+                "p-valor e reajusta, até sobrarem só termos significativos. O termo "
+                "de um fator que ainda está numa interação ou num quadrático não "
+                "sai (hierarquia).",
+                "enquanto o maior p ≥ α:\n"
+                "  remove esse termo (respeitando a hierarquia)\n"
+                "  e reajusta o modelo",
+            ),
+        },
+    ),
+}
+
+
+def _resumo_opcoes(opcoes: _Opcoes) -> str:
+    """A escolha atual numa linha, para o cabeçalho recolhido."""
+    partes = [
+        f"Modelo {_MODELOS[opcoes.tipo_modelo].lower()}",
+        _TERMOS_ERRO[opcoes.termo_erro].lower(),
+        _ALFAS[opcoes.alfa],
+    ]
+    if opcoes.reduzir:
+        partes.append("simplificado")
+    return " · ".join(partes)
+
+
+def _card_recolhivel(
+    icone: str, titulo: str, resumo: str, *, aberto: bool = False
+) -> tuple[ui.expansion, ui.label]:
+    """Card que abre e fecha, no padrão das etapas de análise.
+
+    O cabeçalho tem um ícone no círculo, o título e um resumo de uma linha;
+    devolve o card (para preencher com `with`) e o rótulo do resumo, para quem
+    quiser atualizá-lo depois.
+    """
+    card = ui.expansion(value=aberto).classes("ea-etapa ea-card w-full").props("dense")
+    with (
+        card.add_slot("header"),
+        ui.element("div").classes("ea-etapa-cabeca"),
     ):
-        with ui.element("div").classes("ea-controles"):
-            ui.select(_MODELOS, label="Modelo").props("dense outlined").bind_value(
-                opcoes, "tipo_modelo"
+        ui.icon(icone).classes("ea-etapa-num ea-etapa-icone")
+        with ui.element("div").classes("ea-etapa-textos"):
+            ui.label(titulo).classes("ea-etapa-nome")
+            linha = ui.label(resumo).classes("ea-etapa-pergunta")
+    return card, linha
+
+
+def _painel_opcoes(opcoes: _Opcoes) -> None:
+    """Opções do modelo, recolhidas como as etapas das análises.
+
+    O padrão já serve a quem está começando; o cabeçalho mostra a escolha atual,
+    e cada opção é um cartão com o que ela faz e a dica do valor escolhido (em
+    texto ou fórmula), que muda junto com a escolha.
+    """
+    painel, resumo = _card_recolhivel(
+        "tune", "Opções do modelo", _resumo_opcoes(opcoes)
+    )
+    painel.classes("ea-opcoes-modelo")
+
+    with painel:
+        ui.label(
+            "O padrão serve para a maioria dos casos; mude só se precisar."
+        ).classes("ea-ler")
+        with ui.element("div").classes("ea-analise-grade"):
+            for chave, opcoes_do_controle, largo in (
+                ("tipo_modelo", _MODELOS, True),
+                ("termo_erro", _TERMOS_ERRO, False),
+                ("alfa", _ALFAS, False),
+                ("reduzir", None, True),
+            ):
+                _cartao_opcao(opcoes, chave, opcoes_do_controle, largo, resumo)
+
+
+def _cartao_opcao(
+    opcoes: _Opcoes,
+    chave: str,
+    escolhas: dict[Any, str] | None,
+    largo: bool,
+    resumo: ui.label,
+) -> None:
+    """Um cartão de opção: título, dica no canto, o que faz e o controle.
+
+    A dica mostra a explicação do valor escolhido e troca quando ele muda; o
+    resumo do cabeçalho do painel também.
+    """
+    titulo, faz, dicas = _OPCOES_MODELO[chave]
+    with ui.element("div").classes(
+        "ea-opcao-cartao" + (" ea-opcao-larga" if largo else "")
+    ):
+        with ui.element("div").classes("ea-analise-topo"):
+            ui.label(titulo).classes("ea-analise-nome")
+            lampada = Dica(*dicas[getattr(opcoes, chave)])
+        ui.label(faz).classes("ea-analise-texto")
+
+        def mudou(evento: Any) -> None:
+            lampada.trocar(*dicas[evento.value])
+            resumo.set_text(_resumo_opcoes(opcoes))
+
+        if escolhas is None:
+            controle: ui.switch | ui.toggle = ui.switch(
+                "Remover termos não significativos e reajustar", on_change=mudou
+            ).props("dense color=primary")
+        else:
+            controle = (
+                ui.toggle(escolhas, on_change=mudou)
+                .props(_PROPS_TOGGLE)
+                .classes("ea-forma")
             )
-            ui.toggle({"residuo": "Resíduo", "erro_puro": "Erro puro"}).props(
-                "no-caps unelevated dense color=white text-color=primary "
-                "toggle-color=primary toggle-text-color=white"
-            ).classes("ea-forma").bind_value(opcoes, "termo_erro")
-            ui.toggle({0.05: "α = 0,05", 0.10: "α = 0,10"}).props(
-                "no-caps unelevated dense color=white text-color=primary "
-                "toggle-color=primary toggle-text-color=white"
-            ).classes("ea-forma").bind_value(opcoes, "alfa")
-        ui.checkbox("Remover termos não significativos e reajustar").bind_value(
-            opcoes, "reduzir"
-        )
-        ui.html(
-            '<div class="ea-ler">Para reproduzir um artigo, use o mesmo termo de '
-            "erro dele: o Minitab costuma usar o <b>resíduo</b>; o Statistica e "
-            "muitos artigos brasileiros, o <b>erro puro</b> (exige réplicas, "
-            "como os pontos centrais).</div>"
-        )
+        controle.bind_value(opcoes, chave)
 
 
 def _rodar_analise(
@@ -464,42 +640,62 @@ def _mostrar_resultados(
     _bloco_baixar(sessao)
 
 
-_SITUACAO = {"ok": "em ordem", "atencao": "atenção", "info": ""}
+# Sinal de cada indicador: ícone ao lado do valor e o que ele quer dizer.
+_SINAL = {"ok": ("check_circle", "Bom sinal"), "atencao": ("error", "Pede atenção")}
 
 
 def _painel_indicativos(
     ajuste: AjusteResposta, alfa: float, sel: frozenset[str]
 ) -> None:
-    """Primeira leitura de uma resposta (US-06): os indicadores e seus sinais."""
+    """Primeira leitura de uma resposta (US-06): os indicadores e seus sinais.
+
+    Só para ler, como um quadro de relatório: sem caixa nem clique, cada métrica
+    separada por uma linha fina. O sinal é um ícone ao lado do valor e a lâmpada
+    explica a métrica.
+    """
     itens = [i for i in indicativos(ajuste, alfa) if i.analise in sel]
     if not itens:
         return
     with ui.element("div").classes("ea-indicativos"):
         for item in itens:
             with ui.element("div").classes(f"ea-ind ea-ind-{item.situacao}"):
-                with ui.element("div").classes("ea-ind-rotulo"):
-                    ui.label(item.rotulo)
-                    ajuda(item.chave)
-                ui.label(item.valor).classes("ea-ind-valor")
-                if item.situacao != "info":
-                    ui.label(_SITUACAO[item.situacao]).classes("ea-ind-sit")
+                with ui.element("div").classes("ea-ind-topo"):
+                    ui.label(item.rotulo).classes("ea-ind-rotulo")
+                    if item.chave in EXPLICACOES:
+                        dica(EXPLICACOES[item.chave][1], FORMULAS.get(item.chave))
+                with ui.element("div").classes("ea-ind-valor-linha"):
+                    ui.label(item.valor).classes("ea-ind-valor")
+                    if item.situacao in _SINAL:
+                        icone, sentido = _SINAL[item.situacao]
+                        with ui.icon(icone).classes("ea-ind-sinal").props(
+                            f'role="img" aria-label="{sentido}"'
+                        ):
+                            ui.tooltip(sentido)
                 ui.label(item.leitura).classes("ea-ind-leitura")
 
 
 def _bloco_proximos_passos(sessao: Sessao, limite: float) -> None:
-    """O que fazer agora (US-17), refeito quando a melhor condição é calculada."""
+    """O que fazer agora (US-17), refeito quando a melhor condição é calculada.
+
+    Uma lista numerada, como os passos da abertura e as etapas das análises: o
+    número num círculo e a frase ao lado, separados por linhas finas.
+    """
     with ui.element("div").classes("ea-otimizacao"):
-        ui.html('<div class="ea-secao-titulo">Próximos passos</div>')
-        lista = ui.element("div").classes("ea-passos-sugeridos")
+        ui.label("Próximos passos").classes("ea-secao-titulo")
+        lista = ui.element("ol").classes("ea-passos-sugeridos")
 
     def mostrar() -> None:
         lista.clear()
         passos = proximos_passos(sessao.analise, limite_codificado=limite)
         with lista:
-            for passo in passos or [
-                "Nada pede ajuste: o modelo está pronto para prever e otimizar."
-            ]:
-                ui.label(passo).classes("ea-passo-sugerido")
+            for numero, passo in enumerate(
+                passos
+                or ["Nada pede ajuste: o modelo está pronto para prever e otimizar."],
+                start=1,
+            ):
+                with ui.element("li").classes("ea-passo-sugerido"):
+                    ui.label(str(numero)).classes("ea-etapa-num")
+                    ui.label(passo)
 
     sessao.ouvintes["proximos"] = mostrar
     mostrar()
@@ -517,11 +713,21 @@ def _dados_experimento(
     sel: frozenset[str],
 ) -> None:
     """Estatística descritiva (A1) e matriz real × codificada (A3), recolhidas."""
-    with ui.expansion("Dados do experimento").classes("ea-opcoes w-full").props(
-        "dense switch-toggle-side"
-    ):
+    conteudo = [
+        nome
+        for nome, id_ in (
+            ("estatística descritiva", "A1"),
+            ("matriz do planejamento", "A3"),
+        )
+        if id_ in sel
+    ]
+    resumo = " e ".join(conteudo)
+    card, _ = _card_recolhivel(
+        "table_chart", "Dados do experimento", resumo[:1].upper() + resumo[1:]
+    )
+    with card:
         if analise.descritiva and "A1" in sel:
-            titulo_com_ajuda("Estatística descritiva", "descritiva", "ea-tabela-rotulo")
+            titulo_com_dica("Estatística descritiva", "descritiva", "ea-tabela-rotulo")
             colunas = [
                 {
                     "name": c,
@@ -557,7 +763,7 @@ def _dados_experimento(
 
         if "A3" not in sel:
             return
-        titulo_com_ajuda(
+        titulo_com_dica(
             "Matriz do planejamento (real e, entre parênteses, codificado)",
             "matriz",
             "ea-tabela-rotulo",
@@ -588,39 +794,24 @@ def _dados_experimento(
         ).props("flat bordered dense").classes("ensaia-previa w-full")
 
 
-_SENTIDOS = {
-    "maximizar": "Maximizar",
-    "minimizar": "Minimizar",
-    "alvo": "Atingir um alvo",
-    "ignorar": "Não otimizar",
-}
-
-
 def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
-    """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo."""
+    """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo.
+
+    Cada resposta é um cartão com a meta em botões (e o valor-alvo, quando é o
+    caso); a lâmpada explica a meta escolhida. O resultado sai como um quadro de
+    leitura: os níveis dos fatores, a resposta prevista e, com várias, o D.
+    """
     analise = sessao.analise
     with ui.element("div").classes("ea-otimizacao"):
-        titulo_com_ajuda("Melhor condição", "desejabilidade", "ea-secao-titulo")
-        ui.html(
-            '<div class="ea-secao-sub">Diga o que você quer de cada resposta. O '
-            "EnsaIA procura, dentro da região estudada, a combinação de fatores "
-            "que melhor atende a todas.</div>"
-        )
-        escolhas: dict[str, tuple[ui.select, ui.number]] = {}
-        with ui.element("div").classes("ea-mapa-grade"):
+        titulo_com_dica("Melhor condição", "desejabilidade", "ea-secao-titulo")
+        ui.label(
+            "Diga o que você quer de cada resposta. O EnsaIA procura, dentro da "
+            "região estudada, a combinação de fatores que melhor atende a todas."
+        ).classes("ea-secao-sub")
+        escolhas: dict[str, tuple[ui.toggle, ui.number]] = {}
+        with ui.element("div").classes("ea-analise-grade"):
             for i, ajuste in enumerate(analise.ajustes):
-                observados = ajuste.diagnostico.observados if ajuste.diagnostico else []
-                meio = (min(observados) + max(observados)) / 2 if observados else None
-                with ui.element("div").classes("ea-mapa-item"):
-                    ui.html(f'<div class="ea-col-nome">{escape(ajuste.resposta)}</div>')
-                    sentido = ui.select(
-                        _SENTIDOS, value="maximizar" if i == 0 else "ignorar"
-                    ).props("dense outlined")
-                    alvo = ui.number("Valor-alvo", value=meio, format="%.4g").props(
-                        "dense outlined"
-                    )
-                    alvo.bind_visibility_from(sentido, "value", value="alvo")
-                    escolhas[ajuste.resposta] = (sentido, alvo)
+                escolhas[ajuste.resposta] = _cartao_meta(ajuste, inicial=i == 0)
 
         def buscar() -> None:
             sentidos = {
@@ -656,31 +847,117 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
             with area:
                 _mostrar_otimo(ponto, avisos, planejamento)
 
-        ui.button("Encontrar a melhor condição", on_click=buscar).props(
-            "unelevated"
-        ).classes("ea-botao")
+        ui.button(
+            "Encontrar a melhor condição", icon="my_location", on_click=buscar
+        ).props("unelevated no-caps").classes("ea-botao ea-botao-acao")
         # O resultado aparece ABAIXO do botão, na ordem de leitura.
         area = ui.column().classes("w-full ea-slot")
 
 
-def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
-    """Prever uma condição (US-15, "e se?"): valores dos fatores → respostas."""
-    with ui.element("div").classes("ea-otimizacao"):
-        ui.html('<div class="ea-secao-titulo">Prever uma condição</div>')
-        ui.html(
-            '<div class="ea-secao-sub">Digite os valores dos fatores, nas unidades do '
-            "laboratório, e veja o que o modelo prevê. Útil para planejar o próximo "
-            "ensaio ou conferir o ensaio de confirmação.</div>"
+# Meta de cada resposta: rótulo do botão, o que a busca faz e a desejabilidade
+# individual (L e U: o menor e o maior valor observado; T: o alvo).
+_METAS: dict[str, tuple[str, str, str | None]] = {
+    "maximizar": (
+        "Maximizar",
+        "A busca procura os níveis dos fatores que dão o maior valor previsto "
+        "desta resposta.",
+        "d = (ŷ − L) / (U − L), entre 0 e 1\nL, U = menor e maior valor observado",
+    ),
+    "minimizar": (
+        "Minimizar",
+        "A busca procura os níveis dos fatores que dão o menor valor previsto "
+        "desta resposta, como um teor de impureza ou um tempo.",
+        "d = (U − ŷ) / (U − L), entre 0 e 1\nL, U = menor e maior valor observado",
+    ),
+    "alvo": (
+        "Atingir um alvo",
+        "A busca procura o valor previsto mais perto do alvo que você digitar. O "
+        "alvo precisa ficar entre o menor e o maior valor observado.",
+        "d = (ŷ − L) / (T − L) até o alvo T\nd = (U − ŷ) / (U − T) depois dele",
+    ),
+    "ignorar": (
+        "Não otimizar",
+        "Esta resposta fica fora da busca: use quando só as outras importam.",
+        None,
+    ),
+}
+
+
+def _cartao_meta(
+    ajuste: AjusteResposta, *, inicial: bool
+) -> tuple[ui.toggle, ui.number]:
+    """Um cartão por resposta: a meta em botões e, se for alvo, o valor."""
+    observados = ajuste.diagnostico.observados if ajuste.diagnostico else []
+    meio = (min(observados) + max(observados)) / 2 if observados else None
+    valor = "maximizar" if inicial else "ignorar"
+    with ui.element("div").classes("ea-opcao-cartao ea-opcao-larga"):
+        with ui.element("div").classes("ea-analise-topo"):
+            ui.label(nome_legivel(ajuste.resposta)).classes("ea-analise-nome")
+            lampada = Dica(_METAS[valor][1], _METAS[valor][2])
+        if observados:
+            ui.label(
+                f"Observado de {_fmt_curto(min(observados))} a "
+                f"{_fmt_curto(max(observados))} nos ensaios."
+            ).classes("ea-analise-texto")
+        sentido = (
+            ui.toggle(
+                {chave: rotulo for chave, (rotulo, _, _) in _METAS.items()},
+                value=valor,
+                on_change=lambda e: lampada.trocar(
+                    _METAS[e.value][1], _METAS[e.value][2]
+                ),
+            )
+            .props(_PROPS_TOGGLE)
+            .classes("ea-forma")
         )
+        alvo = (
+            ui.number("Valor-alvo", value=meio, format="%.4g")
+            .props("dense outlined")
+            .classes("ea-meta-alvo")
+        )
+        alvo.bind_visibility_from(sentido, "value", value="alvo")
+    return sentido, alvo
+
+
+def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
+    """Prever uma condição (US-15, "e se?"): valores dos fatores → respostas.
+
+    Cada fator é um cartão com a unidade, a faixa estudada e o campo; o resultado
+    sai num quadro de leitura, como o da melhor condição, com o aviso de
+    extrapolação em destaque quando a condição sai da região estudada.
+    """
+    with ui.element("div").classes("ea-otimizacao"):
+        with ui.element("div").classes("ea-titulo-linha ea-titulo-dica"):
+            ui.label("Prever uma condição").classes("ea-secao-titulo")
+            dica(
+                "O modelo calcula a resposta para os valores que você digitar, nas "
+                "unidades do laboratório. Serve para planejar o próximo ensaio ou "
+                "conferir o ensaio de confirmação. Fora da faixa estudada, o modelo "
+                "extrapola e a previsão perde a confiança.",
+                FORMULAS["equacao"],
+            )
+        ui.label(
+            "Digite os valores dos fatores e veja o que o modelo prevê."
+        ).classes("ea-secao-sub")
         campos: dict[str, ui.number] = {}
-        with ui.element("div").classes("ea-mapa-grade"):
+        with ui.element("div").classes("ea-analise-grade"):
             for fator in planejamento.fatores:
-                rotulo = nome_legivel(fator.nome)
-                if fator.unidade:
-                    rotulo += f" ({fator.unidade})"
-                campos[fator.nome] = ui.number(
-                    rotulo, value=round(fator.centro, 6), format="%.6g"
-                ).props("dense outlined")
+                with ui.element("div").classes("ea-opcao-cartao"):
+                    ui.label(nome_legivel(fator.nome)).classes("ea-analise-nome")
+                    unidade = f" {fator.unidade}" if fator.unidade else ""
+                    ui.label(
+                        f"Estudado de {_fmt_curto(fator.minimo)} a "
+                        f"{_fmt_curto(fator.maximo)}{unidade}."
+                    ).classes("ea-analise-texto")
+                    campos[fator.nome] = (
+                        ui.number(
+                            "Valor" + (f" ({fator.unidade})" if fator.unidade else ""),
+                            value=round(fator.centro, 6),
+                            format="%.6g",
+                        )
+                        .props("dense outlined")
+                        .classes("ea-meta-alvo")
+                    )
 
         def prever() -> None:
             valores = {
@@ -697,74 +974,79 @@ def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
                 ui.notify(str(erro), type="warning", position="top")
                 return
             area.clear()
-            with area:
-                linhas = [
-                    {"r": r, "v": _fmt(v, 3)} for r, v in previstas.items()
-                ]
-                colunas = [
-                    {"name": "r", "label": "Resposta", "field": "r", "align": "left"},
-                    {"name": "v", "label": "Prevista", "field": "v", "align": "right"},
-                ]
-                ui.table(columns=colunas, rows=linhas, row_key="r").props(
-                    "flat bordered dense hide-bottom"
-                ).classes("ensaia-previa w-full")
+            with area, ui.element("div").classes("ea-otimo-resultado"):
+                ui.label("O que o modelo prevê").classes("ea-tabela-rotulo")
+                with ui.element("div").classes("ea-indicativos"):
+                    for resposta, valor in previstas.items():
+                        with ui.element("div").classes("ea-ind ea-ind-previsto"):
+                            ui.label(nome_legivel(resposta)).classes("ea-ind-rotulo")
+                            ui.label(_fmt(valor, 3)).classes("ea-ind-valor")
                 if extrapola:
-                    ui.html(
-                        '<div class="ea-aviso">Essa condição sai da região estudada: '
-                        "o modelo está extrapolando e a previsão pode não valer. "
-                        "Confirme com um ensaio antes de confiar nela.</div>"
-                    )
+                    with ui.element("div").classes("ea-alerta"):
+                        ui.icon("warning")
+                        ui.label(
+                            "Essa condição sai da região estudada: o modelo está "
+                            "extrapolando e a previsão pode não valer. Confirme com "
+                            "um ensaio antes de confiar nela."
+                        )
 
-        ui.button("Prever", on_click=prever).props("unelevated").classes("ea-botao")
+        ui.button("Prever", icon="calculate", on_click=prever).props(
+            "unelevated no-caps"
+        ).classes("ea-botao ea-botao-acao")
         area = ui.column().classes("w-full ea-slot")
 
 
 def _mostrar_otimo(
     ponto: PontoOtimo | None, avisos: list[str], planejamento: Planejamento
 ) -> None:
+    """A condição encontrada, só para ler: fatores, resposta prevista e o D."""
     for aviso in avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
     if ponto is None:
         return
     unidades = {f.nome: f.unidade for f in planejamento.fatores}
-    linhas = [
-        {
-            "item": nome_legivel(nome),
-            "valor": _fmt_curto(valor),
-            "extra": unidades.get(nome) or "",
-        }
-        for nome, valor in ponto.coordenadas.items()
-    ]
-    linhas += [
-        {
-            "item": f"{nome} (prevista)",
-            "valor": _fmt(valor, 3),
-            "extra": (
-                f"d = {_fmt(ponto.desejabilidades_individuais[nome], 3)}"
-                if ponto.metodo == "desejabilidade"
-                else _SENTIDOS.get(ponto.metas.get(nome, ""), "")
-            ),
-        }
-        for nome, valor in ponto.resposta_prevista.items()
-    ]
-    colunas = [
-        {"name": "item", "label": "", "field": "item", "align": "left"},
-        {"name": "valor", "label": "Valor", "field": "valor", "align": "right"},
-        {"name": "extra", "label": "", "field": "extra", "align": "left"},
-    ]
-    ui.table(columns=colunas, rows=linhas, row_key="item").props(
-        "flat bordered dense hide-bottom"
-    ).classes("ensaia-previa w-full")
-    leitura = (
-        f"Desejabilidade global D = <b>{_fmt(ponto.desejabilidade_global, 3)}</b> "
-        "(1 = todas as metas plenamente atendidas). "
-        if ponto.metodo == "desejabilidade"
-        else ""
-    )
-    ui.html(
-        f'<div class="ea-ler">{leitura}Valores dentro da região estudada; '
-        "confirme com um ensaio nessa condição antes de adotá-la.</div>"
-    )
+    with ui.element("div").classes("ea-otimo-resultado"):
+        ui.label("Condição encontrada").classes("ea-tabela-rotulo")
+        with ui.element("div").classes("ea-indicativos"):
+            for nome, valor in ponto.coordenadas.items():
+                with ui.element("div").classes("ea-ind"):
+                    ui.label(nome_legivel(nome)).classes("ea-ind-rotulo")
+                    with ui.element("div").classes("ea-ind-valor-linha"):
+                        ui.label(_fmt_curto(valor)).classes("ea-ind-valor")
+                        if unidades.get(nome):
+                            ui.label(unidades[nome] or "").classes("ea-ind-unidade")
+        ui.label("O que o modelo prevê nessa condição").classes("ea-tabela-rotulo")
+        with ui.element("div").classes("ea-indicativos"):
+            for nome, valor in ponto.resposta_prevista.items():
+                meta = _METAS.get(ponto.metas.get(nome, ""), ("", "", None))[0]
+                with ui.element("div").classes("ea-ind ea-ind-previsto"):
+                    ui.label(nome_legivel(nome)).classes("ea-ind-rotulo")
+                    ui.label(_fmt(valor, 3)).classes("ea-ind-valor")
+                    d = ponto.desejabilidades_individuais.get(nome)
+                    detalhe = (
+                        f"{meta} · d = {_fmt(d, 3)}"
+                        if ponto.metodo == "desejabilidade" and d is not None
+                        else meta
+                    )
+                    ui.label(detalhe).classes("ea-ind-leitura")
+            if ponto.metodo == "desejabilidade" and len(ponto.resposta_prevista) > 1:
+                with ui.element("div").classes("ea-ind"):
+                    with ui.element("div").classes("ea-ind-topo"):
+                        ui.label("Desejabilidade global").classes("ea-ind-rotulo")
+                        dica(
+                            EXPLICACOES["desejabilidade"][1],
+                            FORMULAS["desejabilidade"],
+                        )
+                    ui.label(_fmt(ponto.desejabilidade_global, 3)).classes(
+                        "ea-ind-valor"
+                    )
+                    ui.label("1 = todas as metas plenamente atendidas.").classes(
+                        "ea-ind-leitura"
+                    )
+        ui.label(
+            "Valores dentro da região estudada; confirme com um ensaio nessa condição "
+            "antes de adotá-la."
+        ).classes("ea-ler")
 
 
 def _bloco_baixar(sessao: Sessao) -> None:
@@ -843,26 +1125,73 @@ def _baixar_json(analise: AnalysisResult) -> None:
 def _ajustar_modelo(
     candidatos: list[str], opcoes: _Opcoes, reanalisar: Callable[[], None]
 ) -> None:
-    """Tirar termos do modelo e reajustar, vendo os indicadores mudarem (RF-09)."""
-    with ui.element("div").classes("ea-controles ea-ajustar"):
-        fora = (
-            ui.select(
-                {t: nome_legivel(t) for t in candidatos},
-                multiple=True,
-                value=[t for t in opcoes.excluidos if t in candidatos],
-                label="Termos fora do modelo",
+    """Tirar termos do modelo e reajustar, vendo os indicadores mudarem (RF-09).
+
+    Cada termo é uma pílula, como os cartões de análise: verde está no modelo,
+    clicar tira ou devolve. O "Reajustar" só se acende quando a escolha difere
+    do modelo atual. Depois de reajustar, o card volta aberto, para ver o que
+    mudou sem procurar.
+    """
+    atuais = {t for t in opcoes.excluidos if t in candidatos}
+    fora = set(atuais)
+
+    def resumo() -> str:
+        # +1: o intercepto, que não sai, conta como no subtítulo dos resultados.
+        dentro = len(candidatos) - len(fora) + 1
+        return f"{dentro} de {len(candidatos) + 1} termos no modelo" + (
+            f" · fora: {', '.join(nome_legivel(t) for t in candidatos if t in fora)}"
+            if fora
+            else ""
+        )
+
+    card, linha = _card_recolhivel(
+        "rule", "Ajustar termos", resumo(), aberto=bool(atuais)
+    )
+    pilulas: dict[str, ui.element] = {}
+
+    def desenhar() -> None:
+        for termo, pilula in pilulas.items():
+            no_modelo = termo not in fora
+            pilula.classes(
+                add="ea-termo-on" if no_modelo else "ea-termo-off",
+                remove="ea-termo-off" if no_modelo else "ea-termo-on",
             )
-            .props("dense outlined")
-            .classes("ea-fora")
-        )
+            pilula.props(f'aria-checked="{str(no_modelo).lower()}"')
+        linha.set_text(resumo())
+        botao.set_enabled(fora != atuais)
 
-        def reajustar() -> None:
-            opcoes.excluidos[:] = list(fora.value or [])
-            reanalisar()
+    def alternar(termo: str) -> None:
+        fora.symmetric_difference_update({termo})
+        desenhar()
 
-        ui.button("Reajustar", on_click=reajustar).props("flat").classes(
-            "ea-botao-sec"
+    def reajustar() -> None:
+        opcoes.excluidos[:] = [t for t in candidatos if t in fora]
+        reanalisar()
+
+    with card:
+        ui.label(
+            "Clique num termo para tirá-lo do modelo (ou devolvê-lo) e reajuste "
+            "para ver os indicadores mudarem."
+        ).classes("ea-ler")
+        with ui.element("div").classes("ea-termos"):
+            for termo in candidatos:
+                pilula = (
+                    ui.element("div")
+                    .classes("ea-termo")
+                    .props('role="switch" tabindex="0"')
+                )
+                with pilula:
+                    ui.label(nome_legivel(termo))
+                pilula.on("click", lambda t=termo: alternar(t))
+                pilula.on("keydown.enter.prevent", lambda t=termo: alternar(t))
+                pilula.on("keydown.space.prevent", lambda t=termo: alternar(t))
+                pilulas[termo] = pilula
+        botao = (
+            ui.button("Reajustar", icon="refresh", on_click=reajustar)
+            .props("outline dense no-caps")
+            .classes("ea-etapa-todas")
         )
+    desenhar()
 
 
 _ABA_EFEITOS = "Efeitos"
@@ -983,7 +1312,7 @@ def _aba_efeitos(
     if ajuste.efeitos_fatorial is not None:
         _bloco_fatorial(ajuste, alfa, sel)
     if "C1" in sel:
-        titulo_com_ajuda(
+        titulo_com_dica(
             "Coeficientes (escala codificada)", "coeficientes", "ea-tabela-rotulo"
         )
         _tabela_coeficientes(ajuste)
@@ -994,7 +1323,7 @@ def _aba_efeitos(
 def _pareto(
     ajuste: AjusteResposta, alfa: float, ao_clicar: Callable[[str], None] | None
 ) -> None:
-    titulo_com_ajuda("Pareto dos efeitos padronizados", "pareto")
+    titulo_com_dica("Pareto dos efeitos padronizados", "pareto")
 
     def clique(evento: EChartPointClickEventArguments) -> None:
         if ao_clicar and isinstance(evento.data, dict) and evento.data.get("termo"):
@@ -1046,7 +1375,7 @@ def _bloco_fatorial(
 
 
 def _tabela_efeitos(ef: EfeitosFatorial) -> None:
-    titulo_com_ajuda("Efeitos (de −1 a +1)", "efeitos", "ea-tabela-rotulo")
+    titulo_com_dica("Efeitos (de −1 a +1)", "efeitos", "ea-tabela-rotulo")
     colunas = [
         {"name": "termo", "label": "Termo", "field": "termo", "align": "left"},
         {"name": "ef", "label": "Efeito", "field": "ef", "align": "right"},
@@ -1072,7 +1401,7 @@ def _tabela_efeitos(ef: EfeitosFatorial) -> None:
 def _meio_normal(ef: EfeitosFatorial) -> None:
     assert ef.lenth is not None
     ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
-    titulo_com_ajuda("Gráfico meio-normal dos efeitos", "meio_normal")
+    titulo_com_dica("Gráfico meio-normal dos efeitos", "meio_normal")
     _grafico(
         graficos.opcoes_meio_normal(
             pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
@@ -1099,7 +1428,7 @@ def _efeitos_principais(ef: EfeitosFatorial) -> None:
     todas = [v for m in ef.medias_principais for v in m.medias]
     baixo, alto = min(todas), max(todas)
     folga = (alto - baixo) * 0.12 or 1.0
-    titulo_com_ajuda("Efeitos principais", "efeitos_principais")
+    titulo_com_dica("Efeitos principais", "efeitos_principais")
     with ui.element("div").classes("ea-multiplos"):
         for m in ef.medias_principais:
             _grafico(
@@ -1121,7 +1450,7 @@ def _interacao(ef: EfeitosFatorial) -> None:
         ef.medias_interacoes,
         key=lambda m: efeito_de.get(f"{m.fator_a}:{m.fator_b}", 0.0),
     )
-    titulo_com_ajuda(
+    titulo_com_dica(
         f"Interação {nome_legivel(mais_forte.fator_a)} × "
         f"{nome_legivel(mais_forte.fator_b)}",
         "interacao",
@@ -1158,7 +1487,7 @@ def _equacao(ajuste: AjusteResposta) -> None:
     if eq is None:
         return
     legenda = ", ".join(f"{s} = {nome_legivel(n)}" for s, n in eq.variaveis.items())
-    titulo_com_ajuda("Equação do modelo", "equacao", "ea-tabela-rotulo")
+    titulo_com_dica("Equação do modelo", "equacao", "ea-tabela-rotulo")
     ui.html(f'<div class="ea-equacao">{escape(eq.codificada)}</div>')
     ui.html(f'<div class="ea-ler">Variáveis codificadas ({escape(legenda)}).</div>')
     ui.html(f'<div class="ea-equacao">{escape(eq.real.replace("_", " "))}</div>')
@@ -1173,7 +1502,7 @@ def _aba_anova(
 ) -> None:
     reg = ajuste.anova_regressao
     if reg is not None and "C2" in sel:
-        titulo_com_ajuda("ANOVA da regressão", "anova", "ea-tabela-rotulo")
+        titulo_com_dica("ANOVA da regressão", "anova", "ea-tabela-rotulo")
         _tabela_anova(reg.linhas)
         if reg.razao_f is not None and reg.f_tabelado is not None:
             leitura = (
@@ -1188,7 +1517,7 @@ def _aba_anova(
             )
     if "C2" in sel:
         if ajuste.anova:
-            titulo_com_ajuda(
+            titulo_com_dica(
                 "Efeito de cada termo (ANOVA Tipo II)",
                 "anova_tipo2",
                 "ea-tabela-rotulo",
@@ -1215,7 +1544,7 @@ def _aba_diagnostico(
         return
 
     if "C6" in sel:
-        titulo_com_ajuda("Previsto × observado", "previsto_observado")
+        titulo_com_dica("Previsto × observado", "previsto_observado")
         _grafico(
             graficos.opcoes_preditos_observados(ajuste),
             300,
@@ -1228,7 +1557,7 @@ def _aba_diagnostico(
         )
 
     if "D1" in sel:
-        titulo_com_ajuda("Resíduos × previsto", "residuos_previsto")
+        titulo_com_dica("Resíduos × previsto", "residuos_previsto")
         _grafico(
             graficos.opcoes_residuos_preditos(ajuste),
             280,
@@ -1241,7 +1570,7 @@ def _aba_diagnostico(
         )
 
     if d.ordem is not None and "D3" in sel:
-        titulo_com_ajuda("Resíduos × ordem de execução", "residuos_ordem")
+        titulo_com_dica("Resíduos × ordem de execução", "residuos_ordem")
         _grafico(
             graficos.opcoes_residuos_ordem(ajuste),
             260,
@@ -1254,7 +1583,7 @@ def _aba_diagnostico(
         )
 
     if "D2" in sel:
-        titulo_com_ajuda("Normalidade dos resíduos (Q-Q)", "qq")
+        titulo_com_dica("Normalidade dos resíduos (Q-Q)", "qq")
         _grafico(
             graficos.opcoes_qq(pontos_qq(d.residuos)),
             280,
@@ -1397,7 +1726,7 @@ class _PainelSuperficie:
                 )
                 .classes("ea-forma")
             )
-            ajuda("superficie")
+            dica(EXPLICACOES["superficie"][1], FORMULAS.get("superficie"))
         if len(formas) == 1:
             self.forma.set_visibility(False)  # só uma forma marcada: sem escolha
         self.estacionario = ajuste.ponto_estacionario if "E3" in sel else None
