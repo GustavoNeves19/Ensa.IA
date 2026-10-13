@@ -547,9 +547,31 @@ def _css() -> str:
     .ea-multiplos {{ display: grid; gap: .25rem .75rem; width: 100%;
       grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }}
     .ea-multiplos > * {{ min-width: 0; }}
-    /* Equação: texto de dado, em tinta, quebrando onde precisar. */
-    .ea-equacao {{ font-size: .95rem; line-height: 1.65; color: var(--tinta);
-      overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }}
+    /* Equação do modelo: um termo por peça (sinal, coeficiente, variável), que
+       quebra de linha entre termos e nunca no meio de um; as formas em botões,
+       as variáveis como etiquetas e o copiar ao lado. */
+    .ea-eq-bloco {{ display: flex; flex-direction: column; gap: .55rem;
+      width: 100%; }}
+    .ea-eq-barra {{ display: flex; flex-wrap: wrap; align-items: center;
+      gap: .5rem .8rem; }}
+    .ea-eq-forma {{ display: flex; flex-direction: column; gap: .45rem; }}
+    .ea-eq-barra .ea-forma {{ flex-wrap: wrap; }}
+    .ea-eq-barra .ea-forma .q-btn {{ white-space: nowrap; }}
+    .ea-eq {{ display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: .4rem .45rem; padding: .8rem .9rem; border-radius: 11px;
+      background: rgba(29,29,27,.035); border: 1px solid var(--linha);
+      font-variant-numeric: tabular-nums; }}
+    .ea-eq-y {{ font-family: var(--fonte-titulo); font-size: 1.15rem;
+      font-weight: 600; color: var(--tinta); margin-right: .15rem; }}
+    .ea-eq-termo {{ display: inline-flex; align-items: baseline; gap: .3rem;
+      padding: .15rem .5rem; border-radius: 7px; background: var(--papel-alto);
+      border: 1px solid rgba(29,29,27,.1); font-size: .92rem; }}
+    .ea-eq-sinal {{ color: var(--cinza); font-weight: 600; }}
+    .ea-eq-coef {{ color: var(--tinta); font-weight: 600; white-space: nowrap; }}
+    .ea-eq-var {{ color: var(--verde-escuro); overflow-wrap: anywhere; }}
+    .ea-eq-vars {{ display: flex; flex-wrap: wrap; gap: .35rem; }}
+    .ea-eq-varchip {{ font-size: .78rem; color: var(--tinta); padding: .1rem .55rem;
+      border-radius: 999px; border: 1px solid rgba(29,29,27,.18); }}
     .ea-forma .q-btn {{ border-radius: 9px; font-weight: 600; letter-spacing: 0;
       padding: .25rem .8rem; }}
     .ea-fixo {{ display: flex; flex-direction: column; gap: .1rem;
