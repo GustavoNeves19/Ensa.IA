@@ -203,8 +203,11 @@ def _css() -> str:
       position: relative; z-index: 1; max-width: 1080px; margin: 0 auto;
       padding: clamp(2.6rem, 6vw, 5.5rem) clamp(1.25rem, 5vw, 2.25rem) 3.25rem;
     }}
+    /* O conteúdo ocupa a coluna centralizada inteira (até 1080px), alinhado à
+       abertura: no computador, a página fica no meio, com margens iguais. Os
+       textos corridos têm largura própria limitada, para a leitura não cansar. */
     .ea-main {{
-      max-width: 620px; display: flex; flex-direction: column;
+      width: 100%; display: flex; flex-direction: column;
       gap: clamp(1.9rem, 4vw, 2.7rem);
     }}
 
@@ -318,7 +321,10 @@ def _css() -> str:
     /* Mapear colunas por arrastar e soltar: dois grupos principais (resposta e
        fator) e, abaixo, dois menores (ordem e não usar). */
     .ea-quadro {{ display: grid; gap: .8rem 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }}
+      grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+    @media (max-width: 560px) {{
+      .ea-quadro {{ grid-template-columns: minmax(0, 1fr); }}
+    }}
     .ea-zona {{ display: flex; flex-direction: column; gap: .55rem;
       padding: .8rem .85rem; min-height: 9.5rem;
       background: rgba(29,29,27,.035);
@@ -447,6 +453,10 @@ def _css() -> str:
     .ea-resultado {{ display: flex; flex-direction: column; gap: .7rem;
       padding: 1.1rem 1.15rem; background: var(--papel-alto);
       border: 1px solid var(--linha); border-radius: 14px; }}
+    /* Os blocos da análise ocupam a coluna inteira. Sem isso, o contêiner de
+       coluna da NiceGUI encolhe cada bloco até o tamanho do conteúdo: ao trocar
+       de aba (ANOVA, Diagnóstico) o quadro estreitava e saía do centro. */
+    .ea-resultado, .ea-otimizacao, .ea-relatorio, .ea-baixar {{ width: 100%; }}
     .ea-resp-nome {{ font-family: var(--fonte-titulo); font-weight: 600;
       font-size: 1.15rem; color: var(--tinta); }}
     .ea-r2 {{ font-size: 1rem; color: var(--cinza); }}
