@@ -489,6 +489,9 @@ def _css() -> str:
     .ea-ler {{ font-size: .82rem; color: var(--cinza); line-height: 1.5;
       max-width: 34rem; }}
     .ea-ler b {{ color: var(--tinta); font-weight: 600; }}
+    /* Legendas de gráficos e tabelas acompanham a largura do que descrevem. */
+    .ea-resultado .ea-ler, .ea-card .ea-ler, .ea-otimo-resultado .ea-ler {{
+      max-width: none; }}
     .ea-controles {{ display: flex; flex-wrap: wrap; gap: .6rem 1rem;
       align-items: flex-end; }}
     .ea-controles .q-field {{ min-width: 150px; }}
