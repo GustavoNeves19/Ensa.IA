@@ -332,14 +332,12 @@ def _css() -> str:
       font-size: .8rem; line-height: 1.45; max-width: 260px;
       padding: .5rem .7rem; border-radius: 8px; }}
     /* Modos de dica (classe no body, escolhida no seletor da abertura). */
-    body.ea-dicas-nenhuma .ea-dica,
-    body.ea-dicas-nenhuma .ea-ajuda {{ display: none !important; }}
+    body.ea-dicas-nenhuma .ea-dica {{ display: none !important; }}
     .ea-dica-form {{ display: none; }}
     body.ea-dicas-formula .ea-dica-com-formula .ea-dica-txt {{ display: none; }}
     body.ea-dicas-formula .ea-dica-com-formula .ea-dica-form {{ display: block; }}
     .ea-dica-form {{ white-space: pre-line; font-size: .86rem; line-height: 1.6;
       font-family: var(--fonte-corpo); font-variant-numeric: tabular-nums; }}
-    .ea-ajuda-pop .ea-dica-form {{ color: var(--tinta); }}
     body.ea-dicas-formula .ea-dica-pop.ea-dica-com-formula {{ max-width: 380px; }}
     .ea-zona-menor {{ min-height: 0; padding: .6rem .85rem; }}
     .ea-zona-alvo {{ background: rgba(64,165,81,.10); border-color: var(--verde); }}
@@ -566,20 +564,10 @@ def _css() -> str:
     .ea-colar {{ width: 100%; }}
     .ea-campo-longo {{ min-width: 16rem; max-width: 100%; }}
     .ea-link {{ color: var(--verde-escuro); font-weight: 600; font-size: .85rem; }}
-    /* "o que é?" (US-16): ajuda como texto pontilhado, não ícone em caixa. */
+    /* Título com lâmpada de dica ao lado (US-16). */
     .ea-titulo-linha {{ display: flex; flex-wrap: wrap; align-items: baseline;
       gap: .1rem .6rem; }}
     .ea-titulo-dica {{ align-items: center; gap: .1rem .45rem; }}
-    .ea-ajuda.q-btn {{ color: var(--cinza); font-size: .75rem; font-weight: 500;
-      padding: 0 .1rem; min-height: 1.2rem; text-transform: none; letter-spacing: 0;
-      text-decoration: underline dotted; text-underline-offset: 3px; }}
-    .ea-ajuda .q-focus-helper {{ display: none; }}
-    .ea-ajuda.q-btn:hover {{ color: var(--tinta); }}
-    .ea-ajuda-pop {{ max-width: 22rem; padding: .75rem .95rem;
-      background: var(--papel-alto); border-radius: 10px; }}
-    .ea-ajuda-titulo {{ font-family: var(--fonte-titulo); font-weight: 600;
-      color: var(--tinta); font-size: .98rem; margin-bottom: .2rem; }}
-    .ea-ajuda-texto {{ color: var(--tinta); font-size: .85rem; line-height: 1.5; }}
     /* Indicativos (US-06): só leitura, como um quadro de relatório. Sem caixa,
        sem clique: cada métrica fica numa célula separada por uma linha fina em
        cima. O sinal é um ícone ao lado do valor; a lâmpada explica a métrica. */

@@ -77,9 +77,7 @@ from ensaia.ui.ajuda import (
     EXPLICACOES,
     FORMULAS,
     Dica,
-    ajuda,
     dica,
-    titulo_com_ajuda,
     titulo_com_dica,
 )
 from ensaia.ui.narrar import construir_narracao
@@ -800,7 +798,7 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
     """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo."""
     analise = sessao.analise
     with ui.element("div").classes("ea-otimizacao"):
-        titulo_com_ajuda("Melhor condição", "desejabilidade", "ea-secao-titulo")
+        titulo_com_dica("Melhor condição", "desejabilidade", "ea-secao-titulo")
         ui.html(
             '<div class="ea-secao-sub">Diga o que você quer de cada resposta. O '
             "EnsaIA procura, dentro da região estudada, a combinação de fatores "
@@ -1230,7 +1228,7 @@ def _aba_efeitos(
     if ajuste.efeitos_fatorial is not None:
         _bloco_fatorial(ajuste, alfa, sel)
     if "C1" in sel:
-        titulo_com_ajuda(
+        titulo_com_dica(
             "Coeficientes (escala codificada)", "coeficientes", "ea-tabela-rotulo"
         )
         _tabela_coeficientes(ajuste)
@@ -1241,7 +1239,7 @@ def _aba_efeitos(
 def _pareto(
     ajuste: AjusteResposta, alfa: float, ao_clicar: Callable[[str], None] | None
 ) -> None:
-    titulo_com_ajuda("Pareto dos efeitos padronizados", "pareto")
+    titulo_com_dica("Pareto dos efeitos padronizados", "pareto")
 
     def clique(evento: EChartPointClickEventArguments) -> None:
         if ao_clicar and isinstance(evento.data, dict) and evento.data.get("termo"):
@@ -1293,7 +1291,7 @@ def _bloco_fatorial(
 
 
 def _tabela_efeitos(ef: EfeitosFatorial) -> None:
-    titulo_com_ajuda("Efeitos (de −1 a +1)", "efeitos", "ea-tabela-rotulo")
+    titulo_com_dica("Efeitos (de −1 a +1)", "efeitos", "ea-tabela-rotulo")
     colunas = [
         {"name": "termo", "label": "Termo", "field": "termo", "align": "left"},
         {"name": "ef", "label": "Efeito", "field": "ef", "align": "right"},
@@ -1319,7 +1317,7 @@ def _tabela_efeitos(ef: EfeitosFatorial) -> None:
 def _meio_normal(ef: EfeitosFatorial) -> None:
     assert ef.lenth is not None
     ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
-    titulo_com_ajuda("Gráfico meio-normal dos efeitos", "meio_normal")
+    titulo_com_dica("Gráfico meio-normal dos efeitos", "meio_normal")
     _grafico(
         graficos.opcoes_meio_normal(
             pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
@@ -1346,7 +1344,7 @@ def _efeitos_principais(ef: EfeitosFatorial) -> None:
     todas = [v for m in ef.medias_principais for v in m.medias]
     baixo, alto = min(todas), max(todas)
     folga = (alto - baixo) * 0.12 or 1.0
-    titulo_com_ajuda("Efeitos principais", "efeitos_principais")
+    titulo_com_dica("Efeitos principais", "efeitos_principais")
     with ui.element("div").classes("ea-multiplos"):
         for m in ef.medias_principais:
             _grafico(
@@ -1368,7 +1366,7 @@ def _interacao(ef: EfeitosFatorial) -> None:
         ef.medias_interacoes,
         key=lambda m: efeito_de.get(f"{m.fator_a}:{m.fator_b}", 0.0),
     )
-    titulo_com_ajuda(
+    titulo_com_dica(
         f"Interação {nome_legivel(mais_forte.fator_a)} × "
         f"{nome_legivel(mais_forte.fator_b)}",
         "interacao",
@@ -1405,7 +1403,7 @@ def _equacao(ajuste: AjusteResposta) -> None:
     if eq is None:
         return
     legenda = ", ".join(f"{s} = {nome_legivel(n)}" for s, n in eq.variaveis.items())
-    titulo_com_ajuda("Equação do modelo", "equacao", "ea-tabela-rotulo")
+    titulo_com_dica("Equação do modelo", "equacao", "ea-tabela-rotulo")
     ui.html(f'<div class="ea-equacao">{escape(eq.codificada)}</div>')
     ui.html(f'<div class="ea-ler">Variáveis codificadas ({escape(legenda)}).</div>')
     ui.html(f'<div class="ea-equacao">{escape(eq.real.replace("_", " "))}</div>')
@@ -1420,7 +1418,7 @@ def _aba_anova(
 ) -> None:
     reg = ajuste.anova_regressao
     if reg is not None and "C2" in sel:
-        titulo_com_ajuda("ANOVA da regressão", "anova", "ea-tabela-rotulo")
+        titulo_com_dica("ANOVA da regressão", "anova", "ea-tabela-rotulo")
         _tabela_anova(reg.linhas)
         if reg.razao_f is not None and reg.f_tabelado is not None:
             leitura = (
@@ -1435,7 +1433,7 @@ def _aba_anova(
             )
     if "C2" in sel:
         if ajuste.anova:
-            titulo_com_ajuda(
+            titulo_com_dica(
                 "Efeito de cada termo (ANOVA Tipo II)",
                 "anova_tipo2",
                 "ea-tabela-rotulo",
@@ -1462,7 +1460,7 @@ def _aba_diagnostico(
         return
 
     if "C6" in sel:
-        titulo_com_ajuda("Previsto × observado", "previsto_observado")
+        titulo_com_dica("Previsto × observado", "previsto_observado")
         _grafico(
             graficos.opcoes_preditos_observados(ajuste),
             300,
@@ -1475,7 +1473,7 @@ def _aba_diagnostico(
         )
 
     if "D1" in sel:
-        titulo_com_ajuda("Resíduos × previsto", "residuos_previsto")
+        titulo_com_dica("Resíduos × previsto", "residuos_previsto")
         _grafico(
             graficos.opcoes_residuos_preditos(ajuste),
             280,
@@ -1488,7 +1486,7 @@ def _aba_diagnostico(
         )
 
     if d.ordem is not None and "D3" in sel:
-        titulo_com_ajuda("Resíduos × ordem de execução", "residuos_ordem")
+        titulo_com_dica("Resíduos × ordem de execução", "residuos_ordem")
         _grafico(
             graficos.opcoes_residuos_ordem(ajuste),
             260,
@@ -1501,7 +1499,7 @@ def _aba_diagnostico(
         )
 
     if "D2" in sel:
-        titulo_com_ajuda("Normalidade dos resíduos (Q-Q)", "qq")
+        titulo_com_dica("Normalidade dos resíduos (Q-Q)", "qq")
         _grafico(
             graficos.opcoes_qq(pontos_qq(d.residuos)),
             280,
@@ -1644,7 +1642,7 @@ class _PainelSuperficie:
                 )
                 .classes("ea-forma")
             )
-            ajuda("superficie")
+            dica(EXPLICACOES["superficie"][1], FORMULAS.get("superficie"))
         if len(formas) == 1:
             self.forma.set_visibility(False)  # só uma forma marcada: sem escolha
         self.estacionario = ajuste.ponto_estacionario if "E3" in sel else None

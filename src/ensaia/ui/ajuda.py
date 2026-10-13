@@ -1,7 +1,8 @@
-"""Ajuda dentro da tela (US-16 e US-18): "o que é isto?" e o glossário.
+"""Ajuda dentro da tela (US-16 e US-18): as lâmpadas de dica e o glossário.
 
-Ao lado de cada indicador, tabela e gráfico, um "o que é?" abre uma explicação
-curta: o que é, como ler e por que importa. Para quem está aprendendo
+Ao lado de cada indicador, tabela e gráfico, uma lâmpada abre, ao passar o
+mouse, uma explicação curta: o que é, como ler e por que importa (ou a fórmula,
+no modo de fórmulas). Para quem está aprendendo
 planejamento de experimentos enquanto analisa os próprios dados, a resposta
 precisa estar ali, sem sair da página.
 
@@ -204,28 +205,6 @@ MODOS_DICA: tuple[tuple[str, str], ...] = (
 )
 
 
-def _conteudo_dica(texto: str, formula: str | None) -> None:
-    """O texto e, quando há, a fórmula: o modo escolhido decide qual aparece."""
-    ui.label(texto).classes("ea-dica-txt")
-    if formula:
-        ui.label(formula).classes("ea-dica-form")
-
-
-def ajuda(chave: str) -> None:
-    """O "o que é?" ao lado de um título: abre a explicação ao clicar."""
-    titulo, texto = EXPLICACOES[chave]
-    formula = FORMULAS.get(chave)
-    with (
-        ui.button("o que é?").props("flat dense no-caps").classes("ea-ajuda"),
-        ui.menu()
-        .props("anchor='bottom left' self='top left'")
-        .classes("ea-ajuda-pop" + (" ea-dica-com-formula" if formula else "")),
-    ):
-        ui.label(titulo).classes("ea-ajuda-titulo")
-        with ui.element("div").classes("ea-ajuda-texto"):
-            _conteudo_dica(texto, formula)
-
-
 class Dica:
     """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco).
 
@@ -265,7 +244,7 @@ def seletor_dicas() -> None:
     """Controle em degraus que escolhe como as dicas aparecem na página.
 
     O modo vira uma classe no <body> (ea-dicas-nenhuma, -texto ou -formula) e o
-    CSS mostra ou esconde as lâmpadas, os "o que é?" e o texto ou a fórmula de
+    CSS mostra ou esconde as lâmpadas e o texto ou a fórmula de
     cada dica. Vale só para esta aba do navegador; começa em "Dicas em Texto".
     """
     classes = [f"ea-dicas-{modo}" for modo, _ in MODOS_DICA]
@@ -297,13 +276,6 @@ def titulo_com_dica(texto: str, chave: str, classe: str = "ea-grafico-titulo") -
     with ui.element("div").classes("ea-titulo-linha ea-titulo-dica"):
         ui.label(texto).classes(classe)
         dica(EXPLICACOES[chave][1], FORMULAS.get(chave))
-
-
-def titulo_com_ajuda(texto: str, chave: str, classe: str = "ea-grafico-titulo") -> None:
-    """Título de tabela ou gráfico com o "o que é?" ao lado."""
-    with ui.element("div").classes("ea-titulo-linha"):
-        ui.label(texto).classes(classe)
-        ajuda(chave)
 
 
 def botao_glossario() -> None:

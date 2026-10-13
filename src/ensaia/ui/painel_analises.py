@@ -180,7 +180,7 @@ GUIA: dict[str, tuple[str, str]] = {
 
 
 # Cada análise → a fórmula do modo "Dicas em fórmula". Onde a análise é uma
-# métrica que aparece nos resultados, a fórmula é a mesma do "o que é?".
+# métrica que aparece nos resultados, a fórmula é a mesma da lâmpada de lá.
 FORMULA_ANALISE: dict[str, str] = {
     "A1": FORMULAS["descritiva"],
     "A2": (
