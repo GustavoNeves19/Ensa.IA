@@ -291,6 +291,14 @@ def seletor_dicas() -> None:
     aplicar(1)
 
 
+def titulo_com_dica(texto: str, chave: str, classe: str = "ea-grafico-titulo") -> None:
+    """Título de tabela ou gráfico com a lâmpada ao lado: a explicação (ou a
+    fórmula, no modo de fórmulas), aberta ao passar o mouse."""
+    with ui.element("div").classes("ea-titulo-linha ea-titulo-dica"):
+        ui.label(texto).classes(classe)
+        dica(EXPLICACOES[chave][1], FORMULAS.get(chave))
+
+
 def titulo_com_ajuda(texto: str, chave: str, classe: str = "ea-grafico-titulo") -> None:
     """Título de tabela ou gráfico com o "o que é?" ao lado."""
     with ui.element("div").classes("ea-titulo-linha"):

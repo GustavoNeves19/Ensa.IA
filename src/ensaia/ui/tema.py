@@ -411,7 +411,7 @@ def _css() -> str:
     /* Opções do modelo: o mesmo card recolhível das etapas, com um ícone no
        lugar do número e a escolha atual no subtítulo. Os cartões de opção não
        são clicáveis: o controle fica dentro deles. */
-    .ea-opcoes-modelo .ea-etapa-num {{ font-size: 1rem; }}
+    .ea-etapa-icone {{ font-size: 1rem; }}
     .ea-opcao-cartao {{ display: flex; flex-direction: column; gap: .45rem;
       padding: .7rem .8rem; border-radius: 11px;
       border: 1px solid rgba(29,29,27,.16); background: var(--papel-alto); }}
@@ -493,7 +493,6 @@ def _css() -> str:
     .ea-opcoes .q-item__label {{ font-weight: 600; font-size: .9rem; }}
     .ea-opcoes .q-expansion-item__content {{ display: flex; flex-direction: column;
       gap: .55rem; padding: .35rem 0 .6rem; }}
-    .ea-ajustar {{ margin: .2rem 0 .4rem; }}
     /* Exemplos e planilha-modelo abaixo da dropzone: rótulo e ações lado a lado. */
     /* Prévia dos dados: 5 linhas por página, sem o seletor de linhas por página;
        embaixo, o arquivo e o tamanho e, discreta, a linha de como foi lido. */
@@ -537,7 +536,6 @@ def _css() -> str:
     .ea-multiplos {{ display: grid; gap: .25rem .75rem; width: 100%;
       grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }}
     .ea-multiplos > * {{ min-width: 0; }}
-    .ea-fora {{ min-width: 260px; flex: 1; max-width: 520px; }}
     /* Equação: texto de dado, em tinta, quebrando onde precisar. */
     .ea-equacao {{ font-size: .95rem; line-height: 1.65; color: var(--tinta);
       overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }}
@@ -571,6 +569,7 @@ def _css() -> str:
     /* "o que é?" (US-16): ajuda como texto pontilhado, não ícone em caixa. */
     .ea-titulo-linha {{ display: flex; flex-wrap: wrap; align-items: baseline;
       gap: .1rem .6rem; }}
+    .ea-titulo-dica {{ align-items: center; gap: .1rem .45rem; }}
     .ea-ajuda.q-btn {{ color: var(--cinza); font-size: .75rem; font-weight: 500;
       padding: 0 .1rem; min-height: 1.2rem; text-transform: none; letter-spacing: 0;
       text-decoration: underline dotted; text-underline-offset: 3px; }}
@@ -581,19 +580,35 @@ def _css() -> str:
     .ea-ajuda-titulo {{ font-family: var(--fonte-titulo); font-weight: 600;
       color: var(--tinta); font-size: .98rem; margin-bottom: .2rem; }}
     .ea-ajuda-texto {{ color: var(--tinta); font-size: .85rem; line-height: 1.5; }}
-    /* Indicativos (US-06): o valor em destaque e o sinal como palavra colorida. */
-    .ea-indicativos {{ display: grid; gap: .9rem 1.6rem; margin: .5rem 0 .9rem;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }}
-    .ea-ind {{ display: flex; flex-direction: column; gap: .1rem; min-width: 0; }}
-    .ea-ind-rotulo {{ display: flex; flex-wrap: wrap; align-items: baseline;
-      gap: 0 .4rem; font-size: .8rem; color: var(--cinza); }}
+    /* Indicativos (US-06): só leitura, como um quadro de relatório. Sem caixa,
+       sem clique: cada métrica fica numa célula separada por uma linha fina em
+       cima. O sinal é um ícone ao lado do valor; a lâmpada explica a métrica. */
+    .ea-indicativos {{ display: grid; gap: 0 1.6rem; margin: .3rem 0 .9rem;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }}
+    .ea-ind {{ display: flex; flex-direction: column; gap: .1rem; min-width: 0;
+      padding: .6rem 0 .7rem; border-top: 1px solid rgba(29,29,27,.12); }}
+    .ea-ind-topo {{ display: flex; align-items: center; gap: .35rem; }}
+    .ea-ind-rotulo {{ font-size: .8rem; color: var(--cinza); }}
+    .ea-ind-valor-linha {{ display: flex; align-items: center; gap: .35rem; }}
     .ea-ind-valor {{ font-family: var(--fonte-titulo); font-size: 1.45rem;
       color: var(--tinta); font-variant-numeric: tabular-nums; line-height: 1.2; }}
-    .ea-ind-sit {{ font-size: .78rem; font-weight: 700; }}
-    .ea-ind-ok .ea-ind-sit {{ color: var(--verde-escuro); }}
-    .ea-ind-atencao .ea-ind-sit {{ color: var(--oliva-escuro); }}
+    .ea-ind-sinal {{ font-size: 1.1rem; }}
+    .ea-ind-ok .ea-ind-sinal {{ color: var(--verde); }}
+    .ea-ind-atencao .ea-ind-sinal {{ color: var(--oliva-escuro); }}
     .ea-ind-atencao .ea-ind-valor {{ color: var(--oliva-escuro); }}
     .ea-ind-leitura {{ font-size: .78rem; color: var(--cinza); line-height: 1.4; }}
+
+    /* Termos do modelo: pílulas que entram (verde) ou saem (neutras, riscadas). */
+    .ea-termos {{ display: flex; flex-wrap: wrap; gap: .4rem; width: 100%; }}
+    .ea-termo {{ padding: .3rem .75rem; border-radius: 999px; cursor: pointer;
+      user-select: none; font-size: .85rem; border: 1px solid rgba(29,29,27,.2);
+      transition: background .12s, border-color .12s; }}
+    .ea-termo:focus-visible {{ outline: 2px solid var(--verde); outline-offset: 2px; }}
+    .ea-termo-on {{ color: var(--tinta); border-color: rgba(46,133,64,.55);
+      background: rgba(64,165,81,.10); }}
+    .ea-termo-off {{ color: var(--cinza); text-decoration: line-through;
+      background: transparent; border-style: dashed; }}
+    .ea-termo-off:hover {{ background: rgba(29,29,27,.04); }}
     /* Próximos passos (US-17): frases curtas, uma por linha. */
     .ea-passos-sugeridos {{ display: flex; flex-direction: column; gap: .45rem;
       max-width: 44rem; }}

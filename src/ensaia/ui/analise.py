@@ -73,7 +73,15 @@ from ensaia.core.surface import (
 from ensaia.core.table import Table
 from ensaia.core.termos import NOME_MODELO
 from ensaia.ui import graficos
-from ensaia.ui.ajuda import Dica, ajuda, dica, titulo_com_ajuda
+from ensaia.ui.ajuda import (
+    EXPLICACOES,
+    FORMULAS,
+    Dica,
+    ajuda,
+    dica,
+    titulo_com_ajuda,
+    titulo_com_dica,
+)
 from ensaia.ui.narrar import construir_narracao
 from ensaia.ui.painel_analises import PainelAnalises
 from ensaia.ui.sessao import Sessao
@@ -109,7 +117,6 @@ _GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
 # Prefixo do dado arrastado: o drop só aceita o que saiu de um cartão do quadro,
 # não um texto qualquer arrastado de outra janela.
 _ARRASTO = "ensaia-coluna:"
-
 
 
 @dataclass
@@ -455,6 +462,27 @@ def _resumo_opcoes(opcoes: _Opcoes) -> str:
     return " · ".join(partes)
 
 
+def _card_recolhivel(
+    icone: str, titulo: str, resumo: str, *, aberto: bool = False
+) -> tuple[ui.expansion, ui.label]:
+    """Card que abre e fecha, no padrão das etapas de análise.
+
+    O cabeçalho tem um ícone no círculo, o título e um resumo de uma linha;
+    devolve o card (para preencher com `with`) e o rótulo do resumo, para quem
+    quiser atualizá-lo depois.
+    """
+    card = ui.expansion(value=aberto).classes("ea-etapa ea-card w-full").props("dense")
+    with (
+        card.add_slot("header"),
+        ui.element("div").classes("ea-etapa-cabeca"),
+    ):
+        ui.icon(icone).classes("ea-etapa-num ea-etapa-icone")
+        with ui.element("div").classes("ea-etapa-textos"):
+            ui.label(titulo).classes("ea-etapa-nome")
+            linha = ui.label(resumo).classes("ea-etapa-pergunta")
+    return card, linha
+
+
 def _painel_opcoes(opcoes: _Opcoes) -> None:
     """Opções do modelo, recolhidas como as etapas das análises.
 
@@ -462,17 +490,10 @@ def _painel_opcoes(opcoes: _Opcoes) -> None:
     e cada opção é um cartão com o que ela faz e a dica do valor escolhido (em
     texto ou fórmula), que muda junto com a escolha.
     """
-    painel = ui.expansion().classes("ea-etapa ea-opcoes-modelo w-full").props(
-        "dense"
+    painel, resumo = _card_recolhivel(
+        "tune", "Opções do modelo", _resumo_opcoes(opcoes)
     )
-    with (
-        painel.add_slot("header"),
-        ui.element("div").classes("ea-etapa-cabeca"),
-    ):
-        ui.icon("tune").classes("ea-etapa-num")
-        with ui.element("div").classes("ea-etapa-textos"):
-            ui.label("Opções do modelo").classes("ea-etapa-nome")
-            resumo = ui.label(_resumo_opcoes(opcoes)).classes("ea-etapa-pergunta")
+    painel.classes("ea-opcoes-modelo")
 
     with painel:
         ui.label(
@@ -621,25 +642,37 @@ def _mostrar_resultados(
     _bloco_baixar(sessao)
 
 
-_SITUACAO = {"ok": "em ordem", "atencao": "atenção", "info": ""}
+# Sinal de cada indicador: ícone ao lado do valor e o que ele quer dizer.
+_SINAL = {"ok": ("check_circle", "Bom sinal"), "atencao": ("error", "Pede atenção")}
 
 
 def _painel_indicativos(
     ajuste: AjusteResposta, alfa: float, sel: frozenset[str]
 ) -> None:
-    """Primeira leitura de uma resposta (US-06): os indicadores e seus sinais."""
+    """Primeira leitura de uma resposta (US-06): os indicadores e seus sinais.
+
+    Só para ler, como um quadro de relatório: sem caixa nem clique, cada métrica
+    separada por uma linha fina. O sinal é um ícone ao lado do valor e a lâmpada
+    explica a métrica.
+    """
     itens = [i for i in indicativos(ajuste, alfa) if i.analise in sel]
     if not itens:
         return
     with ui.element("div").classes("ea-indicativos"):
         for item in itens:
             with ui.element("div").classes(f"ea-ind ea-ind-{item.situacao}"):
-                with ui.element("div").classes("ea-ind-rotulo"):
-                    ui.label(item.rotulo)
-                    ajuda(item.chave)
-                ui.label(item.valor).classes("ea-ind-valor")
-                if item.situacao != "info":
-                    ui.label(_SITUACAO[item.situacao]).classes("ea-ind-sit")
+                with ui.element("div").classes("ea-ind-topo"):
+                    ui.label(item.rotulo).classes("ea-ind-rotulo")
+                    if item.chave in EXPLICACOES:
+                        dica(EXPLICACOES[item.chave][1], FORMULAS.get(item.chave))
+                with ui.element("div").classes("ea-ind-valor-linha"):
+                    ui.label(item.valor).classes("ea-ind-valor")
+                    if item.situacao in _SINAL:
+                        icone, sentido = _SINAL[item.situacao]
+                        with ui.icon(icone).classes("ea-ind-sinal").props(
+                            f'role="img" aria-label="{sentido}"'
+                        ):
+                            ui.tooltip(sentido)
                 ui.label(item.leitura).classes("ea-ind-leitura")
 
 
@@ -674,11 +707,21 @@ def _dados_experimento(
     sel: frozenset[str],
 ) -> None:
     """Estatística descritiva (A1) e matriz real × codificada (A3), recolhidas."""
-    with ui.expansion("Dados do experimento").classes("ea-opcoes w-full").props(
-        "dense switch-toggle-side"
-    ):
+    conteudo = [
+        nome
+        for nome, id_ in (
+            ("estatística descritiva", "A1"),
+            ("matriz do planejamento", "A3"),
+        )
+        if id_ in sel
+    ]
+    resumo = " e ".join(conteudo)
+    card, _ = _card_recolhivel(
+        "table_chart", "Dados do experimento", resumo[:1].upper() + resumo[1:]
+    )
+    with card:
         if analise.descritiva and "A1" in sel:
-            titulo_com_ajuda("Estatística descritiva", "descritiva", "ea-tabela-rotulo")
+            titulo_com_dica("Estatística descritiva", "descritiva", "ea-tabela-rotulo")
             colunas = [
                 {
                     "name": c,
@@ -714,7 +757,7 @@ def _dados_experimento(
 
         if "A3" not in sel:
             return
-        titulo_com_ajuda(
+        titulo_com_dica(
             "Matriz do planejamento (real e, entre parênteses, codificado)",
             "matriz",
             "ea-tabela-rotulo",
@@ -1000,26 +1043,73 @@ def _baixar_json(analise: AnalysisResult) -> None:
 def _ajustar_modelo(
     candidatos: list[str], opcoes: _Opcoes, reanalisar: Callable[[], None]
 ) -> None:
-    """Tirar termos do modelo e reajustar, vendo os indicadores mudarem (RF-09)."""
-    with ui.element("div").classes("ea-controles ea-ajustar"):
-        fora = (
-            ui.select(
-                {t: nome_legivel(t) for t in candidatos},
-                multiple=True,
-                value=[t for t in opcoes.excluidos if t in candidatos],
-                label="Termos fora do modelo",
+    """Tirar termos do modelo e reajustar, vendo os indicadores mudarem (RF-09).
+
+    Cada termo é uma pílula, como os cartões de análise: verde está no modelo,
+    clicar tira ou devolve. O "Reajustar" só se acende quando a escolha difere
+    do modelo atual. Depois de reajustar, o card volta aberto, para ver o que
+    mudou sem procurar.
+    """
+    atuais = {t for t in opcoes.excluidos if t in candidatos}
+    fora = set(atuais)
+
+    def resumo() -> str:
+        # +1: o intercepto, que não sai, conta como no subtítulo dos resultados.
+        dentro = len(candidatos) - len(fora) + 1
+        return f"{dentro} de {len(candidatos) + 1} termos no modelo" + (
+            f" · fora: {', '.join(nome_legivel(t) for t in candidatos if t in fora)}"
+            if fora
+            else ""
+        )
+
+    card, linha = _card_recolhivel(
+        "rule", "Ajustar termos", resumo(), aberto=bool(atuais)
+    )
+    pilulas: dict[str, ui.element] = {}
+
+    def desenhar() -> None:
+        for termo, pilula in pilulas.items():
+            no_modelo = termo not in fora
+            pilula.classes(
+                add="ea-termo-on" if no_modelo else "ea-termo-off",
+                remove="ea-termo-off" if no_modelo else "ea-termo-on",
             )
-            .props("dense outlined")
-            .classes("ea-fora")
-        )
+            pilula.props(f'aria-checked="{str(no_modelo).lower()}"')
+        linha.set_text(resumo())
+        botao.set_enabled(fora != atuais)
 
-        def reajustar() -> None:
-            opcoes.excluidos[:] = list(fora.value or [])
-            reanalisar()
+    def alternar(termo: str) -> None:
+        fora.symmetric_difference_update({termo})
+        desenhar()
 
-        ui.button("Reajustar", on_click=reajustar).props("flat").classes(
-            "ea-botao-sec"
+    def reajustar() -> None:
+        opcoes.excluidos[:] = [t for t in candidatos if t in fora]
+        reanalisar()
+
+    with card:
+        ui.label(
+            "Clique num termo para tirá-lo do modelo (ou devolvê-lo) e reajuste "
+            "para ver os indicadores mudarem."
+        ).classes("ea-ler")
+        with ui.element("div").classes("ea-termos"):
+            for termo in candidatos:
+                pilula = (
+                    ui.element("div")
+                    .classes("ea-termo")
+                    .props('role="switch" tabindex="0"')
+                )
+                with pilula:
+                    ui.label(nome_legivel(termo))
+                pilula.on("click", lambda t=termo: alternar(t))
+                pilula.on("keydown.enter.prevent", lambda t=termo: alternar(t))
+                pilula.on("keydown.space.prevent", lambda t=termo: alternar(t))
+                pilulas[termo] = pilula
+        botao = (
+            ui.button("Reajustar", icon="refresh", on_click=reajustar)
+            .props("outline dense no-caps")
+            .classes("ea-etapa-todas")
         )
+    desenhar()
 
 
 _ABA_EFEITOS = "Efeitos"
