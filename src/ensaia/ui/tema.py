@@ -595,6 +595,17 @@ def _css() -> str:
     .ea-ind-atencao .ea-ind-sinal {{ color: var(--oliva-escuro); }}
     .ea-ind-atencao .ea-ind-valor {{ color: var(--oliva-escuro); }}
     .ea-ind-leitura {{ font-size: .78rem; color: var(--cinza); line-height: 1.4; }}
+    /* Melhor condição, Prever e Próximos passos: blocos em coluna, espaçados. O
+       resultado da busca fica num quadro como o dos resultados; a unidade vai
+       ao lado do nível do fator e a resposta prevista se destaca em verde-mata. */
+    .ea-otimizacao {{ display: flex; flex-direction: column; gap: .7rem; }}
+    .ea-otimo-resultado {{ width: 100%; display: flex; flex-direction: column;
+      gap: .45rem; padding: 1rem 1.15rem; background: var(--papel-alto);
+      border: 1px solid var(--linha); border-radius: 14px; }}
+    .ea-ind-unidade {{ font-size: .85rem; color: var(--cinza); }}
+    .ea-ind-previsto .ea-ind-valor {{ color: var(--verde-escuro); }}
+    .ea-meta-alvo {{ max-width: 12rem; }}
+    .ea-botao-acao.q-btn {{ align-self: flex-start; }}
 
     /* Termos do modelo: pílulas que entram (verde) ou saem (neutras, riscadas). */
     .ea-termos {{ display: flex; flex-wrap: wrap; gap: .4rem; width: 100%; }}

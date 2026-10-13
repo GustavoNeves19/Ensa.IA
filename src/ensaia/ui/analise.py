@@ -786,39 +786,24 @@ def _dados_experimento(
         ).props("flat bordered dense").classes("ensaia-previa w-full")
 
 
-_SENTIDOS = {
-    "maximizar": "Maximizar",
-    "minimizar": "Minimizar",
-    "alvo": "Atingir um alvo",
-    "ignorar": "Não otimizar",
-}
-
-
 def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
-    """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo."""
+    """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo.
+
+    Cada resposta é um cartão com a meta em botões (e o valor-alvo, quando é o
+    caso); a lâmpada explica a meta escolhida. O resultado sai como um quadro de
+    leitura: os níveis dos fatores, a resposta prevista e, com várias, o D.
+    """
     analise = sessao.analise
     with ui.element("div").classes("ea-otimizacao"):
         titulo_com_dica("Melhor condição", "desejabilidade", "ea-secao-titulo")
-        ui.html(
-            '<div class="ea-secao-sub">Diga o que você quer de cada resposta. O '
-            "EnsaIA procura, dentro da região estudada, a combinação de fatores "
-            "que melhor atende a todas.</div>"
-        )
-        escolhas: dict[str, tuple[ui.select, ui.number]] = {}
-        with ui.element("div").classes("ea-mapa-grade"):
+        ui.label(
+            "Diga o que você quer de cada resposta. O EnsaIA procura, dentro da "
+            "região estudada, a combinação de fatores que melhor atende a todas."
+        ).classes("ea-secao-sub")
+        escolhas: dict[str, tuple[ui.toggle, ui.number]] = {}
+        with ui.element("div").classes("ea-analise-grade"):
             for i, ajuste in enumerate(analise.ajustes):
-                observados = ajuste.diagnostico.observados if ajuste.diagnostico else []
-                meio = (min(observados) + max(observados)) / 2 if observados else None
-                with ui.element("div").classes("ea-mapa-item"):
-                    ui.html(f'<div class="ea-col-nome">{escape(ajuste.resposta)}</div>')
-                    sentido = ui.select(
-                        _SENTIDOS, value="maximizar" if i == 0 else "ignorar"
-                    ).props("dense outlined")
-                    alvo = ui.number("Valor-alvo", value=meio, format="%.4g").props(
-                        "dense outlined"
-                    )
-                    alvo.bind_visibility_from(sentido, "value", value="alvo")
-                    escolhas[ajuste.resposta] = (sentido, alvo)
+                escolhas[ajuste.resposta] = _cartao_meta(ajuste, inicial=i == 0)
 
         def buscar() -> None:
             sentidos = {
@@ -854,11 +839,76 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
             with area:
                 _mostrar_otimo(ponto, avisos, planejamento)
 
-        ui.button("Encontrar a melhor condição", on_click=buscar).props(
-            "unelevated"
-        ).classes("ea-botao")
+        ui.button(
+            "Encontrar a melhor condição", icon="my_location", on_click=buscar
+        ).props("unelevated no-caps").classes("ea-botao ea-botao-acao")
         # O resultado aparece ABAIXO do botão, na ordem de leitura.
         area = ui.column().classes("w-full ea-slot")
+
+
+# Meta de cada resposta: rótulo do botão, o que a busca faz e a desejabilidade
+# individual (L e U: o menor e o maior valor observado; T: o alvo).
+_METAS: dict[str, tuple[str, str, str | None]] = {
+    "maximizar": (
+        "Maximizar",
+        "A busca procura os níveis dos fatores que dão o maior valor previsto "
+        "desta resposta.",
+        "d = (ŷ − L) / (U − L), entre 0 e 1\nL, U = menor e maior valor observado",
+    ),
+    "minimizar": (
+        "Minimizar",
+        "A busca procura os níveis dos fatores que dão o menor valor previsto "
+        "desta resposta, como um teor de impureza ou um tempo.",
+        "d = (U − ŷ) / (U − L), entre 0 e 1\nL, U = menor e maior valor observado",
+    ),
+    "alvo": (
+        "Atingir um alvo",
+        "A busca procura o valor previsto mais perto do alvo que você digitar. O "
+        "alvo precisa ficar entre o menor e o maior valor observado.",
+        "d = (ŷ − L) / (T − L) até o alvo T\nd = (U − ŷ) / (U − T) depois dele",
+    ),
+    "ignorar": (
+        "Não otimizar",
+        "Esta resposta fica fora da busca: use quando só as outras importam.",
+        None,
+    ),
+}
+
+
+def _cartao_meta(
+    ajuste: AjusteResposta, *, inicial: bool
+) -> tuple[ui.toggle, ui.number]:
+    """Um cartão por resposta: a meta em botões e, se for alvo, o valor."""
+    observados = ajuste.diagnostico.observados if ajuste.diagnostico else []
+    meio = (min(observados) + max(observados)) / 2 if observados else None
+    valor = "maximizar" if inicial else "ignorar"
+    with ui.element("div").classes("ea-opcao-cartao ea-opcao-larga"):
+        with ui.element("div").classes("ea-analise-topo"):
+            ui.label(nome_legivel(ajuste.resposta)).classes("ea-analise-nome")
+            lampada = Dica(_METAS[valor][1], _METAS[valor][2])
+        if observados:
+            ui.label(
+                f"Observado de {_fmt_curto(min(observados))} a "
+                f"{_fmt_curto(max(observados))} nos ensaios."
+            ).classes("ea-analise-texto")
+        sentido = (
+            ui.toggle(
+                {chave: rotulo for chave, (rotulo, _, _) in _METAS.items()},
+                value=valor,
+                on_change=lambda e: lampada.trocar(
+                    _METAS[e.value][1], _METAS[e.value][2]
+                ),
+            )
+            .props(_PROPS_TOGGLE)
+            .classes("ea-forma")
+        )
+        alvo = (
+            ui.number("Valor-alvo", value=meio, format="%.4g")
+            .props("dense outlined")
+            .classes("ea-meta-alvo")
+        )
+        alvo.bind_visibility_from(sentido, "value", value="alvo")
+    return sentido, alvo
 
 
 def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
@@ -920,49 +970,54 @@ def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
 def _mostrar_otimo(
     ponto: PontoOtimo | None, avisos: list[str], planejamento: Planejamento
 ) -> None:
+    """A condição encontrada, só para ler: fatores, resposta prevista e o D."""
     for aviso in avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
     if ponto is None:
         return
     unidades = {f.nome: f.unidade for f in planejamento.fatores}
-    linhas = [
-        {
-            "item": nome_legivel(nome),
-            "valor": _fmt_curto(valor),
-            "extra": unidades.get(nome) or "",
-        }
-        for nome, valor in ponto.coordenadas.items()
-    ]
-    linhas += [
-        {
-            "item": f"{nome} (prevista)",
-            "valor": _fmt(valor, 3),
-            "extra": (
-                f"d = {_fmt(ponto.desejabilidades_individuais[nome], 3)}"
-                if ponto.metodo == "desejabilidade"
-                else _SENTIDOS.get(ponto.metas.get(nome, ""), "")
-            ),
-        }
-        for nome, valor in ponto.resposta_prevista.items()
-    ]
-    colunas = [
-        {"name": "item", "label": "", "field": "item", "align": "left"},
-        {"name": "valor", "label": "Valor", "field": "valor", "align": "right"},
-        {"name": "extra", "label": "", "field": "extra", "align": "left"},
-    ]
-    ui.table(columns=colunas, rows=linhas, row_key="item").props(
-        "flat bordered dense hide-bottom"
-    ).classes("ensaia-previa w-full")
-    leitura = (
-        f"Desejabilidade global D = <b>{_fmt(ponto.desejabilidade_global, 3)}</b> "
-        "(1 = todas as metas plenamente atendidas). "
-        if ponto.metodo == "desejabilidade"
-        else ""
-    )
-    ui.html(
-        f'<div class="ea-ler">{leitura}Valores dentro da região estudada; '
-        "confirme com um ensaio nessa condição antes de adotá-la.</div>"
-    )
+    with ui.element("div").classes("ea-otimo-resultado"):
+        ui.label("Condição encontrada").classes("ea-tabela-rotulo")
+        with ui.element("div").classes("ea-indicativos"):
+            for nome, valor in ponto.coordenadas.items():
+                with ui.element("div").classes("ea-ind"):
+                    ui.label(nome_legivel(nome)).classes("ea-ind-rotulo")
+                    with ui.element("div").classes("ea-ind-valor-linha"):
+                        ui.label(_fmt_curto(valor)).classes("ea-ind-valor")
+                        if unidades.get(nome):
+                            ui.label(unidades[nome] or "").classes("ea-ind-unidade")
+        ui.label("O que o modelo prevê nessa condição").classes("ea-tabela-rotulo")
+        with ui.element("div").classes("ea-indicativos"):
+            for nome, valor in ponto.resposta_prevista.items():
+                meta = _METAS.get(ponto.metas.get(nome, ""), ("", "", None))[0]
+                with ui.element("div").classes("ea-ind ea-ind-previsto"):
+                    ui.label(nome_legivel(nome)).classes("ea-ind-rotulo")
+                    ui.label(_fmt(valor, 3)).classes("ea-ind-valor")
+                    d = ponto.desejabilidades_individuais.get(nome)
+                    detalhe = (
+                        f"{meta} · d = {_fmt(d, 3)}"
+                        if ponto.metodo == "desejabilidade" and d is not None
+                        else meta
+                    )
+                    ui.label(detalhe).classes("ea-ind-leitura")
+            if ponto.metodo == "desejabilidade" and len(ponto.resposta_prevista) > 1:
+                with ui.element("div").classes("ea-ind"):
+                    with ui.element("div").classes("ea-ind-topo"):
+                        ui.label("Desejabilidade global").classes("ea-ind-rotulo")
+                        dica(
+                            EXPLICACOES["desejabilidade"][1],
+                            FORMULAS["desejabilidade"],
+                        )
+                    ui.label(_fmt(ponto.desejabilidade_global, 3)).classes(
+                        "ea-ind-valor"
+                    )
+                    ui.label("1 = todas as metas plenamente atendidas.").classes(
+                        "ea-ind-leitura"
+                    )
+        ui.label(
+            "Valores dentro da região estudada; confirme com um ensaio nessa condição "
+            "antes de adotá-la."
+        ).classes("ea-ler")
 
 
 def _bloco_baixar(sessao: Sessao) -> None:
