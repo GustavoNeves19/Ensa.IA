@@ -675,19 +675,27 @@ def _painel_indicativos(
 
 
 def _bloco_proximos_passos(sessao: Sessao, limite: float) -> None:
-    """O que fazer agora (US-17), refeito quando a melhor condição é calculada."""
+    """O que fazer agora (US-17), refeito quando a melhor condição é calculada.
+
+    Uma lista numerada, como os passos da abertura e as etapas das análises: o
+    número num círculo e a frase ao lado, separados por linhas finas.
+    """
     with ui.element("div").classes("ea-otimizacao"):
-        ui.html('<div class="ea-secao-titulo">Próximos passos</div>')
-        lista = ui.element("div").classes("ea-passos-sugeridos")
+        ui.label("Próximos passos").classes("ea-secao-titulo")
+        lista = ui.element("ol").classes("ea-passos-sugeridos")
 
     def mostrar() -> None:
         lista.clear()
         passos = proximos_passos(sessao.analise, limite_codificado=limite)
         with lista:
-            for passo in passos or [
-                "Nada pede ajuste: o modelo está pronto para prever e otimizar."
-            ]:
-                ui.label(passo).classes("ea-passo-sugerido")
+            for numero, passo in enumerate(
+                passos
+                or ["Nada pede ajuste: o modelo está pronto para prever e otimizar."],
+                start=1,
+            ):
+                with ui.element("li").classes("ea-passo-sugerido"):
+                    ui.label(str(numero)).classes("ea-etapa-num")
+                    ui.label(passo)
 
     sessao.ouvintes["proximos"] = mostrar
     mostrar()
@@ -912,23 +920,44 @@ def _cartao_meta(
 
 
 def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
-    """Prever uma condição (US-15, "e se?"): valores dos fatores → respostas."""
+    """Prever uma condição (US-15, "e se?"): valores dos fatores → respostas.
+
+    Cada fator é um cartão com a unidade, a faixa estudada e o campo; o resultado
+    sai num quadro de leitura, como o da melhor condição, com o aviso de
+    extrapolação em destaque quando a condição sai da região estudada.
+    """
     with ui.element("div").classes("ea-otimizacao"):
-        ui.html('<div class="ea-secao-titulo">Prever uma condição</div>')
-        ui.html(
-            '<div class="ea-secao-sub">Digite os valores dos fatores, nas unidades do '
-            "laboratório, e veja o que o modelo prevê. Útil para planejar o próximo "
-            "ensaio ou conferir o ensaio de confirmação.</div>"
-        )
+        with ui.element("div").classes("ea-titulo-linha ea-titulo-dica"):
+            ui.label("Prever uma condição").classes("ea-secao-titulo")
+            dica(
+                "O modelo calcula a resposta para os valores que você digitar, nas "
+                "unidades do laboratório. Serve para planejar o próximo ensaio ou "
+                "conferir o ensaio de confirmação. Fora da faixa estudada, o modelo "
+                "extrapola e a previsão perde a confiança.",
+                FORMULAS["equacao"],
+            )
+        ui.label(
+            "Digite os valores dos fatores e veja o que o modelo prevê."
+        ).classes("ea-secao-sub")
         campos: dict[str, ui.number] = {}
-        with ui.element("div").classes("ea-mapa-grade"):
+        with ui.element("div").classes("ea-analise-grade"):
             for fator in planejamento.fatores:
-                rotulo = nome_legivel(fator.nome)
-                if fator.unidade:
-                    rotulo += f" ({fator.unidade})"
-                campos[fator.nome] = ui.number(
-                    rotulo, value=round(fator.centro, 6), format="%.6g"
-                ).props("dense outlined")
+                with ui.element("div").classes("ea-opcao-cartao"):
+                    ui.label(nome_legivel(fator.nome)).classes("ea-analise-nome")
+                    unidade = f" {fator.unidade}" if fator.unidade else ""
+                    ui.label(
+                        f"Estudado de {_fmt_curto(fator.minimo)} a "
+                        f"{_fmt_curto(fator.maximo)}{unidade}."
+                    ).classes("ea-analise-texto")
+                    campos[fator.nome] = (
+                        ui.number(
+                            "Valor" + (f" ({fator.unidade})" if fator.unidade else ""),
+                            value=round(fator.centro, 6),
+                            format="%.6g",
+                        )
+                        .props("dense outlined")
+                        .classes("ea-meta-alvo")
+                    )
 
         def prever() -> None:
             valores = {
@@ -945,25 +974,25 @@ def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
                 ui.notify(str(erro), type="warning", position="top")
                 return
             area.clear()
-            with area:
-                linhas = [
-                    {"r": r, "v": _fmt(v, 3)} for r, v in previstas.items()
-                ]
-                colunas = [
-                    {"name": "r", "label": "Resposta", "field": "r", "align": "left"},
-                    {"name": "v", "label": "Prevista", "field": "v", "align": "right"},
-                ]
-                ui.table(columns=colunas, rows=linhas, row_key="r").props(
-                    "flat bordered dense hide-bottom"
-                ).classes("ensaia-previa w-full")
+            with area, ui.element("div").classes("ea-otimo-resultado"):
+                ui.label("O que o modelo prevê").classes("ea-tabela-rotulo")
+                with ui.element("div").classes("ea-indicativos"):
+                    for resposta, valor in previstas.items():
+                        with ui.element("div").classes("ea-ind ea-ind-previsto"):
+                            ui.label(nome_legivel(resposta)).classes("ea-ind-rotulo")
+                            ui.label(_fmt(valor, 3)).classes("ea-ind-valor")
                 if extrapola:
-                    ui.html(
-                        '<div class="ea-aviso">Essa condição sai da região estudada: '
-                        "o modelo está extrapolando e a previsão pode não valer. "
-                        "Confirme com um ensaio antes de confiar nela.</div>"
-                    )
+                    with ui.element("div").classes("ea-alerta"):
+                        ui.icon("warning")
+                        ui.label(
+                            "Essa condição sai da região estudada: o modelo está "
+                            "extrapolando e a previsão pode não valer. Confirme com "
+                            "um ensaio antes de confiar nela."
+                        )
 
-        ui.button("Prever", on_click=prever).props("unelevated").classes("ea-botao")
+        ui.button("Prever", icon="calculate", on_click=prever).props(
+            "unelevated no-caps"
+        ).classes("ea-botao ea-botao-acao")
         area = ui.column().classes("w-full ea-slot")
 
 

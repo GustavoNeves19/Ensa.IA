@@ -621,10 +621,21 @@ def _css() -> str:
     .ea-termo-off {{ color: var(--cinza); text-decoration: line-through;
       background: transparent; border-style: dashed; }}
     .ea-termo-off:hover {{ background: rgba(29,29,27,.04); }}
-    /* Próximos passos (US-17): frases curtas, uma por linha. */
-    .ea-passos-sugeridos {{ display: flex; flex-direction: column; gap: .45rem;
-      max-width: 44rem; }}
-    .ea-passo-sugerido {{ color: var(--tinta); font-size: .95rem; line-height: 1.5; }}
+    /* Próximos passos (US-17): lista numerada, um passo por linha. */
+    .ea-passos-sugeridos {{ list-style: none; margin: 0; padding: 0; width: 100%;
+      display: flex; flex-direction: column; }}
+    .ea-passo-sugerido {{ display: flex; align-items: flex-start; gap: .75rem;
+      padding: .65rem 0; border-top: 1px solid rgba(29,29,27,.12);
+      color: var(--tinta); font-size: .95rem; line-height: 1.5; }}
+    .ea-passo-sugerido:last-child {{ border-bottom: 1px solid rgba(29,29,27,.12); }}
+    .ea-passo-sugerido .ea-etapa-num {{ width: 1.45rem; height: 1.45rem;
+      font-size: .74rem; margin-top: .05rem; }}
+    /* Alerta (extrapolação): oliva, com ícone, sem gritar. */
+    .ea-alerta {{ display: flex; align-items: flex-start; gap: .5rem;
+      padding: .6rem .75rem; border-radius: 10px; font-size: .85rem;
+      line-height: 1.45; color: var(--oliva-escuro);
+      background: rgba(155,146,28,.10); border: 1px solid rgba(155,146,28,.35); }}
+    .ea-alerta .q-icon {{ font-size: 1.1rem; margin-top: .05rem; flex-shrink: 0; }}
     /* Glossário (US-18): janela de leitura, largura de texto. */
     .ea-glossario {{ width: min(44rem, 94vw); max-height: 86vh;
       background: var(--papel-alto); border-radius: 14px; }}
