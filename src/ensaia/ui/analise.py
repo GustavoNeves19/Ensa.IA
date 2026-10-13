@@ -1482,19 +1482,112 @@ def _texto_curvatura(curvatura: TesteCurvatura, alfa: float) -> str:
     return f"Sem evidência de curvatura ({teste}): o modelo linear descreve a região."
 
 
+_SUBSCRITO = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+
+# As formas da equação: (rótulo do botão, que texto do núcleo, como ler).
+_FORMAS_EQUACAO: dict[str, tuple[str, str]] = {
+    "codificada": (
+        "Codificada",
+        "Coeficientes na escala codificada (−1 a +1), a que os artigos publicam: "
+        "dá para comparar o peso de cada termo.",
+    ),
+    "significativos": (
+        "Só significativos",
+        "A codificada só com os termos significativos (sem reajustar o modelo): "
+        "os que de fato mexem na resposta.",
+    ),
+    "real": (
+        "Unidades reais",
+        "A mesma equação nas unidades do laboratório: substitua os valores dos "
+        "fatores direto, sem codificar.",
+    ),
+}
+
+
+def _termos_equacao(texto: str) -> list[tuple[str, str, str]]:
+    """(sinal, coeficiente, variável) de cada termo do texto da equação.
+
+    O núcleo escreve "ŷ = 53,48 + 7,025·X1 − 7,538·X2 …": o sinal entre termos
+    vem cercado de espaços e o primeiro termo pode começar com "−". A tela só
+    separa os pedaços; a formatação dos números continua sendo do núcleo.
+    """
+    corpo = texto.split("=", 1)[1].strip()
+    pedacos = re.split(r" ([+−]) ", corpo)
+    sinais = ["−" if pedacos[0].startswith("−") else "+", *pedacos[1::2]]
+    termos = [pedacos[0].lstrip("−"), *pedacos[2::2]]
+    saida = []
+    for sinal, termo in zip(sinais, termos, strict=True):
+        coeficiente, _, variavel = termo.partition("·")
+        saida.append((sinal, coeficiente, variavel))
+    return saida
+
+
+def _variavel_legivel(variavel: str) -> str:
+    """X1·X2 → X₁ · X₂; dose_catalisador → dose catalisador."""
+    partes = [p.replace("_", " ") for p in variavel.split("·")]
+    return " · ".join(
+        p.translate(_SUBSCRITO) if re.fullmatch(r"X\d+[²³]?", p) else p
+        for p in partes
+    )
+
+
 def _equacao(ajuste: AjusteResposta) -> None:
+    """A equação termo a termo, nas três formas, com as variáveis e o copiar."""
     eq = ajuste.equacao
     if eq is None:
         return
-    legenda = ", ".join(f"{s} = {nome_legivel(n)}" for s, n in eq.variaveis.items())
+    textos = {
+        "codificada": eq.codificada,
+        "significativos": eq.significativos,
+        "real": eq.real,
+    }
     titulo_com_dica("Equação do modelo", "equacao", "ea-tabela-rotulo")
-    ui.html(f'<div class="ea-equacao">{escape(eq.codificada)}</div>')
-    ui.html(f'<div class="ea-ler">Variáveis codificadas ({escape(legenda)}).</div>')
-    ui.html(f'<div class="ea-equacao">{escape(eq.real.replace("_", " "))}</div>')
-    ui.html(
-        '<div class="ea-ler">A mesma equação em unidades reais: use direto os '
-        "valores do laboratório.</div>"
-    )
+    with ui.element("div").classes("ea-eq-bloco"):
+        with ui.element("div").classes("ea-eq-barra"):
+            forma = (
+                ui.toggle(
+                    {chave: rotulo for chave, (rotulo, _) in _FORMAS_EQUACAO.items()},
+                    value="codificada",
+                )
+                .props(_PROPS_TOGGLE)
+                .classes("ea-forma")
+            )
+            ui.button(
+                "Copiar equação",
+                icon="content_copy",
+                on_click=lambda: _copiar_equacao(textos[forma.value]),
+            ).props("outline dense no-caps").classes("ea-etapa-todas")
+        for chave, texto in textos.items():
+            with ui.element("div").classes("ea-eq-forma") as caixa:
+                with ui.element("div").classes("ea-eq").props(
+                    f'role="math" aria-label="{escape(texto.replace("_", " "))}"'
+                ):
+                    ui.label("ŷ =").classes("ea-eq-y")
+                    for i, (sinal, coeficiente, variavel) in enumerate(
+                        _termos_equacao(texto)
+                    ):
+                        with ui.element("span").classes("ea-eq-termo"):
+                            if i > 0 or sinal == "−":
+                                ui.label(sinal).classes("ea-eq-sinal")
+                            ui.label(coeficiente).classes("ea-eq-coef")
+                            if variavel:
+                                ui.label(_variavel_legivel(variavel)).classes(
+                                    "ea-eq-var"
+                                )
+                ui.label(_FORMAS_EQUACAO[chave][1]).classes("ea-ler")
+                if chave != "real":
+                    with ui.element("div").classes("ea-eq-vars"):
+                        for simbolo, nome in eq.variaveis.items():
+                            rotulo = simbolo.translate(_SUBSCRITO)
+                            ui.label(f"{rotulo} = {nome_legivel(nome)}").classes(
+                                "ea-eq-varchip"
+                            )
+            caixa.bind_visibility_from(forma, "value", value=chave)
+
+
+def _copiar_equacao(texto: str) -> None:
+    ui.clipboard.write(texto.replace("_", " "))
+    ui.notify("Equação copiada.", type="positive", position="top", timeout=2500)
 
 
 def _aba_anova(
