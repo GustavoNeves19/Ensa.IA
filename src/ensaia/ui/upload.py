@@ -117,12 +117,15 @@ def construir_upload(
     )
 
     # Sem planilha à mão: um rótulo por linha e as ações ao lado, alinhadas.
+    # Cada ação leva um ícone e começa com um verbo — sem isso, o botão "flat"
+    # (sem caixa) lia como legenda, não como algo clicável (achado de IHC).
     with ui.element("div").classes("ea-alternativas") as alternativas:
-        ui.label("Exemplos publicados").classes("ea-ler")
+        ui.label("Carregar um exemplo publicado").classes("ea-ler")
         with ui.element("div").classes("ea-acoes"):
             for exemplo in EXEMPLOS.values():
                 ui.button(
-                    exemplo.titulo,
+                    f"Usar: {exemplo.titulo}",
+                    icon="science",
                     on_click=lambda e=exemplo: carregar(
                         conteudo_exemplo(e.id), e.arquivo
                     ),
@@ -133,6 +136,7 @@ def construir_upload(
         with ui.element("div").classes("ea-acoes"):
             ui.button(
                 "Baixar .xlsx com guia de preenchimento",
+                icon="file_download",
                 on_click=lambda: ui.download.content(
                     planilha_modelo_xlsx(), "ensaia-planilha-modelo.xlsx", _MIME_XLSX
                 ),

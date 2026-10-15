@@ -146,7 +146,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
     opcoes = _Opcoes()
     _painel_opcoes(opcoes)
 
-    def analisar_e_mostrar() -> None:
+    async def analisar_e_mostrar(botao: ui.button | None = None) -> None:
         fatores = mapa.colunas("fator")
         respostas = mapa.colunas("resposta")
         ordens = mapa.colunas("ordem")
@@ -156,8 +156,16 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
         if not respostas:
             ui.notify("Escolha ao menos uma coluna como Resposta.", type="warning")
             return
+        if botao is not None:
+            botao.props("loading")
+        resultado.clear()
+        with resultado:
+            ui.spinner(size="lg").classes("ea-spinner")
         try:
-            analise, planejamento, candidatos = _rodar_analise(
+            # Fora da thread da interface: ANOVA/backward elimination podem levar
+            # um instante perceptível (spec IHC: visibilidade do status, H1).
+            saida = await run.io_bound(
+                _rodar_analise,
                 tabela,
                 fatores,
                 respostas,
@@ -166,9 +174,11 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
                 painel_analises.marcadas(),
             )
         except ValueError as erro:
+            resultado.clear()
             ui.notify(str(erro), type="negative", position="top", timeout=9000)
             return
         except Exception as erro:
+            resultado.clear()
             ui.notify(
                 f"Não foi possível analisar: {erro}",
                 type="negative",
@@ -176,6 +186,12 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
                 timeout=9000,
             )
             return
+        finally:
+            if botao is not None:
+                botao.props(remove="loading")
+        if saida is None:  # o servidor encerrou no meio da análise
+            return
+        analise, planejamento, candidatos = saida
         resultado.clear()
         with resultado:
             _mostrar_resultados(
@@ -188,11 +204,15 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
                 nome_arquivo,
             )
 
-    def ao_analisar() -> None:
+    async def ao_analisar() -> None:
         opcoes.excluidos.clear()  # nova análise parte do modelo completo
-        analisar_e_mostrar()
+        await analisar_e_mostrar(botao_analisar)
 
-    ui.button("Analisar", on_click=ao_analisar).props("unelevated").classes("ea-botao")
+    botao_analisar = (
+        ui.button("Analisar", on_click=ao_analisar)
+        .props("unelevated")
+        .classes("ea-botao")
+    )
     # Os resultados aparecem ABAIXO do botão, na ordem de leitura.
     resultado = ui.column().classes("w-full ea-slot")
 
@@ -580,7 +600,7 @@ def _mostrar_resultados(
     planejamento: Planejamento,
     candidatos: list[str],
     opcoes: _Opcoes,
-    reanalisar: Callable[[], None],
+    reanalisar: Callable[..., Any],
     tabela: Table,
     nome_arquivo: str | None = None,
 ) -> None:
@@ -813,7 +833,7 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
             for i, ajuste in enumerate(analise.ajustes):
                 escolhas[ajuste.resposta] = _cartao_meta(ajuste, inicial=i == 0)
 
-        def buscar() -> None:
+        async def buscar() -> None:
             sentidos = {
                 r: cast(Sentido, sel.value)
                 for r, (sel, _) in escolhas.items()
@@ -827,17 +847,29 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
                 for r, (sel, campo) in escolhas.items()
                 if sel.value == "alvo" and campo.value is not None
             }
-            try:
+
+            def calcular() -> tuple[PontoOtimo | None, list[str]]:
                 metas = metas_padrao(analise.ajustes, sentidos, alvos)
-                ponto, avisos = otimizar(
+                return otimizar(
                     analise.ajustes,
                     planejamento.fatores,
                     metas,
                     limite_codificado=limite_da_regiao(planejamento),
                 )
+
+            # Fora da thread da interface: LHS + Nelder-Mead multi-start (k>4)
+            # pode demorar o bastante para precisar de indicação de progresso.
+            botao_buscar.props("loading")
+            try:
+                saida = await run.io_bound(calcular)
             except ValueError as erro:
                 ui.notify(str(erro), type="negative", position="top", timeout=9000)
                 return
+            finally:
+                botao_buscar.props(remove="loading")
+            if saida is None:  # o servidor encerrou no meio da busca
+                return
+            ponto, avisos = saida
             sessao.trocar_analise(
                 analise.model_copy(
                     update={"ponto_otimo": ponto, "avisos": [*analise.avisos, *avisos]}
@@ -847,9 +879,13 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
             with area:
                 _mostrar_otimo(ponto, avisos, planejamento)
 
-        ui.button(
-            "Encontrar a melhor condição", icon="my_location", on_click=buscar
-        ).props("unelevated no-caps").classes("ea-botao ea-botao-acao")
+        botao_buscar = (
+            ui.button(
+                "Encontrar a melhor condição", icon="my_location", on_click=buscar
+            )
+            .props("unelevated no-caps")
+            .classes("ea-botao ea-botao-acao")
+        )
         # O resultado aparece ABAIXO do botão, na ordem de leitura.
         area = ui.column().classes("w-full ea-slot")
 
@@ -1123,7 +1159,7 @@ def _baixar_json(analise: AnalysisResult) -> None:
 
 
 def _ajustar_modelo(
-    candidatos: list[str], opcoes: _Opcoes, reanalisar: Callable[[], None]
+    candidatos: list[str], opcoes: _Opcoes, reanalisar: Callable[..., Any]
 ) -> None:
     """Tirar termos do modelo e reajustar, vendo os indicadores mudarem (RF-09).
 
@@ -1164,9 +1200,9 @@ def _ajustar_modelo(
         fora.symmetric_difference_update({termo})
         desenhar()
 
-    def reajustar() -> None:
+    async def reajustar() -> None:
         opcoes.excluidos[:] = [t for t in candidatos if t in fora]
-        reanalisar()
+        await reanalisar(botao)
 
     with card:
         ui.label(

@@ -187,18 +187,7 @@ def _css() -> str:
     .ensaia-previa td, .ensaia-previa th {{ border-color: var(--linha) !important; }}
 
     /* --- Composição da página ----------------------------------------------- */
-    .ea-page {{ position: relative; width: 100%; min-height: 100vh; overflow: hidden; }}
-    /* A superfície de resposta (assinatura) sangra pelo canto superior direito e
-       se dissolve no papel por uma máscara radial — sem emenda dura. */
-    .ea-atmosfera {{
-      position: absolute; top: -64px; right: -118px;
-      width: min(680px, 90vw); pointer-events: none; z-index: 0;
-      -webkit-mask-image:
-        radial-gradient(72% 70% at 60% 32%, #000 52%, transparent 100%);
-      mask-image:
-        radial-gradient(72% 70% at 60% 32%, #000 52%, transparent 100%);
-    }}
-    .ea-atmosfera svg {{ width: 100%; height: auto; display: block; }}
+    .ea-page {{ position: relative; width: 100%; min-height: 100vh; }}
     .ea-col {{
       position: relative; z-index: 1; max-width: 1080px; margin: 0 auto;
       padding: clamp(2.6rem, 6vw, 5.5rem) clamp(1.25rem, 5vw, 2.25rem) 3.25rem;
@@ -230,33 +219,47 @@ def _css() -> str:
     .ea-sub {{ color: var(--cinza); font-size: 1.02rem; line-height: 1.55;
       max-width: 36rem; }}
 
-    /* Abertura: texto à esquerda, os sete passos à direita. No celular, a
-       lista desce para baixo do texto. */
-    .ea-hero {{ display: grid; align-items: start;
-      grid-template-columns: minmax(0, 620px) minmax(220px, 270px);
-      justify-content: space-between; gap: 2rem 3rem;
-      margin-bottom: clamp(1.9rem, 4vw, 2.7rem); }}
-    .ea-hero-texto {{ display: flex; flex-direction: column; min-width: 0;
-      gap: clamp(1.9rem, 4vw, 2.7rem); }}
-    @media (max-width: 860px) {{
-      .ea-hero {{ grid-template-columns: minmax(0, 1fr); }}
-    }}
+    /* Abertura: só o texto agora (marca, dicas, título, subtítulo) — a linha
+       do tempo dos sete passos virou uma seção própria, de largura cheia,
+       logo abaixo (ver `.ea-passos`). */
+    .ea-hero {{ display: flex; flex-direction: column;
+      gap: clamp(1.9rem, 4vw, 2.7rem); max-width: 42rem;
+      margin-bottom: clamp(2.3rem, 5vw, 3.4rem); }}
 
-    /* Trilha dos sete passos — sem trilho nem seta; a ordem é a numeração. */
-    .ea-passos {{ list-style: none; margin: 0; padding: .45rem 0 0;
-      display: flex; flex-direction: column; gap: .95rem;
-      /* As curvas de nível do canto passam por trás da lista: um véu do papel,
-         de borda esfumada, apaga as linhas sob o texto sem desenhar caixa. */
-      background: rgba(243,242,234,.88); border-radius: 18px;
-      box-shadow: 0 0 22px 20px rgba(243,242,234,.88); }}
-    .ea-passo {{ display: flex; align-items: baseline; gap: .75rem; }}
-    .ea-passo .n {{ color: var(--oliva-escuro); font-weight: 600; font-size: 1.1rem;
-      font-variant-numeric: tabular-nums; min-width: .8rem; }}
-    .ea-passo .t {{ color: var(--tinta); font-weight: 600; font-size: .95rem; }}
-    .ea-passo .d {{ color: var(--tinta); font-size: .92rem; }}
-    @media (max-width: 860px) {{
-      .ea-passos {{ padding: 0; gap: .6rem; background: none; box-shadow: none; }}
-      .ea-passo .n {{ font-size: 1rem; }}
+    /* Linha do tempo dos três passos, um embaixo do outro, sem trilho ligando
+       os círculos — só o número gigante e esmaecido atrás do texto marca a
+       ordem. Cada passo tem sua própria cor (`--cor`, inline de `_cor_passo`
+       em home.py), interpolando verde-escuro → oliva-escuro. */
+    .ea-passos {{ position: relative; list-style: none; margin: 0;
+      padding: .5rem 0; display: flex; flex-direction: column; gap: 1.8rem; }}
+    .ea-passo {{ position: relative; display: flex; align-items: center;
+      gap: 1.3rem; }}
+
+    .ea-passo-circulo {{ position: relative; z-index: 1; flex-shrink: 0;
+      width: 4.2rem; height: 4.2rem; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--cor);
+      box-shadow: 0 10px 18px -8px rgba(29,29,27,.4),
+        0 0 0 5px var(--papel); }}
+    .ea-passo-circulo .material-icons {{ color: var(--papel);
+      font-size: 1.9rem; }}
+
+    .ea-passo-corpo {{ position: relative; z-index: 1; min-width: 0; flex: 1; }}
+    .ea-passo .t {{ display: block; color: var(--tinta); font-weight: 700;
+      font-size: 1.05rem; }}
+    .ea-passo .d {{ color: var(--cinza); font-size: .9rem; line-height: 1.4; }}
+
+    /* O número gigante e esmaecido atrás do texto — a assinatura visual da
+       página, ligada a cada passo. */
+    .ea-passo-num {{ position: absolute; z-index: 0; top: 50%; right: .3rem;
+      transform: translateY(-50%); font-size: 3.8rem; font-weight: 800;
+      color: var(--cor); opacity: .14; line-height: 1;
+      font-variant-numeric: tabular-nums; pointer-events: none; }}
+
+    @media (max-width: 480px) {{
+      .ea-passo-num {{ font-size: 2.8rem; }}
+      .ea-passo-circulo {{ width: 3.6rem; height: 3.6rem; }}
+      .ea-passo-circulo .material-icons {{ font-size: 1.6rem; }}
     }}
 
     /* Painel do envio: superfície elevada por tom (não por contraste de linha),
@@ -674,22 +677,6 @@ def _css() -> str:
     .ea-tag-ia {{ font-size: .7rem; font-weight: 700; color: var(--verde-escuro); }}
     .ea-tag-m0 {{ font-size: .7rem; font-weight: 700; color: var(--cinza); }}
     .ea-spinner {{ color: var(--verde-escuro) !important; }}
-
-    /* O ponto ótimo da superfície respira — decorativo, nunca esconde conteúdo. */
-    @keyframes ea-respira {{
-      0%, 100% {{ transform: scale(1); opacity: .9; }}
-      50%      {{ transform: scale(1.14); opacity: .55; }}
-    }}
-    .ea-otimo-halo {{ transform-box: fill-box; transform-origin: center;
-                      animation: ea-respira 4.8s ease-in-out infinite; }}
-    .ea-superficie {{ animation: ea-deriva 26s ease-in-out infinite; }}
-    @keyframes ea-deriva {{
-      0%, 100% {{ transform: translate3d(0,0,0); }}
-      50%      {{ transform: translate3d(-10px,8px,0); }}
-    }}
-    @media (prefers-reduced-motion: reduce) {{
-      .ea-otimo-halo, .ea-superficie {{ animation: none; }}
-    }}
     </style>
     """
 
