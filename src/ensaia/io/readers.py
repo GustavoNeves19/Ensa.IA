@@ -82,7 +82,7 @@ def ler_dados_de_bytes(
         texto, _ = _decodificar(conteudo, nome)
         cabecalho, linhas = _ler_csv(texto, nome, separador)
 
-    _validar_cabecalho(nome, cabecalho)
+    cabecalho, linhas = _normalizar(nome, cabecalho, linhas)
     linhas = [linha for linha in linhas if any(str(c).strip() for c in linha)]
     if not linhas:
         raise ValueError(f"O arquivo {nome!r} não contém ensaios.")
@@ -188,16 +188,84 @@ def _parece_numero(texto: str) -> bool:
     return True
 
 
-def _validar_cabecalho(nome: str, cabecalho: list[str]) -> None:
-    if not cabecalho:
+# Até onde procurar o cabeçalho de verdade, abaixo de linhas de título.
+_LINHAS_DE_TITULO = 10
+
+
+def _normalizar(
+    nome: str, cabecalho: list[str], linhas: list[Sequence[object]]
+) -> tuple[list[str], list[Sequence[object]]]:
+    """Ajusta o que planilhas de laboratório costumam trazer, sem perder dado.
+
+    - Uma linha de título acima do cabeçalho ("Variáveis independentes |
+      Variáveis dependentes") é pulada: o cabeçalho é a primeira linha cheia,
+      com a largura dos dados, feita de texto.
+    - Coluna sem nome e sem dados some; sem nome mas com dados ganha um nome
+      ("Coluna 3") que o usuário vê e corrige no passo de mapear. Células além
+      da largura do cabeçalho são ignoradas (costumam ser sobra de um separador
+      errado).
+    - Nomes repetidos ganham um sufixo ("massa", "massa (2)") em vez de recusar
+      o arquivo inteiro.
+    - A matriz termina na primeira linha em branco depois dos ensaios: anotações
+      ou uma segunda tabela embaixo (composição, médias) não viram ensaios.
+    """
+    todas: list[list[object]] = [
+        list[object](cabecalho),
+        *(list[object](linha) for linha in linhas),
+    ]
+    inicio = _linha_do_cabecalho(todas)
+    titulos = [_texto(c) for c in todas[inicio]]
+    corpo = _primeiro_bloco(todas[inicio + 1 :])
+    manter = [
+        j
+        for j, titulo in enumerate(titulos)
+        if titulo or any(j < len(linha) and _texto(linha[j]) for linha in corpo)
+    ]
+    if not manter:
         raise ValueError(f"O arquivo {nome!r} não tem cabeçalho.")
-    if any(not str(coluna).strip() for coluna in cabecalho):
-        raise ValueError(
-            "O arquivo tem uma coluna sem nome. Dê um nome a todas as colunas."
+    nomes = _sem_repetidos([titulos[j] or f"Coluna {j + 1}" for j in manter])
+    dados: list[Sequence[object]] = [
+        [linha[j] if j < len(linha) else "" for j in manter] for linha in corpo
+    ]
+    return nomes, dados
+
+
+def _primeiro_bloco(linhas: list[list[object]]) -> list[list[object]]:
+    """Linhas até a primeira linha em branco que vem depois de algum ensaio."""
+    bloco: list[list[object]] = []
+    for linha in linhas:
+        vazia = not any(_texto(c) for c in linha)
+        if vazia and bloco:
+            break
+        if not vazia:
+            bloco.append(linha)
+    return bloco
+
+
+def _linha_do_cabecalho(linhas: list[list[object]]) -> int:
+    """Índice do cabeçalho: a primeira linha cheia e de texto (0 se não houver)."""
+    cheias = [[c for c in linha if _texto(c)] for linha in linhas[:30]]
+    largura = max((len(c) for c in cheias), default=0)
+    for i, celulas in enumerate(cheias[:_LINHAS_DE_TITULO]):
+        textos = sum(not _parece_numero(_texto(c)) for c in celulas)
+        if len(celulas) == largura and textos * 2 > len(celulas):
+            return i
+    return 0
+
+
+def _sem_repetidos(nomes: list[str]) -> list[str]:
+    vistos: dict[str, int] = {}
+    saida: list[str] = []
+    for nome_col in nomes:
+        vistos[nome_col] = vistos.get(nome_col, 0) + 1
+        saida.append(
+            nome_col if vistos[nome_col] == 1 else f"{nome_col} ({vistos[nome_col]})"
         )
-    repetidas = [coluna for coluna in cabecalho if cabecalho.count(coluna) > 1]
-    if repetidas:
-        raise ValueError(f"O arquivo tem colunas repetidas: {sorted(set(repetidas))}.")
+    return saida
+
+
+def _texto(celula: object) -> str:
+    return "" if celula is None else str(celula).strip()
 
 
 def _ler_csv(
@@ -277,9 +345,7 @@ def _ler_xls(
     if aba is not None and aba not in livro.sheet_names():
         raise _aba_inexistente(nome, aba, list(livro.sheet_names()))
     folha = livro.sheet_by_name(aba) if aba else livro.sheet_by_index(0)
-    linhas = [
-        folha.row_values(i) for i in range(min(folha.nrows, MAX_LINHAS + 2))
-    ]
+    linhas = [folha.row_values(i) for i in range(min(folha.nrows, MAX_LINHAS + 2))]
     return _separar(linhas, nome)
 
 
