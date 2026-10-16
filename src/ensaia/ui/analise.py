@@ -47,7 +47,12 @@ from ensaia.core.design import (
 from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import pontos_qq
 from ensaia.core.fatorial import pontos_meio_normal
-from ensaia.core.fluxo import Papel, analisar_tabela, sugerir_mapeamento
+from ensaia.core.fluxo import (
+    Papel,
+    analisar_tabela,
+    ordem_sugerida,
+    sugerir_mapeamento,
+)
 from ensaia.core.indicativos import indicativos, proximos_passos
 from ensaia.core.pipeline import limite_da_regiao
 from ensaia.core.results import (
@@ -99,12 +104,6 @@ _GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
         "tempo, dose). São as entradas do planejamento.",
     ),
     (
-        "ordem",
-        "Ordem dos ensaios",
-        "A coluna com a ordem em que os ensaios foram feitos, se houver. Serve "
-        "para ver se os resultados mudaram aos poucos ao longo do tempo.",
-    ),
-    (
         "ignorar",
         "Não usar",
         "Colunas que ficam fora da análise, como observações. Colunas de texto "
@@ -149,7 +148,6 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
     async def analisar_e_mostrar(botao: ui.button | None = None) -> None:
         fatores = mapa.colunas("fator")
         respostas = mapa.colunas("resposta")
-        ordens = mapa.colunas("ordem")
         if not fatores:
             ui.notify("Escolha ao menos uma coluna como Fator.", type="warning")
             return
@@ -170,7 +168,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
                 fatores,
                 respostas,
                 opcoes,
-                ordens[0] if ordens else None,
+                mapa.ordem_postos,
                 painel_analises.marcadas(),
             )
         except ValueError as erro:
@@ -222,13 +220,18 @@ class _Mapeamento:
 
     Começa na sugestão do núcleo (`sugerir_mapeamento`) e avisa os `ouvintes`
     a cada mudança: o quadro se redesenha e o painel de análises recalcula o
-    que se aplica.
+    que se aplica. A ordem de execução dos ensaios (spec §8.3) não tem tela
+    própria: só entra quando `ordem_sugerida` reconhece uma coluna pronta na
+    planilha (ex.: "Ensaio", "N", "Run" com valores 1..n) — informar a ordem
+    é problema do pesquisador, não do EnsaIA; sem essa coluna, o gráfico D3
+    simplesmente não aparece.
     """
 
     def __init__(self, tabela: Table) -> None:
         self.tabela = tabela
         self.papeis: dict[str, Papel] = sugerir_mapeamento(tabela)
         self.ouvintes: list[Callable[[], None]] = []
+        self.ordem_postos: list[int] | None = ordem_sugerida(tabela)
 
     def colunas(self, papel: Papel) -> list[str]:
         """As colunas de um papel, na ordem em que aparecem na planilha."""
@@ -247,12 +250,13 @@ class _Mapeamento:
                 type="warning",
             )
             return
-        if papel == "ordem":  # só uma ordem: a que estava lá deixa de ser usada
-            for outra in self.colunas("ordem"):
-                self.papeis[outra] = "ignorar"
         self.papeis[coluna] = papel
         for ouvinte in self.ouvintes:
             ouvinte()
+
+    def tem_ordem(self) -> bool:
+        """Se há ordem de execução detectada (D3 só aparece se houver)."""
+        return self.ordem_postos is not None
 
 
 class _QuadroMapeamento:
@@ -274,10 +278,7 @@ class _QuadroMapeamento:
         self.desenhar()
 
     def _zona(self, papel: Papel, titulo: str, explica: str) -> ui.element:
-        principal = papel in ("resposta", "fator")
-        zona = ui.element("div").classes(
-            f"ea-zona ea-zona-{papel}" + ("" if principal else " ea-zona-menor")
-        )
+        zona = ui.element("div").classes(f"ea-zona ea-zona-{papel}")
         zona.props(f'role="group" aria-label="{escape(titulo)}"')
         with zona:
             with ui.element("div").classes("ea-zona-topo"):
@@ -570,7 +571,7 @@ def _rodar_analise(
     fatores: list[str],
     respostas: list[str],
     opcoes: _Opcoes,
-    coluna_ordem: str | None = None,
+    ordem_execucao: list[int] | None = None,
     analises: list[str] | None = None,
 ) -> tuple[AnalysisResult, Planejamento, list[str]]:
     """Roda o fluxo do núcleo com as opções da tela (o mesmo do servidor MCP).
@@ -589,7 +590,7 @@ def _rodar_analise(
         excluidos=opcoes.excluidos,
         termo_erro=cast(TermoErro, opcoes.termo_erro),
         reduzir=opcoes.reduzir,
-        coluna_ordem=coluna_ordem,
+        ordem_execucao=ordem_execucao,
         analises=analises,
     )
     return feita.resultado, feita.planejamento, feita.candidatos

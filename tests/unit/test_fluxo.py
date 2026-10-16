@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from ensaia.core.fluxo import analisar_tabela, sugerir_mapeamento
+from ensaia.core.fluxo import analisar_tabela, ordem_sugerida, sugerir_mapeamento
 from ensaia.core.table import Table
 from ensaia.io.escrita import tabela_para_csv
 from ensaia.io.readers import ler_dados_de_bytes
@@ -22,9 +22,9 @@ def _tabela() -> Table:
     )
 
 
-def test_sugere_ordem_texto_fatores_e_ultima_numerica_como_resposta() -> None:
+def test_coluna_tipo_ensaio_vira_ignorar_fatores_e_ultima_numerica_resposta() -> None:
     assert sugerir_mapeamento(_tabela()) == {
-        "Ensaio": "ordem",
+        "Ensaio": "ignorar",
         "lote": "ignorar",
         "temp": "fator",
         "ph": "fator",
@@ -37,7 +37,17 @@ def test_coluna_de_ordem_no_fim_nao_rouba_o_papel_de_resposta() -> None:
         {"temp": [40, 60, 40, 60], "rend": [1.0, 2.0, 3.0, 4.5], "n": [1, 2, 3, 4]}
     )
     papeis = sugerir_mapeamento(tabela)
-    assert papeis["n"] == "ordem" and papeis["rend"] == "resposta"
+    assert papeis["n"] == "ignorar" and papeis["rend"] == "resposta"
+
+
+def test_ordem_sugerida_le_os_postos_da_coluna_detectada() -> None:
+    tabela = _tabela()  # "Ensaio": [3, 1, 2, 4] já são os postos de cada linha.
+    assert ordem_sugerida(tabela) == [3, 1, 2, 4]
+
+
+def test_ordem_sugerida_e_none_sem_coluna_candidata() -> None:
+    tabela = Table.de_colunas({"temp": [40, 60], "rend": [1.0, 2.0]})
+    assert ordem_sugerida(tabela) is None
 
 
 def test_csv_normalizado_volta_igual_e_neutraliza_formulas_em_texto() -> None:

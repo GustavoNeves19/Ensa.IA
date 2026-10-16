@@ -114,9 +114,7 @@ def disponibilidade(
     if n < 3:
         motivos["D2"] = "exige ao menos 3 ensaios"
     if not tem_ordem:
-        motivos["D3"] = (
-            "arraste a coluna com a ordem de execução para Ordem dos ensaios"
-        )
+        motivos["D3"] = "arraste os ensaios para informar a ordem de execução"
     if k < 2:
         for id_ in ("E1", "E2"):
             motivos[id_] = "exige ao menos 2 fatores"

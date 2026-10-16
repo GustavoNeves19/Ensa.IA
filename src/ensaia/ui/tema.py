@@ -321,11 +321,13 @@ def _css() -> str:
     .ea-col-nome {{ font-weight: 600; font-size: .85rem; color: var(--tinta);
       overflow-wrap: anywhere; }}
 
-    /* Mapear colunas por arrastar e soltar: dois grupos principais (resposta e
-       fator) e, abaixo, dois menores (ordem e não usar). */
+    /* Mapear colunas por arrastar e soltar: os três grupos (resposta, fator,
+       não usar) lado a lado, na mesma fileira. A ordem de execução não tem
+       grupo nem tela: só entra quando detectada de uma coluna da planilha
+       (informá-la é problema de quem roda o experimento, não do EnsaIA). */
     .ea-quadro {{ display: grid; gap: .8rem 1rem;
-      grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-    @media (max-width: 560px) {{
+      grid-template-columns: repeat(3, minmax(0, 1fr)); }}
+    @media (max-width: 760px) {{
       .ea-quadro {{ grid-template-columns: minmax(0, 1fr); }}
     }}
     .ea-zona {{ display: flex; flex-direction: column; gap: .55rem;
@@ -348,14 +350,11 @@ def _css() -> str:
     .ea-dica-form {{ white-space: pre-line; font-size: .86rem; line-height: 1.6;
       font-family: var(--fonte-corpo); font-variant-numeric: tabular-nums; }}
     body.ea-dicas-formula .ea-dica-pop.ea-dica-com-formula {{ max-width: 380px; }}
-    .ea-zona-menor {{ min-height: 0; padding: .6rem .85rem; }}
     .ea-zona-alvo {{ background: rgba(64,165,81,.10); border-color: var(--verde); }}
     .ea-zona-topo {{ display: flex; align-items: center; gap: .4rem; }}
     .ea-zona-titulo {{ font-weight: 600; font-size: .92rem; color: var(--tinta); }}
-    .ea-zona-menor .ea-zona-titulo {{ font-size: .84rem; color: var(--cinza); }}
     .ea-zona-lista {{ display: flex; flex-direction: column; gap: .45rem;
       flex: 1; }}
-    .ea-zona-menor .ea-zona-lista {{ flex-direction: row; flex-wrap: wrap; }}
     /* Grupo vazio: um espaço tracejado onde a coluna cabe, com o aviso no meio. */
     .ea-zona-vazia {{ flex: 1; width: 100%; display: flex; align-items: center;
       justify-content: center; min-height: 2.6rem; padding: .5rem;
@@ -375,6 +374,7 @@ def _css() -> str:
     .ea-cartao-nome {{ overflow-wrap: anywhere; min-width: 0; }}
     .ea-cartao-fixo {{ cursor: default; opacity: .7; background: transparent; }}
     .ea-cartao-fixo:hover {{ background: transparent; }}
+
     /* Análises: título de seção e uma etapa por dropdown, com os cartões. */
     .ea-analises {{ display: flex; flex-direction: column; gap: .55rem;
       width: 100%; }}

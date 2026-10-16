@@ -63,6 +63,7 @@ def analisar(
     tipo_modelo: TipoModelo | None = None,
     objetivos: Mapping[str, Sentido] | None = None,
     coluna_ordem: str | None = None,
+    ordem_execucao: Sequence[int] | None = None,
     analises: Sequence[str] | None = None,
     alvos: Mapping[str, float] | None = None,
 ) -> AnalysisResult:
@@ -79,8 +80,11 @@ def analisar(
     - `tipo_modelo` só é registrado nos metadados (os termos já chegam prontos).
     - `analises` são os IDs marcados (spec §9; padrão: todos). Só registram a
       escolha: o que é barato é calculado sempre.
-    - `coluna_ordem` (opcional) é a ordem de execução dos ensaios, para o
-      gráfico de resíduos × ordem (spec §9, D3).
+    - `coluna_ordem` e `ordem_execucao` (opcionais, nunca os dois) são a ordem
+      de execução dos ensaios, para o gráfico de resíduos × ordem (spec §9,
+      D3): o primeiro lê uma coluna da planilha; o segundo já traz o posto de
+      cada linha (`fluxo.postos_da_sequencia`), vindo do arrastar-pra-
+      reordenar da tela.
     - `objetivos` (maximizar, minimizar ou alvo por resposta; `alvos` traz o
       valor-alvo) aciona a busca da condição ótima dentro da região
       experimental (spec §9, E4/E5), com limites pelos valores observados.
@@ -116,9 +120,12 @@ def analisar(
     ajustes: list[AjusteResposta] = []
     avisos: list[str] = list(avisos_planejamento)
     limite = limite_da_regiao(planejamento)
-    ordem = (
-        [float(v) for v in tabela.coluna(coluna_ordem)] if coluna_ordem else None
-    )
+    if coluna_ordem:
+        ordem = [float(v) for v in tabela.coluna(coluna_ordem)]
+    elif ordem_execucao is not None:
+        ordem = [float(v) for v in ordem_execucao]
+    else:
+        ordem = None
     for resposta in respostas:
         resposta = str(resposta)
         y = tabela.coluna(resposta)

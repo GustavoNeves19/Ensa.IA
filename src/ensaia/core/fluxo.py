@@ -21,7 +21,7 @@ from ensaia.core.results import AnalysisResult, Sentido, TermoErro, TipoModelo
 from ensaia.core.table import Table
 from ensaia.core.termos import escolher_termos, termos_do_tipo
 
-Papel = Literal["fator", "resposta", "ordem", "ignorar"]
+Papel = Literal["fator", "resposta", "ignorar"]
 
 # Nomes usuais da coluna de ordem/número do ensaio (spec §8.3).
 _NOME_ORDEM = re.compile(
@@ -40,9 +40,11 @@ def parece_ordem(coluna: str, tabela: Table) -> bool:
 def sugerir_mapeamento(tabela: Table) -> dict[str, Papel]:
     """Papel sugerido de cada coluna: o ponto de partida do passo "mapear".
 
-    Texto é ignorado; uma coluna 1..n com nome de ensaio vira ordem; a última
-    coluna numérica é a resposta; as demais numéricas são fatores. O usuário
-    (ou o assistente de IA) corrige o que não bater.
+    Texto é ignorado; uma coluna 1..n com nome de ensaio também (ela não é
+    fator nem resposta — vira a sugestão inicial de `ordem_sugerida`, não um
+    papel de coluna); a última coluna numérica restante é a resposta; as
+    demais numéricas são fatores. O usuário (ou o assistente de IA) corrige o
+    que não bater.
     """
     numericas = [
         c
@@ -52,15 +54,28 @@ def sugerir_mapeamento(tabela: Table) -> dict[str, Papel]:
     ultima = numericas[-1] if numericas else None
     papeis: dict[str, Papel] = {}
     for coluna in tabela.colunas:
-        if not tabela.e_numerica(coluna):
+        if not tabela.e_numerica(coluna) or parece_ordem(coluna, tabela):
             papeis[coluna] = "ignorar"
-        elif parece_ordem(coluna, tabela):
-            papeis[coluna] = "ordem"
         elif coluna == ultima:
             papeis[coluna] = "resposta"
         else:
             papeis[coluna] = "fator"
     return papeis
+
+
+def ordem_sugerida(tabela: Table) -> list[int] | None:
+    """Posto de execução de cada linha (1..n), de uma coluna detectada.
+
+    Usa a mesma coluna que `parece_ordem` reconhece (ex.: "Ensaio", "N",
+    "Run"). Informar a ordem de execução é problema de quem desenha e roda o
+    experimento, não do EnsaIA — por isso não há tela para digitá-la: `None`
+    quando nenhuma coluna bate, e o gráfico de resíduos × ordem (D3) só
+    aparece quando bate.
+    """
+    for coluna in tabela.colunas:
+        if parece_ordem(coluna, tabela):
+            return [int(v) for v in tabela.coluna(coluna)]
+    return None
 
 
 @dataclass(frozen=True)
@@ -86,12 +101,18 @@ def analisar_tabela(
     termo_erro: TermoErro = "residuo",
     reduzir: bool = False,
     coluna_ordem: str | None = None,
+    ordem_execucao: Sequence[int] | None = None,
     analises: Sequence[str] | None = None,
     objetivos: Mapping[str, Sentido] | None = None,
 ) -> AnaliseDaTabela:
     """Reconhece o planejamento, escolhe os termos e roda o núcleo.
 
     `tipo_modelo=None` deixa o EnsaIA escolher pelo tipo de planejamento.
+    `coluna_ordem` e `ordem_execucao` são as duas formas de informar a ordem
+    de execução (spec §8.3): a primeira lê uma coluna da planilha; a segunda
+    (usada pela tela, que deixa arrastar os ensaios) já traz o posto de cada
+    linha — ver `postos_da_sequencia`. Dá pra usar uma ou outra, nunca as
+    duas; se vierem as duas, `coluna_ordem` tem prioridade.
     Levanta `ValueError` com mensagem em português quando os dados não servem.
     """
     if not fatores:
@@ -121,6 +142,7 @@ def analisar_tabela(
         tipo_modelo=selecao.tipo_modelo,
         avisos_planejamento=[*identificacao.avisos, *selecao.avisos],
         coluna_ordem=coluna_ordem,
+        ordem_execucao=ordem_execucao,
         analises=list(analises) if analises is not None else None,
         objetivos=dict(objetivos) if objetivos is not None else None,
     )
