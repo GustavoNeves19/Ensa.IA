@@ -30,6 +30,7 @@ class FonteMapeamento(Protocol):
     ouvintes: list[Callable[[], None]]
 
     def colunas(self, papel: Papel) -> list[str]: ...
+    def tem_ordem(self) -> bool: ...
 
 
 # Cada etapa: (rótulo curto do passo, pergunta que ela responde, para que serve).
@@ -339,7 +340,7 @@ class PainelAnalises:
         disponivel = disponibilidade(
             fatores,
             n_respostas=len(self.mapa.colunas("resposta")),
-            tem_ordem=bool(self.mapa.colunas("ordem")),
+            tem_ordem=self.mapa.tem_ordem(),
         )
         for id_, motivo in disponivel.items():
             self.cartoes[id_].definir(motivo)
