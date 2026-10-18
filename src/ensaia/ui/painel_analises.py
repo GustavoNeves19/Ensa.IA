@@ -1,13 +1,26 @@
 """Escolha das análises (spec §9, passo 4 do fluxo), em etapas e com explicação.
 
 Em vez de uma parede de caixas de seleção, as análises ficam em etapas que
-abrem e fecham — dados, triagem, modelo, diagnóstico, otimização —, cada uma
-com a pergunta que ela responde. Cada análise é um cartão que diz o que ela mostra;
+abrem e fecham — triagem, modelo, diagnóstico, otimização —, cada uma com a
+pergunta que ela responde. Cada análise é um cartão que diz o que ela mostra;
 a lâmpada traz como ler o resultado. Clicar no cartão inclui ou tira a análise
 do laudo.
 
 A disponibilidade continua vindo de `core.catalogo.disponibilidade`: o que não
 se aplica aos dados fica apagado, com o motivo escrito no próprio cartão.
+
+O grupo A (estatística descritiva, identificação do planejamento, matriz real
+e codificada) não tem etapa aqui: percorrendo `disponibilidade`, nenhuma das
+três tem uma regra própria de desligar — só a genérica ("escolha um
+fator/resposta"), igual a tudo o resto. Não são uma escolha de verdade, são
+andaime que sempre roda por baixo (`core/pipeline.py` as calcula
+incondicionalmente, e o laudo sempre as leva); por isso ficam sempre em
+`_SEMPRE_INCLUIDAS`, fora da grade de cartões. O olho de mostrar/ocultar a
+coluna codificada mora no próprio card de resultados ("Dados do experimento",
+em `ui/analise.py`) — é uma troca só de tela, nunca de conta: a codificação
+não é opcional em nenhuma análise (ADR 0001), então um cartão aqui sugerindo
+"codificar ou não" seria enganoso. Forçar o tipo do delineamento (o que A2
+reconhece sozinha) é opção em "Opções do modelo" (`ui/analise.py`).
 """
 
 from __future__ import annotations
@@ -17,10 +30,14 @@ from typing import Protocol
 
 from nicegui import ui
 
-from ensaia.core.catalogo import CATALOGO, disponibilidade
+from ensaia.core.catalogo import CATALOGO, IDS, disponibilidade
 from ensaia.core.fluxo import Papel
 from ensaia.core.table import Table
 from ensaia.ui.ajuda import FORMULAS, dica
+
+# Sempre calculadas e sempre no laudo (ver docstring do módulo): não aparecem
+# como cartão clicável porque nunca há motivo pra tirá-las.
+_SEMPRE_INCLUIDAS = frozenset({"A1", "A2", "A3"})
 
 
 class FonteMapeamento(Protocol):
@@ -34,12 +51,8 @@ class FonteMapeamento(Protocol):
 
 
 # Cada etapa: (rótulo curto do passo, pergunta que ela responde, para que serve).
+# O grupo A não entra aqui — ver docstring do módulo.
 ETAPAS: dict[str, tuple[str, str, str]] = {
-    "A": (
-        "Dados",
-        "O que foi feito no experimento?",
-        "Conhecer os dados e o planejamento antes de ajustar qualquer modelo.",
-    ),
     "B": (
         "Triagem",
         "Quais fatores importam?",
@@ -224,8 +237,9 @@ class _Cartao:
         with self.el:
             with ui.element("div").classes("ea-analise-topo"):
                 ui.label(nome).classes("ea-analise-nome")
-                # A lâmpada fica no canto e não alterna o cartão: só abre a dica.
-                # Incluída ou não, quem diz é a cor do cartão (e o aria-checked).
+                # A lâmpada fica no canto e não alterna o cartão: só abre a
+                # dica. Incluída ou não, quem diz é a cor do cartão (e o
+                # aria-checked).
                 dica(como_ler, FORMULA_ANALISE.get(id_)).on(
                     "click", js_handler="(e) => e.stopPropagation()"
                 )
@@ -343,7 +357,8 @@ class PainelAnalises:
             tem_ordem=self.mapa.tem_ordem(),
         )
         for id_, motivo in disponivel.items():
-            self.cartoes[id_].definir(motivo)
+            if id_ in self.cartoes:
+                self.cartoes[id_].definir(motivo)
         self._rotular()
 
     def _rotular(self) -> None:
@@ -361,6 +376,8 @@ class PainelAnalises:
             botao.set_enabled(bool(aplicaveis))
 
     def marcadas(self) -> list[str]:
-        return [
+        """IDs no laudo: as sempre-incluídas (grupo A) mais o que foi marcado."""
+        escolhidas = {
             id_ for id_, c in self.cartoes.items() if c.incluida and c.motivo is None
-        ]
+        }
+        return [id_ for id_ in IDS if id_ in _SEMPRE_INCLUIDAS or id_ in escolhidas]

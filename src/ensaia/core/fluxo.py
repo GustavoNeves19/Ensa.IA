@@ -11,13 +11,19 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from ensaia.core.design import INTERCEPTO, Planejamento
 from ensaia.core.identificacao import identificar_planejamento
 from ensaia.core.pipeline import ALFA_PADRAO, analisar
-from ensaia.core.results import AnalysisResult, Sentido, TermoErro, TipoModelo
+from ensaia.core.results import (
+    AnalysisResult,
+    Sentido,
+    TermoErro,
+    TipoModelo,
+    TipoPlanejamento,
+)
 from ensaia.core.table import Table
 from ensaia.core.termos import escolher_termos, termos_do_tipo
 
@@ -97,6 +103,7 @@ def analisar_tabela(
     versao_ensaia: str,
     alfa: float = ALFA_PADRAO,
     tipo_modelo: TipoModelo | None = None,
+    tipo_planejamento: TipoPlanejamento | None = None,
     excluidos: Sequence[str] = (),
     termo_erro: TermoErro = "residuo",
     reduzir: bool = False,
@@ -108,6 +115,14 @@ def analisar_tabela(
     """Reconhece o planejamento, escolhe os termos e roda o núcleo.
 
     `tipo_modelo=None` deixa o EnsaIA escolher pelo tipo de planejamento.
+
+    `tipo_planejamento`, se dado, força o rótulo do delineamento em vez do
+    detectado pela geometria (RF-06): Box-Behnken e um fatorial 3^k, por
+    exemplo, têm os mesmos 3 níveis, e a heurística pode escolher errado. Não
+    muda a codificação dos fatores (os ±1/α sempre vêm dos níveis reais, em
+    `identificar_planejamento`) — só o rótulo e, por tabela, o `tipo_modelo`
+    automático e o modelo quadrático/falta de ajuste que dependem dele.
+
     `coluna_ordem` e `ordem_execucao` são as duas formas de informar a ordem
     de execução (spec §8.3): a primeira lê uma coluna da planilha; a segunda
     (usada pela tela, que deixa arrastar os ensaios) já traz o posto de cada
@@ -123,6 +138,8 @@ def analisar_tabela(
         {nome: [float(v) for v in tabela.coluna(nome)] for nome in fatores}
     )
     planejamento = identificacao.planejamento
+    if tipo_planejamento is not None and tipo_planejamento != planejamento.tipo:
+        planejamento = replace(planejamento, tipo=tipo_planejamento)
     selecao = escolher_termos(
         tabela, planejamento, tipo_modelo=tipo_modelo, excluidos=excluidos
     )
