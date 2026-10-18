@@ -67,6 +67,7 @@ from ensaia.core.results import (
     TermoErro,
     TesteCurvatura,
     TipoModelo,
+    TipoPlanejamento,
 )
 from ensaia.core.surface import (
     PONTOS_PADRAO,
@@ -120,6 +121,7 @@ _ARRASTO = "ensaia-coluna:"
 class _Opcoes:
     """Escolhas do usuário sobre o modelo (spec §4, opções avançadas)."""
 
+    tipo_planejamento: str = "auto"
     tipo_modelo: str = "auto"
     termo_erro: str = "residuo"
     alfa: float = 0.05
@@ -361,6 +363,14 @@ class _QuadroMapeamento:
                     ui.menu_item(titulo, lambda p=papel: self.mapa.mover(coluna, p))
 
 
+_TIPOS_PLANEJAMENTO = {
+    "auto": "Automático",
+    "fatorial_completo": "Fatorial completo",
+    "fatorial_fracionado": "Fatorial fracionado",
+    "box_behnken": "Box-Behnken",
+    "composto_central": "Composto central",
+    "fatorial_3k": "Fatorial 3^k",
+}
 _MODELOS = {
     "auto": "Automático",
     "linear": "Linear",
@@ -378,6 +388,46 @@ _PROPS_TOGGLE = (
 # pode escolher, a dica em texto e em fórmula. A lâmpada mostra sempre a do valor
 # escolhido no momento.
 _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
+    "tipo_planejamento": (
+        "Tipo de delineamento",
+        "Qual planejamento os dados formam (A2, spec §9).",
+        {
+            "auto": (
+                "Automático: o EnsaIA reconhece o delineamento pela posição dos "
+                "pontos na escala codificada, sem precisar que você diga qual foi. "
+                "Avisa quando os níveis não batem com nenhum padrão conhecido.",
+                "2 níveis: fatorial · 3 níveis: Box-Behnken ou 3^k\n"
+                "5 níveis: composto central (±α)",
+            ),
+            "fatorial_completo": (
+                "Fatorial completo: force este tipo quando souber que testou todas "
+                "as combinações dos níveis baixo/alto de cada fator.",
+                "2^k ensaios; níveis −1, +1",
+            ),
+            "fatorial_fracionado": (
+                "Fatorial fracionado: uma fração do fatorial completo, para quando "
+                "nem toda combinação de níveis foi testada.",
+                "2^(k−p) ensaios; níveis −1, +1",
+            ),
+            "box_behnken": (
+                "Box-Behnken: force este tipo para um delineamento de 3 níveis sem "
+                "vértice — nenhum ensaio tem todos os fatores no extremo ao mesmo "
+                "tempo. É a ambiguidade mais comum com o fatorial 3^k, que tem os "
+                "mesmos 3 níveis.",
+                "níveis −1, 0, +1; sem o vértice (−1,−1,…,−1) etc.",
+            ),
+            "composto_central": (
+                "Composto central: force este tipo quando souber que o delineamento "
+                "tem pontos axiais (±α) além do fatorial e do centro.",
+                "níveis −α, −1, 0, +1, +α",
+            ),
+            "fatorial_3k": (
+                "Fatorial 3^k: force este tipo para um fatorial completo de 3 "
+                "níveis por fator — todas as combinações, incluindo o vértice.",
+                "3^k ensaios; níveis −1, 0, +1 (todas as combinações)",
+            ),
+        },
+    ),
     "tipo_modelo": (
         "Termos do modelo",
         "Quais efeitos entram na equação.",
@@ -471,7 +521,12 @@ _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
 
 def _resumo_opcoes(opcoes: _Opcoes) -> str:
     """A escolha atual numa linha, para o cabeçalho recolhido."""
-    partes = [
+    partes = []
+    if opcoes.tipo_planejamento != "auto":
+        partes.append(
+            f"Delineamento {_TIPOS_PLANEJAMENTO[opcoes.tipo_planejamento].lower()}"
+        )
+    partes += [
         f"Modelo {_MODELOS[opcoes.tipo_modelo].lower()}",
         _TERMOS_ERRO[opcoes.termo_erro].lower(),
         _ALFAS[opcoes.alfa],
@@ -520,6 +575,7 @@ def _painel_opcoes(opcoes: _Opcoes) -> None:
         ).classes("ea-ler")
         with ui.element("div").classes("ea-analise-grade"):
             for chave, opcoes_do_controle, largo in (
+                ("tipo_planejamento", _TIPOS_PLANEJAMENTO, True),
                 ("tipo_modelo", _MODELOS, True),
                 ("termo_erro", _TERMOS_ERRO, False),
                 ("alfa", _ALFAS, False),
@@ -580,6 +636,9 @@ def _rodar_analise(
     e os termos candidatos do modelo, para o usuário escolher o que excluir.
     """
     pedido = None if opcoes.tipo_modelo == "auto" else opcoes.tipo_modelo
+    delineamento = (
+        None if opcoes.tipo_planejamento == "auto" else opcoes.tipo_planejamento
+    )
     feita = analisar_tabela(
         tabela,
         fatores,
@@ -587,6 +646,7 @@ def _rodar_analise(
         versao_ensaia=__version__,
         alfa=opcoes.alfa,
         tipo_modelo=cast(TipoModelo | None, pedido),
+        tipo_planejamento=cast(TipoPlanejamento | None, delineamento),
         excluidos=opcoes.excluidos,
         termo_erro=cast(TermoErro, opcoes.termo_erro),
         reduzir=opcoes.reduzir,
@@ -621,8 +681,7 @@ def _mostrar_resultados(
     ui.html(f'<div class="ea-secao-sub">{escape(" · ".join(partes))}</div>')
     _ajustar_modelo(candidatos, opcoes, reanalisar)
     sel = _marcadas(analise)
-    if sel & {"A1", "A3"}:
-        _dados_experimento(analise, planejamento, tabela, sel)
+    _dados_experimento(analise, planejamento, tabela)
 
     for ajuste in analise.ajustes:
         with ui.element("div").classes("ea-resultado"):
@@ -647,9 +706,7 @@ def _mostrar_resultados(
 
     sessao = Sessao(
         analise,
-        dados=matriz_ensaios(
-            tabela, planejamento, analise.respostas, nome_arquivo
-        ),
+        dados=matriz_ensaios(tabela, planejamento, analise.respostas, nome_arquivo),
     )
     if sel & {"E4", "E5"}:
         _bloco_otimizacao(sessao, planejamento)
@@ -688,8 +745,10 @@ def _painel_indicativos(
                     ui.label(item.valor).classes("ea-ind-valor")
                     if item.situacao in _SINAL:
                         icone, sentido = _SINAL[item.situacao]
-                        with ui.icon(icone).classes("ea-ind-sinal").props(
-                            f'role="img" aria-label="{sentido}"'
+                        with (
+                            ui.icon(icone)
+                            .classes("ea-ind-sinal")
+                            .props(f'role="img" aria-label="{sentido}"')
                         ):
                             ui.tooltip(sentido)
                 ui.label(item.leitura).classes("ea-ind-leitura")
@@ -728,26 +787,22 @@ def _marcadas(analise: AnalysisResult) -> frozenset[str]:
 
 
 def _dados_experimento(
-    analise: AnalysisResult,
-    planejamento: Planejamento,
-    tabela: Table,
-    sel: frozenset[str],
+    analise: AnalysisResult, planejamento: Planejamento, tabela: Table
 ) -> None:
-    """Estatística descritiva (A1) e matriz real × codificada (A3), recolhidas."""
-    conteudo = [
-        nome
-        for nome, id_ in (
-            ("estatística descritiva", "A1"),
-            ("matriz do planejamento", "A3"),
-        )
-        if id_ in sel
-    ]
-    resumo = " e ".join(conteudo)
+    """Estatística descritiva e matriz do planejamento — sempre as duas.
+
+    As duas são sempre calculadas e sempre entram no laudo (`painel_analises.
+    _SEMPRE_INCLUIDAS`): nenhuma regra de `disponibilidade` desliga uma ou
+    outra, então não há cartão de "incluir ou não" para elas. O olho abaixo
+    não é isso — a codificação em si nunca é opcional (toda análise ajusta
+    o modelo em escala −1/+1, ADR 0001); ele só decide se a coluna aparece
+    NESTA tela, sem tocar no PDF nem recalcular nada.
+    """
     card, _ = _card_recolhivel(
-        "table_chart", "Dados do experimento", resumo[:1].upper() + resumo[1:]
+        "table_chart", "Dados do experimento", "Estatística descritiva e matriz"
     )
     with card:
-        if analise.descritiva and "A1" in sel:
+        if analise.descritiva:
             titulo_com_dica("Estatística descritiva", "descritiva", "ea-tabela-rotulo")
             colunas = [
                 {
@@ -782,13 +837,12 @@ def _dados_experimento(
                 "flat bordered dense hide-bottom"
             ).classes("ensaia-previa w-full")
 
-        if "A3" not in sel:
-            return
-        titulo_com_dica(
-            "Matriz do planejamento (real e, entre parênteses, codificado)",
-            "matriz",
-            "ea-tabela-rotulo",
-        )
+        with ui.row().classes("w-full items-center justify-between"):
+            titulo_com_dica("Matriz do planejamento", "matriz", "ea-tabela-rotulo")
+            with ui.row().classes("items-center gap-1 cursor-pointer") as alternador:
+                ui.label("Mostrar codificado").classes("ea-tabela-rotulo")
+                icone_olho = ui.icon("visibility").classes("ea-dica")
+
         codificada = matriz_codificada(tabela, planejamento)
         nomes = [f.nome for f in planejamento.fatores]
         ensaio = {"name": "n", "label": "Ensaio", "field": "n", "align": "left"}
@@ -796,23 +850,50 @@ def _dados_experimento(
             {"name": n, "label": nome_legivel(n), "field": n, "align": "right"}
             for n in nomes
         ]
-        linhas_m = [
-            {
-                "n": i + 1,
-                **{
-                    n: f"{_fmt_curto(float(tabela.coluna(n)[i]))} "
-                    f"({_fmt_curto(codificada[n][i])})"
-                    for n in nomes
-                },
-            }
-            for i in range(len(tabela))
-        ]
-        ui.table(
-            columns=colunas_m,
-            rows=linhas_m,
-            row_key="n",
-            pagination={"rowsPerPage": 10},
-        ).props("flat bordered dense").classes("ensaia-previa w-full")
+
+        def linhas_matriz(com_codigo: bool) -> list[dict[str, object]]:
+            return [
+                {
+                    "n": i + 1,
+                    **{
+                        n: (
+                            f"{_fmt_curto(float(tabela.coluna(n)[i]))} "
+                            f"({_fmt_curto(codificada[n][i])})"
+                            if com_codigo
+                            else _fmt_curto(float(tabela.coluna(n)[i]))
+                        )
+                        for n in nomes
+                    },
+                }
+                for i in range(len(tabela))
+            ]
+
+        tabela_matriz = (
+            ui.table(
+                columns=colunas_m,
+                rows=linhas_matriz(True),
+                row_key="n",
+                pagination={"rowsPerPage": 10},
+            )
+            .props("flat bordered dense")
+            .classes("ensaia-previa w-full")
+        )
+
+        estado = {"com_codigo": True}
+
+        def alternar_codigo() -> None:
+            estado["com_codigo"] = not estado["com_codigo"]
+            icone_olho.props(
+                f'name="{"visibility" if estado["com_codigo"] else "visibility_off"}"'
+            )
+            alternador.props(f'aria-checked="{str(estado["com_codigo"]).lower()}"')
+            tabela_matriz.rows = linhas_matriz(estado["com_codigo"])
+            tabela_matriz.update()
+
+        alternador.props('role="switch" tabindex="0" aria-checked="true"')
+        alternador.on("click", alternar_codigo)
+        alternador.on("keydown.enter.prevent", alternar_codigo)
+        alternador.on("keydown.space.prevent", alternar_codigo)
 
 
 def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
@@ -973,9 +1054,9 @@ def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
                 "extrapola e a previsão perde a confiança.",
                 FORMULAS["equacao"],
             )
-        ui.label(
-            "Digite os valores dos fatores e veja o que o modelo prevê."
-        ).classes("ea-secao-sub")
+        ui.label("Digite os valores dos fatores e veja o que o modelo prevê.").classes(
+            "ea-secao-sub"
+        )
         campos: dict[str, ui.number] = {}
         with ui.element("div").classes("ea-analise-grade"):
             for fator in planejamento.fatores:
@@ -1377,9 +1458,7 @@ def _pareto(
         on_point_click=clique,
     )
     dica = (
-        " Clique numa barra para ver a superfície daquele termo."
-        if ao_clicar
-        else ""
+        " Clique numa barra para ver a superfície daquele termo." if ao_clicar else ""
     )
     if ajuste.t_critico is None:
         corte = "Sem grau de liberdade no resíduo, não há linha de corte."
@@ -1563,8 +1642,7 @@ def _variavel_legivel(variavel: str) -> str:
     """X1·X2 → X₁ · X₂; dose_catalisador → dose catalisador."""
     partes = [p.replace("_", " ") for p in variavel.split("·")]
     return " · ".join(
-        p.translate(_SUBSCRITO) if re.fullmatch(r"X\d+[²³]?", p) else p
-        for p in partes
+        p.translate(_SUBSCRITO) if re.fullmatch(r"X\d+[²³]?", p) else p for p in partes
     )
 
 
@@ -1596,8 +1674,12 @@ def _equacao(ajuste: AjusteResposta) -> None:
             ).props("outline dense no-caps").classes("ea-etapa-todas")
         for chave, texto in textos.items():
             with ui.element("div").classes("ea-eq-forma") as caixa:
-                with ui.element("div").classes("ea-eq").props(
-                    f'role="math" aria-label="{escape(texto.replace("_", " "))}"'
+                with (
+                    ui.element("div")
+                    .classes("ea-eq")
+                    .props(
+                        f'role="math" aria-label="{escape(texto.replace("_", " "))}"'
+                    )
                 ):
                     ui.label("ŷ =").classes("ea-eq-y")
                     for i, (sinal, coeficiente, variavel) in enumerate(
@@ -1655,8 +1737,7 @@ def _aba_anova(
             _tabela_anova(ajuste.anova)
         else:
             ui.html(
-                '<div class="ea-ler">ANOVA Tipo II indisponível para este modelo.'
-                "</div>"
+                '<div class="ea-ler">ANOVA Tipo II indisponível para este modelo.</div>'
             )
     if "C4" in sel:
         ui.html(f'<div class="ea-falta">{escape(_texto_falta(ajuste))}</div>')
@@ -1668,8 +1749,7 @@ def _aba_diagnostico(
     d = ajuste.diagnostico
     if d is None:
         ui.html(
-            '<div class="ea-ler">Este resultado não traz os valores por ensaio.'
-            "</div>"
+            '<div class="ea-ler">Este resultado não traz os valores por ensaio.</div>'
         )
         return
 
@@ -1801,9 +1881,7 @@ def _texto_normalidade(ajuste: AjusteResposta, alfa: float) -> str:
     if d is None or d.shapiro_p is None:
         motivo = (d.motivo_sem_shapiro if d else None) or "dados insuficientes"
         return f"Teste de Shapiro-Wilk não aplicável ({escape(motivo)})."
-    teste = (
-        f"Shapiro-Wilk: W = {_fmt(d.shapiro_w, 3)}, p = {_fmt_p(d.shapiro_p)}. "
-    )
+    teste = f"Shapiro-Wilk: W = {_fmt(d.shapiro_w, 3)}, p = {_fmt_p(d.shapiro_p)}. "
     if d.normalidade_rejeitada:
         return teste + (
             f"<b>Há indício de que os resíduos não são normais</b> (p &lt; "
@@ -1978,7 +2056,9 @@ class _PainelSuperficie:
             atualizar_rotulo(self.fixos[fator.nome])
             passo = (fator.maximo - fator.minimo) / 40 or 1.0
             controle = ui.slider(
-                min=fator.minimo, max=fator.maximo, step=passo,
+                min=fator.minimo,
+                max=fator.maximo,
+                step=passo,
                 value=self.fixos[fator.nome],
             ).props("color=primary")
             controle.on_value_change(lambda e: atualizar_rotulo(float(e.value)))
@@ -2008,7 +2088,8 @@ class _PainelSuperficie:
             pontos=PONTOS_PADRAO if tres_d else _PONTOS_CONTORNO,
         )
         opcoes = (
-            graficos.opcoes_superficie_3d(grade) if tres_d
+            graficos.opcoes_superficie_3d(grade)
+            if tres_d
             else graficos.opcoes_contorno(grade, destaque=self._destaque())
         )
         descricao = (
