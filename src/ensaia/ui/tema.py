@@ -325,8 +325,9 @@ def _css() -> str:
        não usar) lado a lado, na mesma fileira. A ordem de execução não tem
        grupo nem tela: só entra quando detectada de uma coluna da planilha
        (informá-la é problema de quem roda o experimento, não do EnsaIA). */
+    /* Quatro zonas (respostas, fatores, blocos, não usar): 2 × 2. */
     .ea-quadro {{ display: grid; gap: .8rem 1rem;
-      grid-template-columns: repeat(3, minmax(0, 1fr)); }}
+      grid-template-columns: repeat(2, minmax(0, 1fr)); }}
     @media (max-width: 760px) {{
       .ea-quadro {{ grid-template-columns: minmax(0, 1fr); }}
     }}

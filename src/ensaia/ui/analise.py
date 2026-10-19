@@ -105,10 +105,18 @@ _GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
         "tempo, dose). São as entradas do planejamento.",
     ),
     (
+        "bloco",
+        "Blocos",
+        "A coluna que agrupa ensaios feitos em condições diferentes (dias, lotes "
+        "de reagente, equipamentos). A diferença entre os blocos é tirada do "
+        "erro, para não esconder os efeitos dos fatores; o bloco não vira fator "
+        "nem entra na equação. Só uma coluna.",
+    ),
+    (
         "ignorar",
         "Não usar",
-        "Colunas que ficam fora da análise, como observações. Colunas de texto "
-        "ficam sempre aqui.",
+        "Colunas que ficam fora da análise, como observações e a numeração das "
+        "linhas.",
     ),
 ]
 
@@ -150,6 +158,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
     async def analisar_e_mostrar(botao: ui.button | None = None) -> None:
         fatores = mapa.colunas("fator")
         respostas = mapa.colunas("resposta")
+        blocos = mapa.colunas("bloco")
         if not fatores:
             ui.notify("Escolha ao menos uma coluna como Fator.", type="warning")
             return
@@ -172,6 +181,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
                 opcoes,
                 mapa.ordem_postos,
                 painel_analises.marcadas(),
+                blocos[0] if blocos else None,
             )
         except ValueError as erro:
             resultado.clear()
@@ -239,19 +249,23 @@ class _Mapeamento:
         """As colunas de um papel, na ordem em que aparecem na planilha."""
         return [c for c in self.tabela.colunas if self.papeis[c] == papel]
 
-    def pode_mover(self, coluna: str) -> bool:
-        """Coluna de texto só pode ser ignorada: o modelo precisa de números."""
-        return self.tabela.e_numerica(coluna)
+    def pode_ser(self, coluna: str, papel: Papel) -> bool:
+        """Fator e resposta precisam de números; bloco e "não usar" aceitam texto."""
+        return self.tabela.e_numerica(coluna) or papel in ("bloco", "ignorar")
 
     def mover(self, coluna: str, papel: Papel) -> None:
         if self.papeis[coluna] == papel:
             return
-        if not self.pode_mover(coluna) and papel != "ignorar":
+        if not self.pode_ser(coluna, papel):
             ui.notify(
-                f"{coluna!r} tem texto: só colunas numéricas entram na análise.",
+                f"{coluna!r} tem texto: só colunas numéricas viram fator ou "
+                "resposta (texto pode ser bloco).",
                 type="warning",
             )
             return
+        if papel == "bloco":  # um bloco por análise: o anterior sai
+            for outra in self.colunas("bloco"):
+                self.papeis[outra] = "ignorar"
         self.papeis[coluna] = papel
         for ouvinte in self.ouvintes:
             ouvinte()
@@ -329,18 +343,15 @@ class _QuadroMapeamento:
 
     def _cartao(self, coluna: str) -> None:
         indice = self.mapa.tabela.colunas.index(coluna)
-        movel = self.mapa.pode_mover(coluna)
-        cartao = ui.element("div").classes(
-            "ea-cartao" + ("" if movel else " ea-cartao-fixo")
-        )
+        texto = not self.mapa.tabela.e_numerica(coluna)
+        cartao = ui.element("div").classes("ea-cartao")
         with cartao:
-            ui.icon("drag_indicator" if movel else "text_fields").classes(
+            ui.icon("text_fields" if texto else "drag_indicator").classes(
                 "ea-cartao-alca"
             )
             ui.label(coluna).classes("ea-cartao-nome")
-        if not movel:
-            cartao.props('title="Coluna de texto: fica fora da análise."')
-            return
+        if texto:
+            cartao.props('title="Coluna de texto: pode ser bloco ou ficar fora."')
         cartao.props(
             f'draggable="true" tabindex="0" role="button" '
             f'aria-label="{escape(coluna)}: clique para escolher o grupo"'
@@ -359,7 +370,7 @@ class _QuadroMapeamento:
         with cartao, ui.menu().classes("ea-cartao-menu"):
             ui.label("Mover para").classes("ea-cartao-menu-titulo")
             for papel, titulo, _ in _GRUPOS_MAPA:
-                if papel != atual:
+                if papel != atual and self.mapa.pode_ser(coluna, papel):
                     ui.menu_item(titulo, lambda p=papel: self.mapa.mover(coluna, p))
 
 
@@ -622,6 +633,26 @@ def _cartao_opcao(
         controle.bind_value(opcoes, chave)
 
 
+def _nota_blocos(ajuste: AjusteResposta) -> list[str]:
+    """Quanto os blocos tiraram do erro e o efeito de cada um (só com blocos)."""
+    reg = ajuste.anova_regressao
+    linha = (
+        next((li for li in reg.linhas if li.fonte == "Blocos"), None) if reg else None
+    )
+    if linha is None or not ajuste.efeitos_bloco:
+        return []
+    efeitos = "; ".join(
+        f"{rotulo}: {'+' if v >= 0 else '−'}{_fmt(abs(v), 3)}"
+        for rotulo, v in ajuste.efeitos_bloco.items()
+    )
+    return [
+        f"A diferença entre os {len(ajuste.efeitos_bloco)} blocos "
+        f"(SQ = {_fmt(linha.soma_quadrados, 2)}) foi separada do erro antes de "
+        f"testar os fatores. Efeito de cada bloco em relação à média: {efeitos}. "
+        "Equação, superfície e previsões valem para o bloco médio."
+    ]
+
+
 def _rodar_analise(
     tabela: Table,
     fatores: list[str],
@@ -629,6 +660,7 @@ def _rodar_analise(
     opcoes: _Opcoes,
     ordem_execucao: list[int] | None = None,
     analises: list[str] | None = None,
+    coluna_bloco: str | None = None,
 ) -> tuple[AnalysisResult, Planejamento, list[str]]:
     """Roda o fluxo do núcleo com as opções da tela (o mesmo do servidor MCP).
 
@@ -652,6 +684,7 @@ def _rodar_analise(
         reduzir=opcoes.reduzir,
         ordem_execucao=ordem_execucao,
         analises=analises,
+        coluna_bloco=coluna_bloco,
     )
     return feita.resultado, feita.planejamento, feita.candidatos
 
@@ -677,6 +710,8 @@ def _mostrar_resultados(
     modelo = analise.metadados.tipo_modelo
     nome_modelo = f"modelo {NOME_MODELO[modelo]}" if modelo else "modelo"
     partes.append(f"{nome_modelo} com {len(primeiro.termos_incluidos)} termos")
+    if info is not None and info.n_blocos:
+        partes.append(f"{info.n_blocos} blocos ({info.coluna_bloco})")
     ui.html('<div class="ea-secao-titulo">Resultados</div>')
     ui.html(f'<div class="ea-secao-sub">{escape(" · ".join(partes))}</div>')
     _ajustar_modelo(candidatos, opcoes, reanalisar)
@@ -695,6 +730,7 @@ def _mostrar_resultados(
                     nome_legivel(t) for t in ajuste.termos_descartados
                 )
                 notas.append(f"Removidos pela redução: {removidos}.")
+            notas.extend(_nota_blocos(ajuste))
             if notas:
                 ui.html(f'<div class="ea-ler">{escape(" ".join(notas))}</div>')
             _abas_resposta(
