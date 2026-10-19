@@ -205,9 +205,9 @@ def _css() -> str:
       font-size: clamp(3.6rem, 12vw, 5.4rem); line-height: .95;
       letter-spacing: -0.015em; }}
 
-    /* Seletor de dicas, logo abaixo da marca: três degraus com os nomes embaixo.
+    /* Seletor de dicas, depois do subtítulo: três degraus com os nomes embaixo.
        A folga lateral evita que o primeiro e o último nome saiam da caixa. */
-    .ea-seletor-dicas {{ margin-top: 1.1rem; width: min(100%, 380px); }}
+    .ea-seletor-dicas {{ width: min(100%, 380px); }}
     .ea-seletor-titulo {{ color: var(--cinza); font-size: .78rem; font-weight: 600;
       letter-spacing: .02em; }}
     .ea-seletor-slider {{ padding: 0 2.6rem; margin-top: .2rem; }}
@@ -219,12 +219,19 @@ def _css() -> str:
     .ea-sub {{ color: var(--cinza); font-size: 1.02rem; line-height: 1.55;
       max-width: 36rem; }}
 
-    /* Abertura: só o texto agora (marca, dicas, título, subtítulo) — a linha
-       do tempo dos sete passos virou uma seção própria, de largura cheia,
-       logo abaixo (ver `.ea-passos`). */
-    .ea-hero {{ display: flex; flex-direction: column;
-      gap: clamp(1.9rem, 4vw, 2.7rem); max-width: 42rem;
+    /* Abertura em duas colunas: o texto (marca, título, subtítulo e o seletor
+       de dicas) à esquerda e a linha do tempo dos passos à direita. Em tela
+       estreita, os passos descem para baixo do texto. */
+    .ea-abertura {{ display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+      align-items: center; column-gap: clamp(2rem, 5vw, 4rem);
+      row-gap: clamp(2.3rem, 5vw, 3.4rem);
       margin-bottom: clamp(2.3rem, 5vw, 3.4rem); }}
+    @media (max-width: 860px) {{
+      .ea-abertura {{ grid-template-columns: minmax(0, 1fr); }}
+    }}
+    .ea-hero {{ display: flex; flex-direction: column;
+      gap: clamp(1.9rem, 4vw, 2.7rem); max-width: 42rem; }}
 
     /* Linha do tempo dos três passos, um embaixo do outro, sem trilho ligando
        os círculos — só o número gigante e esmaecido atrás do texto marca a
