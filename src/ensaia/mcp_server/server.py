@@ -172,12 +172,15 @@ def fit_model(
     excluded_terms: list[str] | None = None,
     error_term: TermoErro = "residuo",
     alpha: float = 0.05,
+    block_column: str | None = None,
 ) -> dict[str, Any]:
     """Ajusta o modelo de regressão: coeficientes, ANOVA, R² e equações.
 
     `model_type`: "auto" (escolhe pelo planejamento), "linear", "interacoes"
     ou "quadratico". `excluded_terms` tira termos (ex.: ["temp:ph"]).
     `error_term`: "residuo" ou "erro_puro" (exige réplicas).
+    `block_column`: coluna que agrupa os ensaios em blocos (dias, lotes); a
+    diferença entre blocos sai do erro e aparece na linha "Blocos" da ANOVA.
 
     Exemplo: fit_model(data_csv, ["temp", "ph"], "rend", model_type="quadratico")
     """
@@ -190,10 +193,12 @@ def fit_model(
         excluded_terms,
         error_term,
         alpha,
+        coluna_bloco=block_column,
     )
     return _dict(
         ajuste,
         incluir={
+            "efeitos_bloco",
             "resposta",
             "coeficientes",
             "anova",
@@ -332,8 +337,12 @@ def run_full_analysis(
     alpha: float = 0.05,
     goals: dict[str, Sentido] | None = None,
     order_column: str | None = None,
+    block_column: str | None = None,
 ) -> dict[str, Any]:
     """Tudo numa chamada só: o resultado completo e os fatos já interpretados.
+
+    `block_column` (opcional): coluna que agrupa os ensaios em blocos (dias,
+    lotes); a diferença entre blocos sai do erro antes de testar os fatores.
 
     `analyses` escolhe as análises pelos IDs do catálogo (A1–E5; padrão: todas
     as que os dados permitem). Devolve `analysis_result` (o resultado completo,
@@ -353,6 +362,7 @@ def run_full_analysis(
         alfa=alpha,
         objetivos=goals,
         coluna_ordem=order_column,
+        coluna_bloco=block_column,
     )
     resultado = feita.resultado
     return {
@@ -600,6 +610,7 @@ def _analisar(
     alfa: float = 0.05,
     objetivos: dict[str, Sentido] | None = None,
     coluna_ordem: str | None = None,
+    coluna_bloco: str | None = None,
 ) -> AnaliseDaTabela:
     tabela = _tabela(data_csv)
     modelo: TipoModelo | None = None if tipo_modelo == "auto" else tipo_modelo
@@ -616,6 +627,7 @@ def _analisar(
             coluna_ordem=coluna_ordem,
             analises=analises,
             objetivos=objetivos,
+            coluna_bloco=coluna_bloco,
         )
     except (ValueError, KeyError) as erro:
         raise ToolError(str(erro)) from erro
@@ -631,6 +643,7 @@ def _um_ajuste(
     termo_erro: TermoErro,
     alfa: float,
     coluna_ordem: str | None = None,
+    coluna_bloco: str | None = None,
 ) -> AjusteResposta:
     feita = _analisar(
         data_csv,
@@ -642,6 +655,7 @@ def _um_ajuste(
         termo_erro=termo_erro,
         alfa=alfa,
         coluna_ordem=coluna_ordem,
+        coluna_bloco=coluna_bloco,
     )
     return feita.resultado.ajustes[0]
 

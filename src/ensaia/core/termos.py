@@ -26,6 +26,7 @@ from itertools import combinations
 import numpy as np
 from numpy.typing import NDArray
 
+from ensaia.core.blocos import Blocos, com_blocos, e_coluna_de_bloco
 from ensaia.core.design import INTERCEPTO, Planejamento, interpretar_termo
 from ensaia.core.model import RESIDUO, ajustar_ols, matriz_modelo, termos_redundantes
 from ensaia.core.results import TipoModelo
@@ -93,8 +94,16 @@ def escolher_termos(
     *,
     tipo_modelo: TipoModelo | None = None,
     excluidos: Sequence[str] = (),
+    blocos: Blocos | None = None,
 ) -> SelecaoTermos:
-    """Termos do modelo para os dados, com rebaixamento e limpeza de confundidos."""
+    """Termos do modelo para os dados, com rebaixamento e limpeza de confundidos.
+
+    Com `blocos`, as colunas de bloco entram na conta: um termo que é
+    combinação dos blocos (confundido com eles, como a interação tripla de um
+    fatorial 2³ dividido em blocos de 4) sai do modelo com aviso, e os graus de
+    liberdade gastos com os blocos contam na hora de ver se o modelo cabe.
+    """
+    n_colunas_bloco = blocos.n_blocos - 1 if blocos is not None else 0
     niveis = {
         f.nome: len(np.unique(np.round(tabela.coluna(f.nome), 9)))
         for f in planejamento.fatores
@@ -114,16 +123,29 @@ def escolher_termos(
         candidatos = termos_do_tipo(niveis, tipo)
         desconhecidos = sorted(excluir - set(candidatos))
         termos = [t for t in candidatos if t not in excluir]
-        confundidos = termos_redundantes(
-            matriz_modelo(tabela, planejamento, termos, codificar=True)
-        )
+        confundidos = [
+            t
+            for t in termos_redundantes(
+                com_blocos(
+                    matriz_modelo(tabela, planejamento, termos, codificar=True),
+                    blocos,
+                )
+            )
+            if not e_coluna_de_bloco(t)
+        ]
         if confundidos:
             termos = [t for t in termos if t not in confundidos]
-        if len(termos) < len(tabela):  # sobra ao menos 1 gl para o resíduo
+        # Sobra ao menos 1 gl para o resíduo, contando as colunas de bloco.
+        if len(termos) + n_colunas_bloco < len(tabela):
             if confundidos:
+                com_o_que = (
+                    "com outros termos ou com os blocos"
+                    if blocos
+                    else "com outros (combinação dos anteriores)"
+                )
                 avisos.append(
-                    "Termos confundidos com outros (combinação dos anteriores) "
-                    f"ficaram fora do modelo: {', '.join(confundidos)}."
+                    f"Termos confundidos {com_o_que} ficaram fora do modelo: "
+                    f"{', '.join(confundidos)}."
                 )
             if desconhecidos and tipo == pedido:
                 avisos.append(
@@ -184,11 +206,13 @@ def reduzir_backward(
     alfa: float,
     qm_erro: float | None = None,
     gl_erro: int | None = None,
+    blocos: Blocos | None = None,
 ) -> tuple[list[str], list[str]]:
     """Elimina, um a um, o termo não significativo de maior p, e reajusta.
 
     Respeita a hierarquia: o termo linear de um fator que ainda está numa
-    interação ou num quadrático não sai. O teste usa o mesmo termo de erro da
+    interação ou num quadrático não sai. Os blocos, se houver, ficam sempre no
+    modelo (nunca são candidatos a sair). O teste usa o mesmo termo de erro da
     análise (`qm_erro`/`gl_erro` do erro puro, se for o caso); o erro puro não
     muda entre os modelos, porque só depende das réplicas.
 
@@ -197,7 +221,11 @@ def reduzir_backward(
     atuais = list(termos)
     descartados: list[str] = []
     while True:
-        ajuste = ajustar_ols(matriz_modelo(tabela, planejamento, atuais), y)
+        ajuste = ajustar_ols(
+            com_blocos(matriz_modelo(tabela, planejamento, atuais), blocos),
+            y,
+            fixos=blocos.nomes_colunas if blocos is not None else (),
+        )
         try:
             pvalores = {
                 linha.fonte: linha.valor_p
@@ -206,7 +234,11 @@ def reduzir_backward(
             }
         except ValueError:  # modelo não hierárquico: usa o p do coeficiente
             _, _, pvalores_coef = ajuste.estatisticas_t(qm_erro, gl_erro)
-            pvalores = {t: p for t, p in pvalores_coef.items() if t != INTERCEPTO}
+            pvalores = {
+                t: p
+                for t, p in pvalores_coef.items()
+                if t != INTERCEPTO and not e_coluna_de_bloco(t)
+            }
 
         protegidos = {
             nome

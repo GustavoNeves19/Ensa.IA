@@ -7,9 +7,11 @@ registrada em docs/decisoes/0003-criterio-de-significancia.md.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from scipy import stats
 
-from ensaia.core.design import interpretar_termo
+from ensaia.core.design import INTERCEPTO, interpretar_termo
 from ensaia.core.model import RESIDUO, AjusteOLS
 from ensaia.core.results import AnovaRegressao, FaltaDeAjuste, LinhaAnova
 from ensaia.core.table import Table
@@ -18,6 +20,7 @@ ALFA_PADRAO = 0.05
 
 # Fontes da ANOVA da regressão (a linha do resíduo usa RESIDUO, de model.py).
 REGRESSAO = "Regressão"
+BLOCOS = "Blocos"
 FALTA_DE_AJUSTE = "Falta de ajuste"
 ERRO_PURO = "Erro puro"
 TOTAL = "Total"
@@ -36,15 +39,41 @@ def anova_regressao(
     Além do p-valor, devolve o F tabelado F(1 − α; gl_R, gl_res) e a razão
     F calculado / F tabelado, critério de Barros Neto et al. muito usado em
     artigos brasileiros: razão maior que 1 é regressão significativa.
+
+    Com blocos (colunas fixas do ajuste), a variação entre blocos sai numa
+    linha própria, antes da regressão, e a regressão mede o que os fatores
+    explicam **depois** dos blocos:
+
+        Blocos      gl = b − 1     SQ_B = SQ_T − SQ_res(só blocos)
+        Regressão   gl = p − b     SQ_R = SQ_res(só blocos) − SQ_res
+
+    O bloco não recebe teste F: ele é uma restrição de como os ensaios foram
+    feitos, não um fator em estudo; a linha mostra quanto da variação ele tirou
+    do erro.
     """
-    gl_r = ajuste.n_parametros - 1
+    fixos = ajuste.termos_fixos
     gl_res = ajuste.gl_residuo
     sq_t = ajuste.soma_quadrados_total
     sq_res = ajuste.soma_quadrados_residual
-    sq_r = sq_t - sq_res
     qm_res = sq_res / gl_res
 
     linhas: list[LinhaAnova] = []
+    if fixos:
+        sq_so_blocos = ajuste.soma_quadrados_residual_de([INTERCEPTO, *fixos])
+        sq_b = sq_t - sq_so_blocos
+        linhas.append(
+            LinhaAnova(
+                fonte=BLOCOS,
+                soma_quadrados=sq_b,
+                graus_liberdade=len(fixos),
+                quadrado_medio=sq_b / len(fixos),
+            )
+        )
+        sq_r = sq_so_blocos - sq_res
+    else:
+        sq_r = sq_t - sq_res
+    gl_r = ajuste.n_parametros - 1 - len(fixos)
+
     f_tab: float | None = None
     razao: float | None = None
     significativa: bool | None = None
@@ -116,18 +145,29 @@ def anova_regressao(
     )
 
 
-def erro_puro(dados: Table, resposta: str, fatores: list[str]) -> tuple[float, int]:
+def erro_puro(
+    dados: Table,
+    resposta: str,
+    fatores: list[str],
+    blocos: Sequence[str] | None = None,
+) -> tuple[float, int]:
     """(SQ, gl) do erro puro: a variação entre réplicas da mesma condição.
 
     Depende só dos dados (não do modelo): agrupa os ensaios com os mesmos níveis
     de todos os fatores e soma a dispersão dentro de cada grupo. gl = n − nº de
     condições distintas; 0 quando nenhuma condição foi repetida.
+
+    Com `blocos` (o rótulo de bloco de cada ensaio), só conta como réplica a
+    mesma condição **no mesmo bloco**: duas réplicas em blocos diferentes
+    diferem também pelo bloco, e essa diferença não é erro puro.
     """
     y = dados.coluna(resposta)
     colunas = [dados.coluna(f) for f in fatores]
-    grupos: dict[tuple[float, ...], list[int]] = {}
+    grupos: dict[tuple[object, ...], list[int]] = {}
     for i in range(len(y)):
-        chave = tuple(float(col[i]) for col in colunas)
+        chave: tuple[object, ...] = tuple(float(col[i]) for col in colunas)
+        if blocos is not None:
+            chave = (blocos[i], *chave)
         grupos.setdefault(chave, []).append(i)
 
     sq = 0.0
@@ -187,6 +227,7 @@ def teste_falta_ajuste(
     ajuste: AjusteOLS,
     *,
     alfa: float = ALFA_PADRAO,
+    blocos: Sequence[str] | None = None,
 ) -> FaltaDeAjuste:
     """Decompõe o resíduo em falta de ajuste + erro puro.
 
@@ -207,7 +248,7 @@ def teste_falta_ajuste(
         SQ_falta = SQ_residuo − SQ_erro_puro ;  gl_falta = gl_residuo − gl_erro_puro
         F = (SQ_falta/gl_falta) / (SQ_erro_puro/gl_erro_puro)
     """
-    sq_erro_puro, gl_erro_puro = erro_puro(dados, resposta, fatores)
+    sq_erro_puro, gl_erro_puro = erro_puro(dados, resposta, fatores, blocos)
     if gl_erro_puro <= 0:
         return FaltaDeAjuste(
             aplicavel=False,

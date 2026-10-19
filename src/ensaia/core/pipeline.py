@@ -17,6 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ensaia.core.anova import anova_regressao, erro_puro, teste_falta_ajuste
+from ensaia.core.blocos import Blocos, com_blocos, ler_blocos
 from ensaia.core.catalogo import IDS
 from ensaia.core.descritiva import estatistica_descritiva
 from ensaia.core.design import Fator, Planejamento
@@ -66,6 +67,7 @@ def analisar(
     ordem_execucao: Sequence[int] | None = None,
     analises: Sequence[str] | None = None,
     alvos: Mapping[str, float] | None = None,
+    coluna_bloco: str | None = None,
 ) -> AnalysisResult:
     """Ajusta o modelo a cada resposta e devolve o resultado congelado.
 
@@ -85,6 +87,10 @@ def analisar(
       D3): o primeiro lê uma coluna da planilha; o segundo já traz o posto de
       cada linha (`fluxo.postos_da_sequencia`), vindo do arrastar-pra-
       reordenar da tela.
+    - `coluna_bloco` (opcional) agrupa os ensaios em blocos (dias, lotes): a
+      diferença entre blocos sai do erro e vira a linha "Blocos" da ANOVA;
+      equação, superfície e previsões valem para o bloco médio. Ver
+      `core/blocos.py`.
     - `objetivos` (maximizar, minimizar ou alvo por resposta; `alvos` traz o
       valor-alvo) aciona a busca da condição ótima dentro da região
       experimental (spec §9, E4/E5), com limites pelos valores observados.
@@ -117,6 +123,15 @@ def analisar(
             f"Disponíveis: {list(tabela.colunas)}."
         )
 
+    if coluna_bloco is not None and coluna_bloco in exigidas:
+        raise ValueError(
+            f"A coluna {coluna_bloco!r} não pode ser bloco e fator/resposta ao "
+            "mesmo tempo."
+        )
+    blocos = ler_blocos(tabela, coluna_bloco) if coluna_bloco else None
+    fixos = blocos.nomes_colunas if blocos is not None else []
+    rotulos = list(blocos.rotulos) if blocos is not None else None
+
     ajustes: list[AjusteResposta] = []
     avisos: list[str] = list(avisos_planejamento)
     limite = limite_da_regiao(planejamento)
@@ -136,7 +151,7 @@ def analisar(
                 f"nas linhas {linhas} da planilha."
             )
         qm_erro, gl_erro, usado = _termo_de_erro(
-            tabela, resposta, fatores, termo_erro, avisos
+            tabela, resposta, fatores, termo_erro, avisos, rotulos
         )
         termos_resposta: list[str] = list(termos)
         descartados: list[str] = []
@@ -149,9 +164,13 @@ def analisar(
                 alfa=alfa,
                 qm_erro=qm_erro,
                 gl_erro=gl_erro,
+                blocos=blocos,
             )
-        matriz = matriz_modelo(tabela, planejamento, termos_resposta, codificar=True)
-        ajuste = ajustar_ols(matriz, y)
+        matriz = com_blocos(
+            matriz_modelo(tabela, planejamento, termos_resposta, codificar=True),
+            blocos,
+        )
+        ajuste = ajustar_ols(matriz, y, fixos=fixos)
         ajustes.append(
             _ajuste_resposta(
                 resposta,
@@ -167,6 +186,7 @@ def analisar(
                 descartados=descartados,
                 limite_codificado=limite,
                 ordem=ordem,
+                blocos=blocos,
             )
         )
 
@@ -194,7 +214,9 @@ def analisar(
         ),
         ponto_otimo=ponto_otimo,
         avisos=avisos,
-        planejamento=info_planejamento(tabela, planejamento, avisos_planejamento),
+        planejamento=info_planejamento(
+            tabela, planejamento, avisos_planejamento, blocos
+        ),
         descritiva=estatistica_descritiva(tabela, [str(r) for r in respostas]),
     )
 
@@ -217,11 +239,12 @@ def _termo_de_erro(
     fatores: list[str],
     pedido: TermoErro,
     avisos: list[str],
+    blocos: Sequence[str] | None = None,
 ) -> tuple[float | None, int | None, TermoErro]:
     """(QM, gl, termo usado) do erro dos testes; None/None = resíduo."""
     if pedido == "residuo":
         return None, None, "residuo"
-    sq, gl = erro_puro(tabela, resposta, fatores)
+    sq, gl = erro_puro(tabela, resposta, fatores, blocos)
     if gl <= 0 or sq <= 0.0:
         motivo = (
             "não há réplicas genuínas" if gl <= 0 else "as réplicas são idênticas"
@@ -235,7 +258,10 @@ def _termo_de_erro(
 
 
 def info_planejamento(
-    tabela: Table, planejamento: Planejamento, avisos: Sequence[str] = ()
+    tabela: Table,
+    planejamento: Planejamento,
+    avisos: Sequence[str] = (),
+    blocos: Blocos | None = None,
 ) -> InfoPlanejamento:
     """Seção `design` do contrato: geometria e codificação de cada fator."""
     codificada = np.column_stack(
@@ -256,6 +282,8 @@ def info_planejamento(
             for f in planejamento.fatores
         ],
         avisos=list(avisos),
+        coluna_bloco=blocos.coluna if blocos is not None else None,
+        n_blocos=blocos.n_blocos if blocos is not None else None,
     )
 
 
@@ -286,6 +314,7 @@ def _ajuste_resposta(
     descartados: Sequence[str] = (),
     limite_codificado: float = 1.0,
     ordem: list[float] | None = None,
+    blocos: Blocos | None = None,
 ) -> AjusteResposta:
     """Empacota um ajuste OLS no contrato congelado `AjusteResposta`.
 
@@ -294,7 +323,10 @@ def _ajuste_resposta(
     por ensaio (`diagnostico`) e equação (`equacao`).
     """
     fatores = planejamento.nomes_fatores
-    falta = teste_falta_ajuste(dados, resposta, fatores, ajuste, alfa=alfa)
+    rotulos = list(blocos.rotulos) if blocos is not None else None
+    falta = teste_falta_ajuste(
+        dados, resposta, fatores, ajuste, alfa=alfa, blocos=rotulos
+    )
     coeficientes = extrair_coeficientes(
         ajuste, alfa=alfa, qm_erro=qm_erro, gl_erro=gl_erro
     )
@@ -324,10 +356,17 @@ def _ajuste_resposta(
         r2_predicao=ajuste.r2_predicao,
         equacao=montar_equacao(coeficientes, planejamento.fatores),
         termo_erro=termo_erro,
+        efeitos_bloco=(
+            blocos.efeitos(ajuste.coeficientes) if blocos is not None else {}
+        ),
     )
     # Peças que leem o próprio AjusteResposta (coeficientes já com o termo de
     # erro escolhido): ponto estacionário (E3) e efeitos de fatorial (grupo B).
-    sq_ep, gl_ep = erro_puro(dados, resposta, fatores)
+    # Com blocos, o erro puro (curvatura) é o de dentro de cada bloco; já a
+    # escolha entre Lenth e o teste t depende de haver réplicas de verdade,
+    # contadas sem olhar o bloco.
+    sq_ep, gl_ep = erro_puro(dados, resposta, fatores, rotulos)
+    _, gl_replicas = erro_puro(dados, resposta, fatores)
     return ajuste_resposta.model_copy(
         update={
             "ponto_estacionario": ponto_estacionario(
@@ -342,6 +381,7 @@ def _ajuste_resposta(
                 alfa=alfa,
                 qm_erro_puro=sq_ep / gl_ep if gl_ep > 0 else None,
                 gl_erro_puro=gl_ep,
+                com_replicas=gl_replicas > 0,
             ),
         }
     )

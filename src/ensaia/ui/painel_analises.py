@@ -30,6 +30,7 @@ from typing import Protocol
 
 from nicegui import ui
 
+from ensaia.core.blocos import ler_blocos
 from ensaia.core.catalogo import CATALOGO, IDS, disponibilidade
 from ensaia.core.fluxo import Papel
 from ensaia.core.table import Table
@@ -355,11 +356,22 @@ class PainelAnalises:
             fatores,
             n_respostas=len(self.mapa.colunas("resposta")),
             tem_ordem=self.mapa.tem_ordem(),
+            blocos=self._rotulos_bloco(),
         )
         for id_, motivo in disponivel.items():
             if id_ in self.cartoes:
                 self.cartoes[id_].definir(motivo)
         self._rotular()
+
+    def _rotulos_bloco(self) -> list[str] | None:
+        """O bloco de cada ensaio, se a coluna de bloco for válida."""
+        coluna = next(iter(self.mapa.colunas("bloco")), None)
+        if coluna is None:
+            return None
+        try:
+            return list(ler_blocos(self.mapa.tabela, coluna).rotulos)
+        except ValueError:  # coluna que não serve de bloco: avisa ao analisar
+            return None
 
     def _rotular(self) -> None:
         for grupo, contagem in self.contagens.items():

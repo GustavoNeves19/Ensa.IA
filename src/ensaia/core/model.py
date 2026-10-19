@@ -16,6 +16,8 @@ significância e vive em `anova.py`, porque depende da tabela de ANOVA.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats
@@ -101,7 +103,9 @@ def matriz_modelo(
     return Table(colunas=tuple(termos), valores=colunas)
 
 
-def ajustar_ols(X: Table, y: NDArray[np.float64]) -> AjusteOLS:
+def ajustar_ols(
+    X: Table, y: NDArray[np.float64], *, fixos: Sequence[str] = ()
+) -> AjusteOLS:
     """Ajusta y = Xβ + ε por mínimos quadrados ordinários.
 
     Guarda o objeto de resultado inteiro — a ANOVA e o teste de falta de ajuste
@@ -112,8 +116,12 @@ def ajustar_ols(X: Table, y: NDArray[np.float64]) -> AjusteOLS:
     com mensagem clara é melhor que produzir um relatório bonito e errado —
     e um relatório bonito e errado é exatamente o risco que este TCC precisa
     demonstrar que sabe evitar.
+
+    `fixos` são colunas que ficam sempre no modelo mas não são termos do estudo
+    (as de bloco): entram no ajuste e no erro, ficam fora dos coeficientes
+    publicados, da ANOVA Tipo II e da contagem dos termos. Ver `core/blocos.py`.
     """
-    return AjusteOLS(X, y)
+    return AjusteOLS(X, y, fixos=fixos)
 
 
 class AjusteOLS:
@@ -126,9 +134,15 @@ class AjusteOLS:
     não pode haver tradução no caminho. Ver ADR 0007 e 0008.
     """
 
-    def __init__(self, X: Table, y: NDArray[np.float64]) -> None:
+    def __init__(
+        self, X: Table, y: NDArray[np.float64], *, fixos: Sequence[str] = ()
+    ) -> None:
         self._y: NDArray[np.float64] = np.asarray(y, dtype=float)
         self._termos: list[str] = list(X.colunas)
+        desconhecidos = sorted(set(fixos) - set(self._termos))
+        if desconhecidos:
+            raise ValueError(f"Colunas fixas ausentes da matriz: {desconhecidos}.")
+        self._fixos: list[str] = [t for t in self._termos if t in set(fixos)]
         _validar_entrada(X, self._y)
         self._X: NDArray[np.float64] = np.column_stack(
             [X.coluna(t) for t in self._termos]
@@ -156,7 +170,18 @@ class AjusteOLS:
 
     @property
     def termos(self) -> list[str]:
+        """Todas as colunas da matriz, inclusive as fixas (blocos)."""
         return list(self._termos)
+
+    @property
+    def termos_modelo(self) -> list[str]:
+        """Os termos do estudo (intercepto e fatores), sem as colunas fixas."""
+        return [t for t in self._termos if t not in self._fixos]
+
+    @property
+    def termos_fixos(self) -> list[str]:
+        """As colunas fixas (blocos), na ordem da matriz."""
+        return list(self._fixos)
 
     def _mapa(self, valores: NDArray[np.float64]) -> dict[str, float]:
         return {t: float(v) for t, v in zip(self._termos, valores, strict=True)}
@@ -241,6 +266,10 @@ class AjusteOLS:
             return None
         press = float(np.sum((self._residuos / folga) ** 2))
         return 1.0 - press / self._sst
+
+    def soma_quadrados_residual_de(self, termos: Sequence[str]) -> float:
+        """SQ residual de um submodelo só com estes termos (da mesma matriz)."""
+        return self._rss(list(termos))
 
     @property
     def r2(self) -> float:
@@ -343,7 +372,8 @@ class AjusteOLS:
         return float(residuo @ residuo)
 
     def _construir_tipo2(self) -> None:
-        termos = [t for t in self._termos if t != INTERCEPTO]
+        # As colunas fixas (blocos) ficam em todos os submodelos e fora da tabela.
+        termos = [t for t in self._termos if t != INTERCEPTO and t not in self._fixos]
 
         # Hierarquia: um fator que aparece num termo de ordem superior (x^2, x:y)
         # sem o próprio termo linear torna a Tipo II sem sentido. É uma recusa

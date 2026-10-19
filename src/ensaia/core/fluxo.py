@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
+from ensaia.core.blocos import ler_blocos
 from ensaia.core.design import INTERCEPTO, Planejamento
 from ensaia.core.identificacao import identificar_planejamento
 from ensaia.core.pipeline import ALFA_PADRAO, analisar
@@ -27,12 +28,45 @@ from ensaia.core.results import (
 from ensaia.core.table import Table
 from ensaia.core.termos import escolher_termos, termos_do_tipo
 
-Papel = Literal["fator", "resposta", "ignorar"]
+Papel = Literal["fator", "resposta", "bloco", "ignorar"]
 
 # Nomes usuais da coluna de ordem/número do ensaio (spec §8.3).
 _NOME_ORDEM = re.compile(
     r"^(ensaio|ensaios|exp|experimento|run|ordem|corrida|n|n[º°o.]?)\b", re.IGNORECASE
 )
+
+
+# Nomes usuais da coluna de bloco (dia, lote, batelada): ver `core/blocos.py`.
+_NOME_BLOCO = re.compile(
+    r"^(bloco|blocos|block|blocks|blk|lote|lotes|batch|batelada|dia)\b", re.IGNORECASE
+)
+# Colunas de índice que planilhas e programas (R, pandas) acrescentam: numeram
+# as linhas, mas não são fator, resposta nem a ordem em que os ensaios foram
+# feitos.
+_NOME_INDICE = re.compile(
+    r"^(rownames|row\.?names|unnamed:?\s*0|index|indice|índice|id|linha|row)$",
+    re.IGNORECASE,
+)
+
+
+def parece_bloco(coluna: str, tabela: Table) -> bool:
+    """Coluna com nome de bloco e de 2 a n − 1 valores distintos."""
+    if not _NOME_BLOCO.match(coluna.strip()):
+        return False
+    valores = (
+        [float(v) for v in tabela.coluna(coluna)]
+        if tabela.e_numerica(coluna)
+        else list(tabela.texto(coluna))
+    )
+    return 2 <= len(set(valores)) < len(valores)
+
+
+def parece_indice(coluna: str, tabela: Table) -> bool:
+    """Coluna de índice (rownames, id, index…) numérica e sem repetição."""
+    if not _NOME_INDICE.match(coluna.strip()) or not tabela.e_numerica(coluna):
+        return False
+    valores = [float(v) for v in tabela.coluna(coluna)]
+    return len(set(valores)) == len(valores)
 
 
 def parece_ordem(coluna: str, tabela: Table) -> bool:
@@ -46,21 +80,29 @@ def parece_ordem(coluna: str, tabela: Table) -> bool:
 def sugerir_mapeamento(tabela: Table) -> dict[str, Papel]:
     """Papel sugerido de cada coluna: o ponto de partida do passo "mapear".
 
-    Texto é ignorado; uma coluna 1..n com nome de ensaio também (ela não é
+    Uma coluna com nome de bloco (bloco, block, lote, batch, dia…) vira bloco;
+    texto é ignorado; uma coluna 1..n com nome de ensaio também (ela não é
     fator nem resposta — vira a sugestão inicial de `ordem_sugerida`, não um
-    papel de coluna); a última coluna numérica restante é a resposta; as
-    demais numéricas são fatores. O usuário (ou o assistente de IA) corrige o
-    que não bater.
+    papel de coluna), assim como colunas de índice (rownames, id, index…); a
+    última coluna numérica restante é a resposta; as demais numéricas são
+    fatores. O usuário (ou o assistente de IA) corrige o que não bater.
     """
+
+    def fora(c: str) -> bool:
+        return parece_ordem(c, tabela) or parece_indice(c, tabela)
+
+    blocos = [c for c in tabela.colunas if parece_bloco(c, tabela)]
     numericas = [
         c
         for c in tabela.colunas
-        if tabela.e_numerica(c) and not parece_ordem(c, tabela)
+        if tabela.e_numerica(c) and not fora(c) and c not in blocos
     ]
     ultima = numericas[-1] if numericas else None
     papeis: dict[str, Papel] = {}
     for coluna in tabela.colunas:
-        if not tabela.e_numerica(coluna) or parece_ordem(coluna, tabela):
+        if blocos and coluna == blocos[0]:
+            papeis[coluna] = "bloco"  # só um bloco por análise
+        elif not tabela.e_numerica(coluna) or fora(coluna) or coluna in blocos:
             papeis[coluna] = "ignorar"
         elif coluna == ultima:
             papeis[coluna] = "resposta"
@@ -111,6 +153,7 @@ def analisar_tabela(
     ordem_execucao: Sequence[int] | None = None,
     analises: Sequence[str] | None = None,
     objetivos: Mapping[str, Sentido] | None = None,
+    coluna_bloco: str | None = None,
 ) -> AnaliseDaTabela:
     """Reconhece o planejamento, escolhe os termos e roda o núcleo.
 
@@ -128,6 +171,9 @@ def analisar_tabela(
     (usada pela tela, que deixa arrastar os ensaios) já traz o posto de cada
     linha — ver `postos_da_sequencia`. Dá pra usar uma ou outra, nunca as
     duas; se vierem as duas, `coluna_ordem` tem prioridade.
+
+    `coluna_bloco` (opcional) é a coluna que agrupa os ensaios em blocos: a
+    diferença entre blocos sai do erro (ver `core/blocos.py`).
     Levanta `ValueError` com mensagem em português quando os dados não servem.
     """
     if not fatores:
@@ -140,8 +186,13 @@ def analisar_tabela(
     planejamento = identificacao.planejamento
     if tipo_planejamento is not None and tipo_planejamento != planejamento.tipo:
         planejamento = replace(planejamento, tipo=tipo_planejamento)
+    blocos = ler_blocos(tabela, coluna_bloco) if coluna_bloco else None
     selecao = escolher_termos(
-        tabela, planejamento, tipo_modelo=tipo_modelo, excluidos=excluidos
+        tabela,
+        planejamento,
+        tipo_modelo=tipo_modelo,
+        excluidos=excluidos,
+        blocos=blocos,
     )
     niveis = {f.fator.nome: len(f.niveis) for f in identificacao.fatores}
     candidatos = [
@@ -162,5 +213,6 @@ def analisar_tabela(
         ordem_execucao=ordem_execucao,
         analises=list(analises) if analises is not None else None,
         objetivos=dict(objetivos) if objetivos is not None else None,
+        coluna_bloco=coluna_bloco,
     )
     return AnaliseDaTabela(resultado, planejamento, candidatos)

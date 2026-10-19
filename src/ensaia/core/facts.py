@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from ensaia.core.anova import BLOCOS, REGRESSAO
 from ensaia.core.design import INTERCEPTO
 from ensaia.core.results import NOME_PLANEJAMENTO, AjusteResposta, AnalysisResult
 
@@ -143,8 +144,19 @@ def _fatos_regressao(ajuste: AjusteResposta, alfa: float) -> list[str]:
     """F da regressão contra o F tabelado (critério da literatura brasileira)."""
     fatos: list[str] = []
     anova = ajuste.anova_regressao
+    blocos = (
+        next((li for li in anova.linhas if li.fonte == BLOCOS), None)
+        if anova is not None
+        else None
+    )
+    if blocos is not None:
+        fatos.append(
+            f"Os ensaios foram feitos em {blocos.graus_liberdade + 1} blocos; a "
+            f"diferença entre eles (SQ = {_num(blocos.soma_quadrados, 2)}) foi "
+            "separada do erro antes de testar os fatores."
+        )
     if anova is not None and anova.razao_f is not None and anova.f_tabelado:
-        regressao = anova.linhas[0]
+        regressao = next(li for li in anova.linhas if li.fonte == REGRESSAO)
         assert regressao.valor_f is not None and regressao.valor_p is not None
         if anova.regressao_significativa:
             fatos.append(
