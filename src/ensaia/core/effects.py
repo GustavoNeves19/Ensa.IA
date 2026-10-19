@@ -72,7 +72,8 @@ def extrair_coeficientes(
             ic_inferior=intervalo[termo][0] if termo in intervalo else None,
             ic_superior=intervalo[termo][1] if termo in intervalo else None,
         )
-        for termo in ajuste.termos
+        # Sem as colunas fixas (blocos): não são termos do estudo nem da equação.
+        for termo in ajuste.termos_modelo
     ]
 
 

@@ -67,12 +67,17 @@ def disponibilidade(
     *,
     n_respostas: int,
     tem_ordem: bool,
+    blocos: Sequence[str] | None = None,
 ) -> dict[str, str | None]:
     """Para cada análise: None se dá para fazer, ou o motivo (pt-BR) se não dá.
 
     `fatores` são as colunas mapeadas como fator, na ordem dos ensaios. A
     identificação do planejamento roda aqui mesmo (é barata), para que a tela
     possa atualizar as caixas a cada mudança no mapeamento.
+
+    `blocos` (o rótulo de bloco de cada ensaio) muda duas coisas: os graus de
+    liberdade gastos com os blocos contam para ver se o modelo cabe, e a falta
+    de ajuste só se aplica com réplicas **dentro** de um mesmo bloco.
     """
     motivos: dict[str, str | None] = dict.fromkeys(IDS)
     if not fatores:
@@ -88,10 +93,16 @@ def disponibilidade(
     n = ident.n_ensaios
     condicoes = len({tuple(col[i] for col in fatores.values()) for i in range(n)})
     tem_replicas = condicoes < n
+    n_blocos = len(set(blocos)) if blocos is not None else 1
+    tem_replicas_no_bloco = (
+        len({(blocos[i], *(col[i] for col in fatores.values())) for i in range(n)}) < n
+        if blocos is not None
+        else tem_replicas
+    )
     fatorial = ident.tipo in FATORIAIS_2_NIVEIS
     niveis = [len(f.niveis) for f in ident.fatores]
 
-    if n <= k + 1:
+    if n <= k + 1 + (n_blocos - 1):
         sem_modelo = f"{n} ensaios não bastam nem para o modelo linear"
         for id_ in IDS:
             if id_[0] in "CDE" or id_ in ("B1", "B2", "B3", "B4"):
@@ -109,8 +120,12 @@ def disponibilidade(
         if ident.n_pontos_centrais < 2:
             motivos["B5"] = "exige ao menos 2 ensaios no ponto central"
 
-    if not tem_replicas:
-        motivos["C4"] = "exige réplicas (em geral, pontos centrais repetidos)"
+    if not tem_replicas_no_bloco:
+        motivos["C4"] = (
+            "exige réplicas no mesmo bloco (em geral, pontos centrais repetidos)"
+            if blocos is not None and tem_replicas
+            else "exige réplicas (em geral, pontos centrais repetidos)"
+        )
     if n < 3:
         motivos["D2"] = "exige ao menos 3 ensaios"
     if not tem_ordem:

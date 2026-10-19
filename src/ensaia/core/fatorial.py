@@ -47,8 +47,17 @@ def analisar_fatorial(
     alfa: float,
     qm_erro_puro: float | None,
     gl_erro_puro: int,
+    com_replicas: bool | None = None,
 ) -> EfeitosFatorial | None:
-    """Grupo B da spec para uma resposta; None se o planejamento não é 2^k."""
+    """Grupo B da spec para uma resposta; None se o planejamento não é 2^k.
+
+    `com_replicas` diz se alguma condição foi repetida (sem olhar blocos); por
+    padrão, se há erro puro. Com blocos os dois diferem: réplicas em blocos
+    diferentes não dão erro puro, mas continuam sendo réplicas — e com elas o
+    teste t do Pareto, e não o Lenth, é o instrumento certo.
+    """
+    if com_replicas is None:
+        com_replicas = gl_erro_puro > 0
     if planejamento.tipo not in FATORIAIS:
         return None
 
@@ -66,9 +75,7 @@ def analisar_fatorial(
     ]
     # Lenth só sem réplicas (spec §9, B3): com erro puro, o teste t do Pareto
     # é o instrumento certo, e as duas leituras poderiam se contradizer.
-    lenth = (
-        analise_lenth([e.efeito for e in efeitos]) if gl_erro_puro <= 0 else None
-    )
+    lenth = analise_lenth([e.efeito for e in efeitos]) if not com_replicas else None
     if lenth is not None:
         efeitos = [
             e.model_copy(update={"ativo_lenth": abs(e.efeito) > lenth.me})

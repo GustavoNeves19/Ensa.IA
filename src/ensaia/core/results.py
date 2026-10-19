@@ -35,8 +35,9 @@ from pydantic import BaseModel, ConfigDict, Field
 # informações do planejamento; 1.3: ANOVA da regressão, R² de predição,
 # equação e opções do modelo; 1.4: ponto estacionário e ótimo em unidades
 # reais; 1.5: efeitos de fatorial, pontos influentes e estatística
-# descritiva; 1.6: análises marcadas); um JSON 1.0 continua sendo lido.
-SCHEMA_VERSION = "1.6"
+# descritiva; 1.6: análises marcadas; 1.7: blocos); um JSON 1.0 continua
+# sendo lido.
+SCHEMA_VERSION = "1.7"
 
 TipoPlanejamento = Literal[
     "fatorial_completo",
@@ -345,6 +346,9 @@ class AjusteResposta(_Congelado):
     termo_erro: TermoErro = "residuo"
     ponto_estacionario: PontoEstacionario | None = None
     efeitos_fatorial: EfeitosFatorial | None = None
+    # Com blocos: o efeito de cada bloco (quanto ele se afasta da média entre
+    # blocos; soma zero). Vazio quando a análise não tem blocos.
+    efeitos_bloco: dict[str, float] = Field(default_factory=dict)
 
 
 class FatorCodificado(_Congelado):
@@ -370,6 +374,10 @@ class InfoPlanejamento(_Congelado):
     alfa_axial: float | None = None
     fatores: list[FatorCodificado]
     avisos: list[str] = Field(default_factory=list)
+    # A coluna que agrupa os ensaios em blocos e quantos blocos há (None sem
+    # blocos). Ver `core/blocos.py`.
+    coluna_bloco: str | None = None
+    n_blocos: int | None = None
 
 
 class MetadadosExecucao(_Congelado):
