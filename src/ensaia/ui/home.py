@@ -32,18 +32,20 @@ _PASSOS: tuple[tuple[str, str, str], ...] = (
 def construir_home() -> None:
     """Monta os elementos da página inicial."""
     with ui.element("div").classes("ea-page"), ui.element("div").classes("ea-col"):
-        with ui.element("div").classes("ea-hero"):
-            _marca()
-            _headline()
-        _trilha()
+        # Abertura em duas colunas: o texto (marca, título, subtítulo e o seletor
+        # de dicas) à esquerda e os três passos à direita.
+        with ui.element("div").classes("ea-abertura"):
+            with ui.element("div").classes("ea-hero"):
+                _marca()
+                _headline()
+                seletor_dicas()
+            _trilha()
         _conteudo()
 
 
 def _conteudo() -> None:
-    """Glossário, envio da planilha, análise, privacidade e rodapé."""
+    """Envio da planilha, glossário, análise, privacidade e rodapé."""
     with ui.element("div").classes("ea-main"):
-        botao_glossario()
-
         # O container da análise vive abaixo do painel; o upload o preenche
         # (mapear → analisar → resultados) quando uma planilha é lida.
         holder: dict[str, ui.column] = {}
@@ -57,6 +59,7 @@ def _conteudo() -> None:
 
         with ui.element("div").classes("ea-painel"):
             construir_upload(ao_carregar=ao_carregar)
+        botao_glossario()
         holder["analise"] = ui.column().classes("w-full ea-analise")
 
         _privacidade()
@@ -64,14 +67,12 @@ def _conteudo() -> None:
 
 
 def _marca() -> None:
-    """O nome como logo e, logo abaixo, como o visitante quer ver as dicas."""
-    with ui.column().classes("gap-0"):
-        ui.html(
-            f'<div class="ea-marca" role="img" aria-label="EnsaIA">'
-            f'<span style="color:{TINTA}">Ensa</span>'
-            f'<span style="color:{VERDE}">IA</span></div>'
-        )
-        seletor_dicas()
+    """O nome como logo."""
+    ui.html(
+        f'<div class="ea-marca" role="img" aria-label="EnsaIA">'
+        f'<span style="color:{TINTA}">Ensa</span>'
+        f'<span style="color:{VERDE}">IA</span></div>'
+    )
 
 
 def _headline() -> None:
