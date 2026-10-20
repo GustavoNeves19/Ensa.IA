@@ -12,7 +12,7 @@
 
 **Fatorial 2ᵏ**: todas as combinações de dois níveis de k fatores. Serve para triagem: descobrir quais fatores importam.
 
-**Composto central (DCCR)**: fatorial + pontos axiais (±α) + pontos centrais. Permite ajustar um modelo quadrático.
+**Composto central (DCCR)**: fatorial + pontos axiais (±α) + pontos centrais. Permite ajustar um modelo quadrático. É o único tipo de planejamento que o EnsaIA analisa hoje (ver ADR 0013) — os termos abaixo são vocabulário geral de DOE, úteis para ler artigos, mas o EnsaIA não reconhece esses outros tipos.
 
 **Box-Behnken**: planejamento de três níveis sem os vértices do cubo, também para modelo quadrático, com menos ensaios.
 

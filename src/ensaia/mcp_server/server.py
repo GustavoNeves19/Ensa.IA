@@ -147,10 +147,12 @@ def read_table(
 def detect_design(
     data_csv: str, factors: list[str], responses: list[str]
 ) -> dict[str, Any]:
-    """Reconhece o planejamento (fatorial, composto central, Box-Behnken…).
+    """Reconhece o planejamento (só o composto central rotacional — DCCR).
 
     Devolve o tipo, o número de ensaios e de pontos centrais, a codificação de
-    cada fator (centro e passo, em unidades reais) e os avisos.
+    cada fator (centro e passo, em unidades reais) e os avisos. Outras
+    geometrias (fatorial, Box-Behnken etc.) voltam como "desconhecido", com um
+    aviso que diz a que mais se parecem — fora do escopo atual (ADR 0013).
 
     Exemplo: detect_design(data_csv, factors=["temp", "ph"], responses=["rend"])
     """
@@ -226,8 +228,9 @@ def compute_effects(
 ) -> dict[str, Any]:
     """Efeitos de um fatorial: efeito de cada termo, Pareto, Lenth e curvatura.
 
-    Para planejamentos fatoriais (triagem). Em outros planejamentos devolve só
-    os dados do Pareto (|t| de cada termo).
+    Efeito, Lenth e curvatura só saem para um fatorial 2^k de triagem — fora do
+    escopo atual (ADR 0013), então sempre vêm vazios num DCCR. Os dados do
+    Pareto (|t| de cada termo) saem sempre, para qualquer planejamento.
 
     Exemplo: compute_effects(data_csv, ["a", "b", "c"], "rend")
     """

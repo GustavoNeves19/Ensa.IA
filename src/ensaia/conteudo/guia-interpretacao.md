@@ -4,9 +4,11 @@ Os números vêm sempre do núcleo determinístico do EnsaIA. Ao explicar, use o
 valores exatamente como aparecem e não refaça contas.
 
 ## 1. O planejamento
-Confira o tipo reconhecido (fatorial, composto central, Box-Behnken), quantos
-ensaios e quantos pontos centrais. Os avisos da análise dizem se algo no
-planejamento limita as conclusões.
+Confira o tipo reconhecido — hoje só o composto central rotacional (DCCR) —,
+quantos ensaios e quantos pontos centrais. Se os dados não formam um DCCR, o
+tipo vem "não identificado" e os avisos dizem a que a disposição mais se
+parece; os avisos da análise também dizem se algo no planejamento limita as
+conclusões.
 
 ## 2. Os termos significativos
 Cada termo do modelo tem um p-valor. Se p < α (normalmente 0,05), o termo é
