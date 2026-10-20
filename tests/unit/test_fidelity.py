@@ -17,7 +17,7 @@ from ensaia.validation.fidelity import (
 
 def _resultado_simples() -> AnalysisResult:
     return AnalysisResult(
-        tipo_planejamento="fatorial_completo",
+        tipo_planejamento="composto_central",
         fatores=["temperatura"],
         respostas=["rendimento"],
         ajustes=[

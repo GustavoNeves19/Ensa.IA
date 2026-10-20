@@ -11,7 +11,7 @@ from ensaia.core.table import Table
 
 def _planejamento() -> Planejamento:
     return Planejamento(
-        tipo="fatorial_completo",
+        tipo="desconhecido",
         fatores=[Fator("x1", -1.0, 1.0), Fator("x2", -1.0, 1.0)],
     )
 
@@ -71,7 +71,7 @@ def test_analisar_preenche_t_critico_e_diagnostico() -> None:
 
 def test_analisar_coluna_ausente_falha_claro() -> None:
     plan = Planejamento(
-        tipo="fatorial_completo",
+        tipo="desconhecido",
         fatores=[Fator("x1", -1.0, 1.0), Fator("nao_existe", -1.0, 1.0)],
     )
     termos = termos_do_modelo(["x1", "nao_existe"], incluir_quadraticos=False)

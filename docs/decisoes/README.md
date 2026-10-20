@@ -24,3 +24,4 @@ Formato: contexto → decisão → consequências (inclusive as ruins).
 | [0010](0010-camada-de-relatorio-pdf.md) | Camada de relatório PDF (fpdf2 + matplotlib), isolada e opcional | Aceita |
 | [0011](0011-interface-nicegui-processo-unico.md) | Interface web em NiceGUI, num processo único (migra do Streamlit) | Aceita |
 | [0012](0012-servidor-mcp-sob-demanda.md) | Servidor MCP com o SDK oficial v2, carregado sob demanda | Aceita |
+| [0013](0013-restricao-a-dccr.md) | Restringir o escopo a DCCR; generalização vira trabalho futuro | Aceita |

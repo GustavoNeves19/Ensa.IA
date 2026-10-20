@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 import itertools
-from pathlib import Path
 
 from ensaia.core.catalogo import CATALOGO, GRUPOS, IDS, disponibilidade, padrao
-from ensaia.io.readers import ler_dados
-
-CASOS = Path(__file__).resolve().parents[2] / "casos_de_estudo"
 
 
 def _colunas(pontos: list[tuple[float, ...]]) -> dict[str, list[float]]:
     return {"abc"[j]: [float(p[j]) for p in pontos] for j in range(len(pontos[0]))}
+
+
+def _dcc(k: int, alfa: float, centrais: int) -> list[tuple[float, ...]]:
+    estrela = []
+    for j in range(k):
+        for s in (-alfa, alfa):
+            p = [0.0] * k
+            p[j] = s
+            estrela.append(tuple(p))
+    vertices = list(itertools.product([-1.0, 1.0], repeat=k))
+    return vertices + estrela + [tuple([0.0] * k)] * centrais
 
 
 def test_catalogo_cobre_a_spec() -> None:
@@ -23,32 +30,33 @@ def test_catalogo_cobre_a_spec() -> None:
     assert {a.grupo for a in CATALOGO} == set(GRUPOS)
 
 
-def test_box_behnken_com_replicas_no_centro() -> None:
-    dados = ler_dados(CASOS / "mazloomi-2023-zif67-metronidazol" / "dados.csv")
-    fatores = {f: list(dados.coluna(f)) for f in list(dados.colunas)[:3]}
-    disp = disponibilidade(fatores, n_respostas=1, tem_ordem=False)
+def test_dccr_nao_tem_grupo_b_de_triagem() -> None:
+    # Só DCCR é reconhecido (ADR 0013): B1/B3/B4/B5, do fatorial de 2 níveis
+    # para triagem, ficam permanentemente indisponíveis. B2 (Pareto dos
+    # efeitos padronizados) não depende do tipo fatorial e continua disponível.
+    disp = disponibilidade(
+        _colunas(_dcc(3, 1.682, centrais=3)), n_respostas=1, tem_ordem=False
+    )
     for id_ in ("B1", "B3", "B4", "B5"):
         assert disp[id_] == "só para fatorial de 2 níveis"
+    assert disp["B2"] is None
     assert disp["C4"] is None  # 3 pontos centrais = réplicas
-    assert disp["E3"] is None  # quadrático
-    assert disp["D3"] is not None and "ordem" in disp["D3"]
+    assert disp["E3"] is None  # modelo quadrático estimável
     assert disp["E5"] is not None  # uma resposta só
     assert "E3" in padrao(disp) and "B1" not in padrao(disp)
 
 
-def test_fatorial_com_e_sem_pontos_centrais() -> None:
+def test_fatorial_puro_tambem_fica_sem_grupo_b() -> None:
+    # Um fatorial 2^k puro não é mais um tipo reconhecido (vira
+    # "desconhecido"), então o Grupo B de triagem — feito justamente para
+    # esse caso — também não se aplica mais. Isto documenta a consequência da
+    # restrição a DCCR (ADR 0013), não um comportamento desejado do fatorial.
     vertices = list(itertools.product([-1, 1], repeat=3))
-    com = disponibilidade(
+    disp = disponibilidade(
         _colunas(vertices + [(0, 0, 0)] * 3), n_respostas=2, tem_ordem=True
     )
-    assert com["B1"] is None and com["B4"] is None and com["B5"] is None
-    assert com["B3"] is not None  # há réplicas: Lenth não se aplica
-    assert com["E3"] is not None  # sem modelo quadrático
-    assert com["D3"] is None and com["E5"] is None
-
-    sem = disponibilidade(_colunas(vertices), n_respostas=1, tem_ordem=False)
-    assert sem["B3"] is None  # sem réplicas: é o caso do Lenth
-    assert sem["B5"] is not None and sem["C4"] is not None
+    assert disp["B1"] is not None and disp["B4"] is not None and disp["B5"] is not None
+    assert disp["E3"] is not None  # sem estrela axial: não há modelo quadrático
 
 
 def test_sem_fator_ou_sem_resposta() -> None:

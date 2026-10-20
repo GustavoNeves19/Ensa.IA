@@ -44,7 +44,7 @@ def _resultado(*, ponto_otimo: PontoOtimo | None = None) -> AnalysisResult:
         termos_incluidos=["temperatura"],
     )
     return AnalysisResult(
-        tipo_planejamento="box_behnken",
+        tipo_planejamento="composto_central",
         fatores=["temperatura", "ph"],
         respostas=["rendimento"],
         ajustes=[ajuste],

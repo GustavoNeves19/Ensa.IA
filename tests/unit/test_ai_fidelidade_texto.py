@@ -45,7 +45,7 @@ def _resultado() -> AnalysisResult:
         termos_incluidos=["temperatura", "tempo_reacao"],
     )
     return AnalysisResult(
-        tipo_planejamento="box_behnken",
+        tipo_planejamento="composto_central",
         fatores=["temperatura", "tempo_reacao"],
         respostas=["rendimento"],
         ajustes=[ajuste],

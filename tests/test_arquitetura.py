@@ -118,7 +118,7 @@ def test_analysisresult_e_serializavel() -> None:
     )
 
     resultado = AnalysisResult(
-        tipo_planejamento="fatorial_completo",
+        tipo_planejamento="composto_central",
         fatores=["temperatura", "ph"],
         respostas=["rendimento"],
         ajustes=[

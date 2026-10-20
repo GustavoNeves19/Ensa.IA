@@ -39,22 +39,19 @@ from pydantic import BaseModel, ConfigDict, Field
 # sendo lido.
 SCHEMA_VERSION = "1.7"
 
+# O EnsaIA reconhece hoje só o delineamento composto central rotacional
+# (DCCR) — ver ADR 0013. Outras geometrias (fatorial 2^k, fatorial fracionado,
+# Box-Behnken, fatorial 3^k, composto central não rotacional) voltam de
+# `identificar_planejamento` como "desconhecido", com um aviso explicando o
+# porquê; generalizar para outros tipos é trabalho futuro, não suporte atual.
 TipoPlanejamento = Literal[
-    "fatorial_completo",
-    "fatorial_fracionado",
     "composto_central",
-    "box_behnken",
-    "fatorial_3k",
     "desconhecido",
 ]
 
 # Nome de cada tipo em português corrido, para frases, PDF e tela (fonte única).
 NOME_PLANEJAMENTO: dict[str, str] = {
-    "fatorial_completo": "fatorial completo",
-    "fatorial_fracionado": "fatorial fracionado",
-    "composto_central": "delineamento composto central",
-    "box_behnken": "delineamento Box-Behnken",
-    "fatorial_3k": "fatorial completo de 3 níveis (3^k)",
+    "composto_central": "delineamento composto central rotacional (DCCR)",
     "desconhecido": "delineamento não identificado",
 }
 
