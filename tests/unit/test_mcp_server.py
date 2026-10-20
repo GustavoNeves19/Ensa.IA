@@ -7,6 +7,9 @@ rede; é o jeito que o próprio SDK testa os seus exemplos.
 from __future__ import annotations
 
 import base64
+import csv
+import io
+import itertools
 import subprocess
 import sys
 
@@ -23,13 +26,61 @@ from mcp.types import (
 
 from ensaia import __version__
 from ensaia.core.fluxo import analisar_tabela
-from ensaia.exemplos import carregar_exemplo, conteudo_exemplo
 from ensaia.io.modelo import planilha_modelo_xlsx
+from ensaia.io.readers import ler_dados_de_bytes
 from ensaia.mcp_server.server import mcp
 
 FATORES = ["dose_adsorvente", "tempo_mistura", "ph"]
 RESPOSTA = "remocao_mnz"
-CSV = conteudo_exemplo("metronidazol").decode("utf-8")
+
+# DCCR sintético de 3 fatores (8 pontos fatoriais + 6 axiais + 6 centrais = 20
+# ensaios, α=1,682 rotacional). Não há exemplo DCCR público curado ainda (ver
+# ensaia/exemplos/__init__.py), então os testes do servidor MCP usam dados
+# fabricados com uma resposta quadrática côncava conhecida — máximo interior
+# garantido, bom para exercitar ponto estacionário e otimização.
+_ALFA = 1.682
+_CENTRO_PASSO = {
+    "dose_adsorvente": (0.6, 0.15),
+    "tempo_mistura": (35.0, 10.0),
+    "ph": (7.0, 1.5),
+}
+_RUIDO = [
+    1.8, -1.2, 0.6, -2.4, 1.2, 0.6, -1.8, 1.2, 0.6, -0.6,
+    1.2, -1.2, 0.6, -0.6, 0.3, -0.3, 0.0, 0.6, -0.6, 0.3,
+]
+
+
+def _dccr_csv() -> str:
+    pontos = [
+        *itertools.product((-1.0, 1.0), repeat=3),
+        (-_ALFA, 0.0, 0.0), (_ALFA, 0.0, 0.0),
+        (0.0, -_ALFA, 0.0), (0.0, _ALFA, 0.0),
+        (0.0, 0.0, -_ALFA), (0.0, 0.0, _ALFA),
+        *([(0.0, 0.0, 0.0)] * 6),
+    ]
+    linhas = []
+    for (x1, x2, x3), ruido in zip(pontos, _RUIDO, strict=True):
+        y = (
+            90 + 5 * x1 + 3 * x2 - 2 * x3
+            - 4 * x1**2 - 3 * x2**2 - 2 * x3**2 + x1 * x2
+            + ruido
+        )
+        linha = {
+            nome: round(centro + coord * passo, 4)
+            for (nome, (centro, passo)), coord in zip(
+                _CENTRO_PASSO.items(), (x1, x2, x3), strict=True
+            )
+        }
+        linha[RESPOSTA] = round(y, 2)
+        linhas.append(linha)
+    buf = io.StringIO()
+    escritor = csv.DictWriter(buf, fieldnames=[*_CENTRO_PASSO, RESPOSTA])
+    escritor.writeheader()
+    escritor.writerows(linhas)
+    return buf.getvalue()
+
+
+CSV = _dccr_csv()
 
 # Fatorial 2² com 3 pontos centrais: triagem, com efeitos e curvatura.
 FATORIAL = "a,b,y\n-1,-1,10\n1,-1,18\n-1,1,12\n1,1,25\n0,0,16\n0,0,15.5\n0,0,16.4\n"
@@ -71,7 +122,7 @@ async def test_read_table_sugere_papeis_e_devolve_csv_normalizado() -> None:
     lido = await _chamar("read_table", {"data_csv": CSV})
     papeis = {c["nome"]: c["papel_sugerido"] for c in lido["colunas"]}
     assert papeis == {**dict.fromkeys(FATORES, "fator"), RESPOSTA: "resposta"}
-    assert lido["linhas"] == 15
+    assert lido["linhas"] == 20
     assert str(lido["data_csv"]).startswith("dose_adsorvente,tempo_mistura,ph,")
 
 
@@ -95,11 +146,11 @@ async def test_analise_completa_da_os_mesmos_numeros_da_tela() -> None:
         "run_full_analysis",
         {"data_csv": CSV, "factors": FATORES, "responses": [RESPOSTA]},
     )
-    tabela, _ = carregar_exemplo("metronidazol")
+    tabela = ler_dados_de_bytes(CSV.encode("utf-8"), "dccr.csv")
     tela = analisar_tabela(tabela, FATORES, [RESPOSTA], versao_ensaia=__version__)
     resultado = feita["analysis_result"]
     assert resultado["ajustes"][0]["r2"] == pytest.approx(tela.resultado.ajustes[0].r2)
-    assert resultado["tipo_planejamento"] == "box_behnken"
+    assert resultado["tipo_planejamento"] == "composto_central"
     assert feita["fatos"]["modelo"]
 
 
@@ -107,11 +158,11 @@ async def test_analise_completa_da_os_mesmos_numeros_da_tela() -> None:
 async def test_ferramentas_de_cada_etapa() -> None:
     base = {"data_csv": CSV, "factors": FATORES}
     planejamento = await _chamar("detect_design", {**base, "responses": [RESPOSTA]})
-    assert planejamento["planejamento"]["n_pontos_centrais"] == 3
+    assert planejamento["planejamento"]["n_pontos_centrais"] == 6
     modelo = await _chamar("fit_model", {**base, "response": RESPOSTA})
     assert modelo["equacao"]["codificada"].startswith("ŷ")
     residuos = await _chamar("check_residuals", {**base, "response": RESPOSTA})
-    assert len(residuos["diagnostico"]["residuos"]) == 15
+    assert len(residuos["diagnostico"]["residuos"]) == 20
     estacionario = await _chamar(
         "find_stationary_point", {**base, "response": RESPOSTA}
     )
@@ -123,13 +174,15 @@ async def test_ferramentas_de_cada_etapa() -> None:
 
 
 @pytest.mark.anyio
-async def test_efeitos_de_um_fatorial() -> None:
+async def test_efeitos_de_um_fatorial_fica_sem_grupo_b() -> None:
+    # Um fatorial 2² (mesmo com pontos centrais) não é mais um tipo
+    # reconhecido (ADR 0013): "efeitos_fatorial" (Grupo B) vem None. O Pareto
+    # (B2) não depende do tipo fatorial e continua disponível.
     efeitos = await _chamar(
         "compute_effects",
         {"data_csv": FATORIAL, "factors": ["a", "b"], "response": "y"},
     )
-    termos = {e["termo"] for e in efeitos["efeitos_fatorial"]["efeitos"]}
-    assert {"a", "b", "a:b"} <= termos
+    assert efeitos["efeitos_fatorial"] is None
     assert efeitos["pareto"][0]["termo"] == "a"
 
 
@@ -152,7 +205,7 @@ async def test_pdf_e_conferencia_do_texto() -> None:
     conferido = await _chamar(
         "verify_text",
         {
-            "text": "O modelo explicou 99,7% da variação (R² = 0,985).",
+            "text": "O modelo explicou 99,7% da variação (R² = 0,995).",
             "analysis_result": feita["analysis_result"],
         },
     )
@@ -173,20 +226,23 @@ async def test_erro_de_dados_volta_em_portugues_sem_derrubar_o_servidor() -> Non
 
 @pytest.mark.anyio
 async def test_recursos_e_prompts() -> None:
+    # Sem exemplo DCCR curado ainda (ver ensaia/exemplos/__init__.py), então
+    # "doe://exemplos/{nome}" não tem nenhum id válido para testar o caminho
+    # feliz agora — só confere que ele falha com uma mensagem útil.
     async with Client(mcp) as cliente:
         glossario = await cliente.read_resource("doe://glossario")
-        exemplo = await cliente.read_resource("doe://exemplos/metronidazol")
         catalogo = await cliente.read_resource("doe://catalogo")
         prompt = await cliente.get_prompt("relatorio_completo", {"contexto": "TCC"})
+        with pytest.raises(Exception, match="metronidazol"):
+            await cliente.read_resource("doe://exemplos/metronidazol")
     textos = [
         c.text
-        for r in (glossario, exemplo, catalogo)
+        for r in (glossario, catalogo)
         for c in r.contents
         if isinstance(c, TextResourceContents)
     ]
     assert "Fator" in textos[0]
-    assert textos[1].startswith("dose_adsorvente,")
-    assert "E5" in textos[2]
+    assert "E5" in textos[1]
     assert "run_full_analysis" in str(prompt.messages[0].content)
 
 
