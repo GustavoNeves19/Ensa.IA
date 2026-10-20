@@ -376,11 +376,7 @@ class _QuadroMapeamento:
 
 _TIPOS_PLANEJAMENTO = {
     "auto": "Automático",
-    "fatorial_completo": "Fatorial completo",
-    "fatorial_fracionado": "Fatorial fracionado",
-    "box_behnken": "Box-Behnken",
-    "composto_central": "Composto central",
-    "fatorial_3k": "Fatorial 3^k",
+    "composto_central": "Composto central rotacional (DCCR)",
 }
 _MODELOS = {
     "auto": "Automático",
@@ -404,38 +400,21 @@ _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
         "Qual planejamento os dados formam (A2, spec §9).",
         {
             "auto": (
-                "Automático: o EnsaIA reconhece o delineamento pela posição dos "
-                "pontos na escala codificada, sem precisar que você diga qual foi. "
-                "Avisa quando os níveis não batem com nenhum padrão conhecido.",
-                "2 níveis: fatorial · 3 níveis: Box-Behnken ou 3^k\n"
-                "5 níveis: composto central (±α)",
-            ),
-            "fatorial_completo": (
-                "Fatorial completo: force este tipo quando souber que testou todas "
-                "as combinações dos níveis baixo/alto de cada fator.",
-                "2^k ensaios; níveis −1, +1",
-            ),
-            "fatorial_fracionado": (
-                "Fatorial fracionado: uma fração do fatorial completo, para quando "
-                "nem toda combinação de níveis foi testada.",
-                "2^(k−p) ensaios; níveis −1, +1",
-            ),
-            "box_behnken": (
-                "Box-Behnken: force este tipo para um delineamento de 3 níveis sem "
-                "vértice — nenhum ensaio tem todos os fatores no extremo ao mesmo "
-                "tempo. É a ambiguidade mais comum com o fatorial 3^k, que tem os "
-                "mesmos 3 níveis.",
-                "níveis −1, 0, +1; sem o vértice (−1,−1,…,−1) etc.",
+                "Automático: o EnsaIA reconhece o delineamento composto central "
+                "rotacional (DCCR) pela posição dos pontos na escala codificada — "
+                "vértices do fatorial, estrela axial em ±α rotacional e pontos "
+                "centrais —, sem precisar que você diga que é um DCCR. É o único "
+                "tipo de planejamento que este sistema analisa hoje; qualquer "
+                "outra disposição (fatorial puro, Box-Behnken, composto central de "
+                "face centrada etc.) volta como não identificado, com um aviso "
+                "explicando o porquê.",
+                "vértices (±1) + estrela (±α, rotacional) + centro (0)",
             ),
             "composto_central": (
-                "Composto central: force este tipo quando souber que o delineamento "
-                "tem pontos axiais (±α) além do fatorial e do centro.",
-                "níveis −α, −1, 0, +1, +α",
-            ),
-            "fatorial_3k": (
-                "Fatorial 3^k: force este tipo para um fatorial completo de 3 "
-                "níveis por fator — todas as combinações, incluindo o vértice.",
-                "3^k ensaios; níveis −1, 0, +1 (todas as combinações)",
+                "Composto central rotacional: force este tipo quando souber que o "
+                "delineamento é um DCCR, mas o EnsaIA não reconheceu automaticamente "
+                "(por exemplo, poucos pontos centrais para confirmar a geometria).",
+                "níveis −α, −1, 0, +1, +α (α rotacional)",
             ),
         },
     ),
@@ -444,12 +423,10 @@ _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
         "Quais efeitos entram na equação.",
         {
             "auto": (
-                "Automático: o EnsaIA escolhe pelo planejamento. Quadrático quando "
-                "todos os fatores têm 3 ou mais níveis (Box-Behnken, composto "
-                "central); com interações nos fatoriais de 2 níveis. Se faltarem "
-                "ensaios para o modelo, ele simplifica e avisa.",
-                "Fatorial 2ᵏ: ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ\n"
-                "Box-Behnken e composto central: + Σ bᵢᵢxᵢ²",
+                "Automático: o EnsaIA escolhe pelo planejamento. Quadrático para o "
+                "composto central (DCCR), que tem 3 ou mais níveis por fator. Se "
+                "faltarem ensaios para o modelo, ele simplifica e avisa.",
+                "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²",
             ),
             "linear": (
                 "Linear: só o efeito de cada fator, como se cada um agisse sozinho "
@@ -466,7 +443,7 @@ _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
             "quadratico": (
                 "Quadrático: soma também a curvatura de cada fator, o que permite "
                 "achar um máximo ou um mínimo dentro da região estudada. Exige 3 "
-                "ou mais níveis por fator (Box-Behnken, composto central).",
+                "ou mais níveis por fator — é o modelo do composto central (DCCR).",
                 "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²",
             ),
         },
