@@ -1,5 +1,17 @@
 # Shortlist de Casos de Estudo para o TCC EnsaIA
 
+> **Nota de 2026-10-20 ([ADR 0013](../decisoes/0013-restricao-a-dccr.md)):** o
+> EnsaIA passou a reconhecer só o DCCR. As seções **1 (Fatorial 2^k)** e **3
+> (Box-Behnken)** abaixo ficam fora do escopo ativo de validação — nenhuma
+> delas vai para `casos_de_estudo/` enquanto essa decisão valer. (Os dois casos
+> Box-Behnken que chegaram a existir no repositório, sobre fotodegradação de
+> levofloxacino e remoção de metronidazol, são de outros artigos, não dos
+> candidatos Mango peels/Chara vulgaris listados aqui, e foram removidos.) A
+> seção **2 (CCD)** é a que importa agora: o candidato principal (Tylosin) já
+> está cadastrado como rascunho em `casos_de_estudo/tylosin-photo-fenton` —
+> falta só transcrever os números —, e os outros três (Fenton/Taguchi,
+> girassol, zeólita 4A) são reservas prontas para entrar em seguida.
+
 ## Critério de corte aplicado
 
 Nenhum dos 11 candidatos tem `confiabilidade: "baixa"`, `existe: false` ou `url_resolve: false` na verificação — então, pelo filtro literal do §4.2, nenhum é tecnicamente descartado. Mas "aprovado no filtro" não é o mesmo que "recomendável para citar direto". Por isso separei em três grupos por tipo de planejamento e, dentro de cada um, dividi entre **recomendado (confiabilidade alta, dados batem sem ressalva relevante)** e **não recomendado sem correção manual (confiabilidade média, com erro factual concreto encontrado)**. Só escrevi `fonte.md` pronto para os candidatos que considero seguros para entrar no pipeline; os de confiabilidade média ficam como alerta, não como recomendação.

@@ -11,7 +11,7 @@ issues #3–#10.
 |---|---|---|
 | [`nucleo-estatistico.md`](nucleo-estatistico.md) | OLS, matriz de modelo, ANOVA tipo II, falta de ajuste, seleção de termos, efeitos, desejabilidade de Derringer-Suich, amostragem LHS | #3, #4, #5, #6, notas de #9 e #10 |
 | [`narrativa-llm.md`](narrativa-llm.md) | Chain LangChain + Gemini, saída estruturada, versionamento de prompt, e como fechar o §4.3(e) em `validation/fidelity.py` | #7 (e o elo que falta para #8) |
-| [`casos-de-estudo-candidatos.md`](casos-de-estudo-candidatos.md) | Candidatos reais (fatorial 2^k, CCD, Box-Behnken) para `casos_de_estudo/`, cada um com o que foi de fato conferido abrindo o artigo | #2 do pré-projeto (§4.2), alimenta #8 |
+| [`casos-de-estudo-candidatos.md`](casos-de-estudo-candidatos.md) | Candidatos reais (fatorial 2^k, CCD, Box-Behnken) para `casos_de_estudo/`, cada um com o que foi de fato conferido abrindo o artigo — **desde o [ADR 0013](../decisoes/0013-restricao-a-dccr.md), só a seção CCD está em escopo ativo** | #2 do pré-projeto (§4.2), alimenta #8 |
 
 ## Como usar isto
 
