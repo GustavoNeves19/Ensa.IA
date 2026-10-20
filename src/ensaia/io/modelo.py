@@ -7,20 +7,24 @@ mais comuns de quem está começando.
 
 from __future__ import annotations
 
+import itertools
 from io import BytesIO
 
 _CABECALHO = ["Ensaio", "Temperatura (°C)", "Tempo (min)", "pH", "Rendimento (%)"]
-# Um Box-Behnken de 3 fatores (15 ensaios, 3 no centro), só nos níveis reais.
-_NIVEIS = {
-    "Temperatura (°C)": (40, 50, 60),
-    "Tempo (min)": (10, 20, 30),
-    "pH": (5, 6, 7),
+# Um DCCR de 3 fatores — 8 pontos fatoriais + 6 axiais (α=1,682, rotacional) +
+# 6 centrais = 20 ensaios —, só nos níveis reais. (centro, passo) por fator.
+_ALFA = 1.682
+_FATORES = {
+    "Temperatura (°C)": (50, 10),
+    "Tempo (min)": (20, 10),
+    "pH": (6, 1),
 }
-_BBD = [
-    (-1, -1, 0), (1, -1, 0), (-1, 1, 0), (1, 1, 0),
-    (-1, 0, -1), (1, 0, -1), (-1, 0, 1), (1, 0, 1),
-    (0, -1, -1), (0, 1, -1), (0, -1, 1), (0, 1, 1),
-    (0, 0, 0), (0, 0, 0), (0, 0, 0),
+_DCCR = [
+    *itertools.product((-1, 1), repeat=3),
+    (-_ALFA, 0, 0), (_ALFA, 0, 0),
+    (0, -_ALFA, 0), (0, _ALFA, 0),
+    (0, 0, -_ALFA), (0, 0, _ALFA),
+    *([(0, 0, 0)] * 6),
 ]
 _GUIA = [
     "Como preencher a planilha do EnsaIA",
@@ -53,9 +57,11 @@ def planilha_modelo_xlsx() -> bytes:
     dados.append(_CABECALHO)
     for celula in dados[1]:
         celula.font = Font(bold=True)
-    fatores = list(_NIVEIS)
-    for i, pontos in enumerate(_BBD, start=1):
-        valores = [_NIVEIS[f][p + 1] for f, p in zip(fatores, pontos, strict=True)]
+    for i, pontos in enumerate(_DCCR, start=1):
+        valores = [
+            round(centro + p * passo, 2)
+            for (centro, passo), p in zip(_FATORES.values(), pontos, strict=True)
+        ]
         dados.append([i, *valores, None])
     for coluna, largura in zip("ABCDE", (8, 18, 13, 6, 16), strict=True):
         dados.column_dimensions[coluna].width = largura

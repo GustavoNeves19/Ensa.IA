@@ -14,15 +14,14 @@ from ensaia.io.readers import ler_dados_de_bytes, listar_abas
 
 
 @pytest.mark.parametrize("id_", sorted(EXEMPLOS))
-def test_exemplos_carregam_e_sao_box_behnken(id_: str) -> None:
+def test_exemplos_carregam_e_sao_dccr(id_: str) -> None:
     tabela, nome = carregar_exemplo(id_)
     assert nome.endswith(".csv")
-    assert len(tabela) == 15
     fatores = list(tabela.colunas)[:3]
     ident = identificar_planejamento(
         {f: [float(v) for v in tabela.coluna(f)] for f in fatores}
     )
-    assert ident.tipo == "box_behnken"
+    assert ident.tipo == "composto_central"
     assert "DOI" in EXEMPLOS[id_].citacao
 
 
@@ -33,12 +32,12 @@ def test_planilha_modelo_e_lida_pelo_proprio_ensaia() -> None:
     assert list(tabela.colunas) == [
         "Ensaio", "Temperatura (°C)", "Tempo (min)", "pH", "Rendimento (%)"
     ]
-    assert len(tabela) == 15
+    assert len(tabela) == 20
     fatores = ["Temperatura (°C)", "Tempo (min)", "pH"]
     ident = identificar_planejamento(
         {f: [float(v) for v in tabela.coluna(f)] for f in fatores}
     )
-    assert ident.tipo == "box_behnken" and ident.n_pontos_centrais == 3
+    assert ident.tipo == "composto_central" and ident.n_pontos_centrais == 6
 
 
 def test_prever_condicao_bate_com_a_equacao_e_avisa_extrapolacao() -> None:

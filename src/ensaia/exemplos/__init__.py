@@ -3,6 +3,12 @@
 São os mesmos dados dos casos de estudo da validação, publicados em acesso
 aberto e citados abaixo. Servem para o usuário explorar o EnsaIA antes de usar
 os próprios dados — e para o professor mostrar uma análise completa em aula.
+
+Vazio por ora: os dois exemplos que existiam (Box-Behnken) saíram do escopo
+quando o EnsaIA passou a reconhecer só o DCCR (ADR 0013). Falta curar um
+exemplo DCCR público para repor — ver `casos_de_estudo/tylosin-photo-fenton`
+(rascunho, aguardando transcrição) ou os outros candidatos CCD listados em
+`docs/pesquisa/casos-de-estudo-candidatos.md`.
 """
 
 from __future__ import annotations
@@ -23,37 +29,7 @@ class Exemplo:
     citacao: str
 
 
-EXEMPLOS: dict[str, Exemplo] = {
-    e.id: e
-    for e in (
-        Exemplo(
-            id="metronidazol",
-            titulo="Remoção de metronidazol (Box-Behnken)",
-            descricao=(
-                "3 fatores (dose de adsorvente, tempo, pH), 15 ensaios, 3 no "
-                "ponto central; resposta: remoção (%)."
-            ),
-            arquivo="mazloomi_2023_metronidazol.csv",
-            citacao=(
-                "MAZLOOMI, S. et al. Scientific Reports, v. 13, art. 14654, 2023. "
-                "DOI: 10.1038/s41598-023-41724-y (CC BY 4.0)."
-            ),
-        ),
-        Exemplo(
-            id="levofloxacino",
-            titulo="Fotodegradação de levofloxacino (Box-Behnken)",
-            descricao=(
-                "3 fatores (dose de catalisador, concentração, pH), 15 ensaios; "
-                "resposta: eficiência de fotodegradação (%)."
-            ),
-            arquivo="go_2022_levofloxacino.csv",
-            citacao=(
-                "GO, A. D. et al. Data in Brief, v. 42, art. 108219, 2022. "
-                "DOI: 10.1016/j.dib.2022.108219."
-            ),
-        ),
-    )
-}
+EXEMPLOS: dict[str, Exemplo] = {}
 
 
 def conteudo_exemplo(id_: str) -> bytes:
