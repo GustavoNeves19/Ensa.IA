@@ -60,6 +60,12 @@ Mudanças concretas:
   vazio até haver um exemplo DCCR público curado para repor (ver
   `casos_de_estudo/tylosin-photo-fenton`, ainda rascunho, ou os outros
   candidatos CCD em `docs/pesquisa/casos-de-estudo-candidatos.md`).
+- A tolerância para aceitar um α como "rotacional" subiu de 2% para 5%
+  (`identificacao.py`, `_TOL_ALFA_ROTACIONAL`): com 2%, o próprio caso do
+  Tylosin acima — um DCCR real, intencionalmente rotacional segundo o artigo
+  — era rejeitado como "desconhecido", porque os níveis axiais publicados
+  (já arredondados pelos autores) medem α=1,639, não os 1,682 exatos. 5%
+  ainda rejeita com folga α=1 (face centrada) e α=2 num k=3.
 - `casos_de_estudo/`: os dois casos Box-Behnken (`go-2022-levofloxacino-
   hidroxiapatita-bbd`, `mazloomi-2023-zif67-metronidazol`) saíram do
   repositório — não fazem mais parte do conjunto de validação do §4.3.

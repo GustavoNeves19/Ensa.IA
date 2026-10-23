@@ -43,6 +43,13 @@ from ensaia.core.results import TipoPlanejamento
 # níveis ±1 e o centro saem exatos dos próprios dados; a folga cobre só o
 # arredondamento com que planilhas reais costumam trazer os níveis.
 _TOL = 0.02
+# Tolerância pra dizer que o α medido "é" o rotacional. 2% rejeitava DCCR
+# reais e intencionalmente rotacionais (ex.: Sarrai et al. 2016, α nominal
+# 1,68, mas os níveis axiais publicados — já arredondados pelos autores —
+# medem 1,639: 2,6% de desvio). 5% ainda rejeita com folga α=1 (face
+# centrada) e α=2 num k=3 (18-40% de desvio), então continua discriminando
+# o que importa.
+_TOL_ALFA_ROTACIONAL = 0.05
 # Casas usadas para considerar dois níveis reais iguais (evita que 37.5 e
 # 37.500000001 virem níveis distintos por erro de ponto flutuante).
 _CASAS_NIVEL = 9
@@ -308,7 +315,7 @@ def _classificar(
             avisos.append("A parte fatorial do composto central está incompleta.")
 
         rotacional = len(vertices) ** 0.25
-        if abs(alfa - rotacional) > 0.02 * rotacional:
+        if abs(alfa - rotacional) > _TOL_ALFA_ROTACIONAL * rotacional:
             motivo = (
                 "de face centrada (α=1)"
                 if abs(alfa - 1.0) < _TOL
