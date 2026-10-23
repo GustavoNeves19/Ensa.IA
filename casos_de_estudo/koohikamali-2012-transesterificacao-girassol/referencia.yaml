@@ -1,0 +1,109 @@
+# Valores publicados no artigo original. Transcritos via leitura assistida
+# (WebFetch) do mirror PMC em 2026-10-23 — PENDENTE conferência humana dupla
+# contra o PDF/HTML original antes de virar evidência final do TCC. Ver
+# fonte.md para o que ainda falta conferir.
+#
+# ATENÇÃO (ver fonte.md): este CCD tem alfa=2,0, não o rotacional (1,682
+# para k=3). O EnsaIA (ADR 0013) só reconhece automaticamente o DCCR
+# rotacional — rodar `identificar_planejamento` nestes dados classifica como
+# "desconhecido". Para a validação (§4.3) isso não bloqueia, porque o runner
+# usa o tipo_planejamento declarado aqui, não a auto-detecção; mas este caso
+# NÃO serve para demonstrar o reconhecimento automático de DCCR na tela —
+# serve só para validar o ajuste OLS/ANOVA contra um artigo publicado.
+
+caso: koohikamali-2012-transesterificacao-girassol
+status: rascunho   # ver fonte.md: duas leituras do mesmo artigo se contradisseram
+tipo_planejamento: composto_central
+
+fatores:
+  # minimo/maximo = níveis -1 e +1 do FATORIAL (vértices), NÃO os pontos axiais.
+  tempo:
+    minimo: 90.0
+    maximo: 150.0
+    unidade: "min"
+  metanol_excesso:
+    minimo: 50.0
+    maximo: 100.0
+    unidade: "% m/m"
+  catalisador:
+    minimo: 0.3
+    maximo: 0.7
+    unidade: "% m/m"
+
+escala_coeficientes: codificada
+grandeza_reportada: coeficiente
+
+# O artigo publica só o modelo reduzido (backward elimination já aplicado):
+# Intercepto, tempo, catalisador e metanol_excesso^2. Reproduzir exatamente
+# esse modelo, não o quadrático completo padrão.
+termos_modelo:
+  - Intercepto
+  - tempo
+  - catalisador
+  - metanol_excesso^2
+
+respostas:
+  teor_ester:
+    coeficientes:
+      Intercepto: 96.38
+      tempo: -0.794
+      catalisador: 0.733
+      metanol_excesso^2: 0.528
+    significancia:
+      Intercepto: null
+      tempo: true           # p = 0,000
+      catalisador: true     # p = 0,001
+      metanol_excesso^2: true  # p = 0,001
+    r2: 0.889
+    r2_ajustado: 0.83
+    alfa_usado_no_artigo: 0.05   # não declarado explicitamente no texto lido; assumido pelo padrão da área — confirmar
+
+condicao_otima:
+  objetivos:
+    teor_ester: maximizar
+  coordenadas:
+    tempo: 60.0
+    metanol_excesso: 25.0
+    catalisador: 0.5
+  resposta_prevista:
+    teor_ester: 100.04
+
+observacoes: |
+  STATUS: RASCUNHO, NÃO USAR PARA VALIDAÇÃO AINDA. Rodar o EnsaIA contra estes
+  dados e este modelo deu R²=0,465 — bem abaixo do R²=0,889 publicado, uma
+  divergência grande demais para ser arredondamento ou coeficiente pequeno
+  (ao contrário do caso tylosin, aqui o padrão é estrutural). Uma segunda
+  leitura do mesmo artigo (mesma ferramenta, pergunta mais específica) se
+  contradisse com a primeira: a primeira leitura disse que as respostas
+  estavam na mesma Tabela 1 dos ensaios; a segunda disse que as respostas na
+  verdade estão numa Tabela 2 separada, com os 6 pontos centrais na faixa
+  95,04-97,47% — diferente da faixa 95,90-96,95% que entrou em `dados.csv`.
+  Ou seja: `dados.csv` provavelmente tem a resposta errada em algumas linhas.
+
+  Transcrição feita por leitura assistida (ferramenta de IA lendo o mirror
+  PMC https://pmc.ncbi.nlm.nih.gov/articles/PMC3349207/), não por um humano
+  abrindo o PDF — e a própria ferramenta se contradisse entre duas consultas.
+  Precisa de alguém abrindo o PDF de verdade (ou o HTML do PMC) e relendo a
+  Tabela 1 (desenho) e a Tabela 2 (respostas) separadamente antes deste caso
+  valer qualquer coisa.
+
+  ACHADO IMPORTANTE: os três fatores têm alfa=2,0 (axial = vértice ± 2×passo),
+  não o alfa rotacional de 1,682 esperado para k=3. Isto é um "composto
+  central" no sentido amplo (fatorial + estrela + centro), mas não o DCCR
+  estritamente rotacional que o EnsaIA reconhece automaticamente desde o
+  ADR 0013 — `identificar_planejamento` classifica esta geometria como
+  "desconhecido". Fica registrado como `composto_central` aqui porque o
+  runner de validação usa o tipo declarado, não a auto-detecção; mas não usar
+  este caso como o "exemplo" de reconhecimento automático de DCCR na tela.
+
+  O artigo só publica o modelo reduzido (ver `termos_modelo`); a tabela ANOVA
+  lida não trouxe somas de quadrados, só GL/QM/F/p dos três termos retidos —
+  se o §4.3 exigir SQ, voltar à fonte.
+
+  A condição ótima publicada tem previsto=100,04% e confirmação experimental
+  de 99,70% (Tabela, linha "Optimal") — o critério (d) deve comparar contra o
+  previsto (100,04%), não contra o experimental.
+
+  R² citado em pesquisa anterior (candidatos.md) tinha uma divergência de
+  arredondamento (0,88 vs 0,889); a leitura desta sessão confirma 0,889 —
+  mas conferir o valor exato na Tabela 3 do PDF antes de finalizar.

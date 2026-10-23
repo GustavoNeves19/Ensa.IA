@@ -1,0 +1,28 @@
+# Um ensaio por linha, nos níveis REAIS (não codificados).
+# Nomes das colunas de fatores e respostas devem bater com referencia.yaml.
+# Fonte: Tabela 1 do artigo (DOI 10.1100/2012/475027), 20 ensaios de um CCD
+# (3 fatores, 5 níveis, alfa=2,0 — NÃO é o rotacional de 1,682, ver fonte.md).
+# Transcrito via leitura assistida do mirror PMC (pmc.ncbi.nlm.nih.gov/articles/PMC3349207/)
+# em 2026-10-23 — PENDENTE conferência humana dupla contra o PDF/HTML original
+# antes de virar evidência final do TCC (ver fonte.md).
+tempo,metanol_excesso,catalisador,teor_ester
+120,75,0.5,96.46
+150,50,0.3,95.40
+90,100,0.3,97.32
+120,75,0.5,96.20
+90,50,0.7,99.20
+150,100,0.7,98.46
+120,75,0.5,96.95
+150,50,0.7,98.14
+150,100,0.3,97.00
+90,50,0.3,99.20
+120,75,0.5,96.80
+90,100,0.7,99.90
+120,25,0.5,96.64
+120,75,0.5,96.10
+60,75,0.5,96.29
+120,125,0.5,96.99
+120,75,0.9,96.72
+180,75,0.5,92.40
+120,75,0.1,93.54
+120,75,0.5,95.90
