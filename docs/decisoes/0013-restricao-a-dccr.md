@@ -56,10 +56,11 @@ Mudanças concretas:
   fatores (20 ensaios: 8 fatoriais + 6 axiais + 6 centrais, α≈1,682), não mais
   um Box-Behnken.
 - `ensaia/exemplos/`: os dois exemplos embutidos (remoção de metronidazol e
-  fotodegradação de levofloxacino) eram Box-Behnken — saíram. `EXEMPLOS` fica
-  vazio até haver um exemplo DCCR público curado para repor (ver
-  `casos_de_estudo/tylosin-photo-fenton`, ainda rascunho, ou os outros
-  candidatos CCD em `docs/pesquisa/casos-de-estudo-candidatos.md`).
+  fotodegradação de levofloxacino) eram Box-Behnken — saíram. Repostos (2026-
+  10-23) por dois DCCR reais: degradação de tilosina por foto-Fenton (Sarrai
+  et al., 2016) e hidrólise ácida de sementes de açaí (Igreja et al., 2023,
+  com coautoria da orientadora) — ver `casos_de_estudo/tylosin-photo-fenton`
+  e `casos_de_estudo/igreja-2023-acai-hidrolise-acida`.
 - A tolerância para aceitar um α como "rotacional" subiu de 2% para 5%
   (`identificacao.py`, `_TOL_ALFA_ROTACIONAL`): com 2%, o próprio caso do
   Tylosin acima — um DCCR real, intencionalmente rotacional segundo o artigo
@@ -89,14 +90,14 @@ estética. Ele fica coberto por testes que o chamam diretamente (não mais via
   (Box-Behnken), um delineamento que o sistema não analisa mais.
 
 **Ruins / a vigiar**
-- Perde-se, por ora, a cobertura de validação externa (§4.3) que os dois casos
-  Box-Behnken davam — o conjunto de casos de estudo fica temporariamente vazio
-  (`casos_de_estudo/tylosin-photo-fenton` é um rascunho sem números ainda).
-  Curar pelo menos um caso DCCR real é pré-requisito para o capítulo de
-  resultados; os quatro candidatos CCD já mapeados em
-  `docs/pesquisa/casos-de-estudo-candidatos.md` são o ponto de partida.
-- `EXEMPLOS` vazio tira a opção "experimente com dados de exemplo" da tela até
-  essa curadoria acontecer.
+- Perde-se a cobertura de validação externa (§4.3) que os dois casos
+  Box-Behnken davam. Atualização de 2026-10-23: dois casos DCCR reais entraram
+  (Tylosin e o açaí de Igreja et al. 2023/Martins), ambos com R² batendo com
+  o publicado dentro da tolerância — mas os dois seguem `status: rascunho`
+  até a dupla conferência humana formal (ver `casos_de_estudo/README.md`).
+  Outros candidatos CCD mapeados em `docs/pesquisa/casos-de-estudo-candidatos.md`
+  (e mais achados depois, por busca direta de artigos da orientadora) ficam
+  como reserva.
 - `core/fatorial.py` vira código sem um caminho real de produção até a
   generalização voltar — justificável, mas é superfície morta que alguém pode
   achar estranha sem ler este ADR.
