@@ -1,0 +1,135 @@
+# Valores publicados no artigo original. Transcritos diretamente do PDF
+# completo (colado pelo usuário em 2026-10-23, não leitura assistida por IA)
+# — a fonte mais confiável dos casos levantados nesta sessão. Ainda assim,
+# PENDENTE conferência humana dupla formal antes de virar evidência final
+# do TCC (ver fonte.md).
+
+caso: igreja-2023-acai-hidrolise-acida
+status: rascunho   # pendente dupla conferência; ver observações sobre coeficientes ausentes
+tipo_planejamento: composto_central
+
+fatores:
+  # minimo/maximo = níveis -1 e +1 do FATORIAL (vértices), NÃO os pontos axiais.
+  acido:
+    minimo: 1.0
+    maximo: 4.0
+    unidade: "% m/v"
+  tempo:
+    minimo: 30.0
+    maximo: 90.0
+    unidade: "min"
+  solidos:
+    minimo: 5.0
+    maximo: 20.0
+    unidade: "% m/v"
+
+escala_coeficientes: codificada
+grandeza_reportada: coeficiente
+
+respostas:
+  trs:
+    # O artigo não publica a equação (coeficientes) no corpo do texto — só a
+    # Tabela S3 (ANOVA completa) no material suplementar, que não foi lida.
+    # O que é publicável com confiança são R² e o teste de significância da
+    # regressão como um todo; por isso os dicts abaixo ficam vazios em vez de
+    # inventados.
+    coeficientes: {}
+    significancia: {}
+    r2: 0.96
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.10   # artigo usa 90% de confiança (p <= 0,1), não 0,05
+  hmf:
+    coeficientes: {}
+    significancia: {}
+    r2: 0.89
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.10
+  massa_solubilizada:
+    coeficientes: {}
+    significancia: {}
+    r2: 0.71
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.10
+
+# Condição ótima escolhida pela função de desejabilidade do artigo. A
+# resposta_prevista aqui é o valor PREVISTO pelo modelo do artigo nessa
+# condição (o que o critério (d) do §4.3 deve comparar) — não a confirmação
+# experimental de laboratório, que é outro número (ver observações).
+condicao_otima:
+  objetivos:
+    trs: maximizar
+    hmf: minimizar
+  coordenadas:
+    acido: 3.5
+    tempo: 70.0
+    solidos: 25.0
+  resposta_prevista:
+    trs: 94.0
+    hmf: 273.0
+    massa_solubilizada: 36.0
+
+observacoes: |
+  Transcrição feita a partir do PDF completo do artigo (fornecido pelo
+  usuário em 2026-10-23), não de um resumo de IA nem de uma leitura parcial
+  via HTML — é a fonte de maior confiança entre todos os casos levantados
+  nesta sessão. Mesmo assim, falta a dupla conferência humana formal que o
+  `casos_de_estudo/README.md` exige antes deste caso virar evidência final.
+
+  PONTOS IMPORTANTES:
+
+  - alfa_usado_no_artigo = 0,10 (90% de confiança), não 0,05. O EnsaIA fixa
+    α=0,05 para toda a validação (ADR 0003) — a comparação de significância
+    (critério b do §4.3) não é direta aqui, porque o artigo usa um limiar
+    mais permissivo. Isso é uma característica do próprio artigo (comum em
+    otimização/triagem, para não descartar um efeito por engano), não um
+    erro de transcrição.
+
+  - Os modelos têm FALTA DE AJUSTE SIGNIFICATIVA nas três respostas — o
+    próprio artigo diz isso explicitamente: "significant but non predictive
+    ... can only be used as trend indicators". R²=0,96 (TRS), 0,89 (HMF) e
+    0,71 (massa solubilizada), mas nenhum é considerado preditivo fora da
+    faixa estudada. Isso é um achado real do artigo, não uma falha do
+    EnsaIA — e é um ótimo caso para o C4 (teste de falta de ajuste) e para
+    a discussão de "R² alto não é suficiente" no capítulo de resultados.
+
+  - Coeficientes da equação NÃO estão no corpo do artigo — só na Tabela S3
+    (material suplementar, não acessado). O artigo publica, em vez disso,
+    o gráfico de Pareto dos efeitos padronizados (Figura 2) com os valores
+    exatos de cada termo:
+      TRS: X3(L)=160,2; X1(L)=87,2; X2(L)=79,0; X2(L)×X3(L)=44,9;
+           X1(L)×X3(L)=44,1; X1(Q)=-39,3; X3(Q)=-24,4; X2(Q)=-19,9;
+           X1(L)×X2(L)=15,0
+      HMF: X1(L)=176,2; X2(L)=155,1; X3(L)=118,1; X1(L)×X2(L)=114,0;
+           X1(L)×X3(L)=105,7; X2(L)×X3(L)=80,6; X2(Q)=32,7; X3(Q)=-15,4;
+           X1(Q)=13,7
+      Massa solubilizada: X1(L)=42,7; X2(L)=22,6; X3(Q)=-22,9; X3(L)=15,0;
+           X1(L)×X2(L)=5,3; X2(L)×X3(L)=3,0; X1(L)×X3(L)=2,4; X2(Q)=1,5;
+           X1(L)=-1,1
+    (X1=ácido, X2=tempo, X3=sólidos; (L)=efeito linear, (Q)=quadrático)
+    Estes são EFEITOS PADRONIZADOS (estatística t-like), não coeficientes
+    de regressão — não dá para comparar diretamente com o critério (a) do
+    §4.3 sem a tabela ANOVA completa (Tabela S3) para recuperar os erros-
+    padrão. A linha "p=0,1" aparece no gráfico original, mas o valor
+    numérico exato do limiar não foi transcrito com segurança — por isso
+    não marcamos `significancia` por termo.
+
+  - Confirmação experimental da condição ótima (laboratório, triplicata):
+    TRS=82±2 g/L, HMF=265±1 mg/L, massa solubilizada=41±1% — diferente do
+    valor PREVISTO pelo modelo (94, 273, 36) usado em `resposta_prevista`
+    acima. RSD entre previsto e experimental: 9,6%, 2,1% e 9,2%.
+
+  - F da regressão (90% confiança, F_tabelado=2,72): TRS F=20,11; HMF
+    F=6,92; massa solubilizada F=1,93 — o valor de massa solubilizada
+    (1,93 < 2,72) contradiz o texto do artigo, que afirma que ele "rules
+    out the null hypothesis" (ou seja, trata como significativo). Pode ser
+    erro de digitação no artigo (ex.: "1,93" por "19,3") — sinalizado aqui,
+    não corrigido.
+
+  - Duas respostas têm valor zerado por instrução do próprio artigo: ensaio
+    11 (HMF <LOD) e ensaio 13 (TRS <LOD; massa solubilizada "NC2" por
+    concentração de sólidos baixa demais) — ver nota em `dados.csv`.
+
+  - Há um segundo DCCR completo no mesmo artigo usando H3PO4 em vez de
+    H2SO4 (mesmas faixas de X1/X2/X3), com dados só na Tabela S1
+    (suplementar, não acessada) — candidato a um sexto caso de estudo, se
+    algum dia alguém abrir o suplementar.
