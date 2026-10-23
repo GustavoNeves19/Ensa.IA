@@ -208,6 +208,7 @@ def fit_model(
             "r2",
             "r2_ajustado",
             "r2_predicao",
+            "r2_maximo",
             "falta_de_ajuste",
             "equacao",
             "termos_incluidos",

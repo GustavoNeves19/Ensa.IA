@@ -1740,6 +1740,14 @@ def _aba_anova(
                 f"<b>{_fmt(reg.razao_f, 2)}</b> (F tabelado = "
                 f"{_fmt(reg.f_tabelado, 2)} a α = {_fmt(alfa, 2)}), {leitura}.</div>"
             )
+            if reg.util_para_previsao is not None:
+                nota_previsao = (
+                    "Razão ≥ 10: útil para previsão."
+                    if reg.util_para_previsao
+                    else "Razão &lt; 10: significativa, mas não necessariamente "
+                    "útil para previsão."
+                )
+                ui.html(f'<div class="ea-ler">{nota_previsao}</div>')
     if "C2" in sel:
         if ajuste.anova:
             titulo_com_dica(

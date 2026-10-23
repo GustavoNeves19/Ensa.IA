@@ -37,10 +37,18 @@ EXPLICACOES: dict[str, tuple[str, str]] = {
         "sem ele no ajuste). Muito abaixo do R² ajustado indica um modelo que "
         "decorou os dados; negativo indica que prevê pior que a média.",
     ),
+    "r2_maximo": (
+        "R² máximo",
+        "O teto que o R² pode alcançar quando há réplicas genuínas: nenhum modelo "
+        "reproduz a variação entre réplicas (erro puro). Com réplicas, compare o "
+        "R² a este teto, não a 100%.",
+    ),
     "regressao": (
         "Regressão (ANOVA)",
         "Testa se o modelo, como um todo, explica a resposta além do acaso. "
-        "p menor que α: explica. F calculado / F tabelado maior que 1 diz o mesmo.",
+        "p menor que α: explica. F calculado / F tabelado maior que 1 diz o mesmo. "
+        "Mas significativa não é o mesmo que útil para previsão: só quando essa "
+        "razão passa de ≈10 a regressão serve para prever de verdade.",
     ),
     "falta_ajuste": (
         "Falta de ajuste",
@@ -163,7 +171,11 @@ FORMULAS: dict[str, str] = {
     "r2": "R² = 1 − SQres / SQtotal",
     "r2_ajustado": "R²aj = 1 − (1 − R²) · (n − 1) / (n − p)",
     "r2_predicao": "R²pred = 1 − PRESS / SQtotal\nPRESS = Σ [eᵢ / (1 − hᵢᵢ)]²",
-    "regressao": "F = MQreg / MQres\n   = [SQreg / (p − 1)] / [SQres / (n − p)]",
+    "r2_maximo": "R²máx = (SQtotal − SQep) / SQtotal",
+    "regressao": (
+        "F = MQreg / MQres\n   = [SQreg / (p − 1)] / [SQres / (n − p)]\n"
+        "útil p/ previsão: F / Ftab ≳ 10"
+    ),
     "falta_ajuste": (
         "F = MQfaj / MQep\n   = [SQfaj / (m − p)] / [SQep / (n − m)]\n"
         "m = condições distintas"

@@ -209,7 +209,9 @@ FORMULA_ANALISE: dict[str, str] = {
     "B5": "SQcurv = n_F · n_C · (ȳ_F − ȳ_C)² / (n_F + n_C)\nF = vértices;  C = centro",
     "C1": FORMULAS["coeficientes"],
     "C2": FORMULAS["regressao"],
-    "C3": "\n".join(FORMULAS[c] for c in ("r2", "r2_ajustado", "r2_predicao")),
+    "C3": "\n".join(
+        FORMULAS[c] for c in ("r2", "r2_ajustado", "r2_predicao", "r2_maximo")
+    ),
     "C4": FORMULAS["falta_ajuste"],
     "C5": FORMULAS["equacao"],
     "C6": FORMULAS["previsto_observado"],

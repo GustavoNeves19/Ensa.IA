@@ -332,12 +332,19 @@ def _ajuste_resposta(
     )
     gl_teste = ajuste.gl_residuo if gl_erro is None else gl_erro
     y: NDArray[np.float64] = dados.coluna(resposta)
+    r2_maximo = (
+        (ajuste.soma_quadrados_total - falta.soma_quadrados_erro_puro)
+        / ajuste.soma_quadrados_total
+        if falta.aplicavel and falta.soma_quadrados_erro_puro is not None
+        else None
+    )
     ajuste_resposta = AjusteResposta(
         resposta=resposta,
         coeficientes=coeficientes,
         anova=_linhas_anova(resposta, ajuste, avisos, qm_erro, gl_erro),
         r2=ajuste.r2,
         r2_ajustado=ajuste.r2_ajustado,
+        r2_maximo=r2_maximo,
         falta_de_ajuste=falta,
         n_observacoes=ajuste.n_observacoes,
         graus_liberdade_residuo=ajuste.gl_residuo,

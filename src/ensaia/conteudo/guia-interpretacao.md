@@ -18,9 +18,13 @@ resposta, negativo diminui.
 
 ## 3. A ANOVA e o R²
 - A regressão significativa (p < α), ou F calculado / F tabelado maior que 1,
-  indica que o modelo explica a resposta.
+  indica que o modelo explica a resposta. Mas significativa não é o mesmo que
+  útil para previsão: só quando essa razão passa de aproximadamente 10 a
+  regressão serve para prever de verdade (regra de Box e Wetz).
 - R² perto de 1 é bom, mas olhe também o R² ajustado e o de predição: se o de
-  predição for muito menor, o modelo pode estar decorando os dados.
+  predição for muito menor, o modelo pode estar decorando os dados. Com
+  réplicas genuínas, compare o R² ao R² máximo, não a 100% — nenhum modelo
+  reproduz a variação do erro puro.
 - Falta de ajuste não significativa (p ≥ α) é o desejável.
 
 ## 4. O diagnóstico

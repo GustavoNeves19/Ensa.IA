@@ -161,16 +161,24 @@ class AnovaRegressao(_Congelado):
     """ANOVA da regressão como a literatura de DOE apresenta (spec §9, C2).
 
     Linhas: Regressão, Resíduo, Falta de ajuste e Erro puro (quando há réplicas)
-    e Total. `f_tabelado` é o F crítico da regressão no nível α e `razao_f` é
-    F calculado / F tabelado — o critério de Barros Neto et al. e Rodrigues e
-    Iemma, muito usado em artigos brasileiros (razão > 1: regressão
-    significativa).
+    e Total. `f_tabelado` é o F crítico da regressão no nível α; `razao_f` é
+    F calculado / F tabelado, o mesmo teste F de significância (eq. 5.31,
+    BARROS NETO; SCARMINIO; BRUNS, 2010, p. 237) expresso como razão — razão
+    > 1 é equivalente a `regressao_significativa=True`.
+
+    `util_para_previsao` é um critério mais exigente, distinto da
+    significância: Box e Wetz (1973) apud Barros Neto, Scarminio e Bruns
+    (2010, p. 238) mostram que uma regressão pode ser significativa e ainda
+    assim não servir para prever — só é útil para previsão quando `razao_f`
+    é de uma ordem de grandeza (≈10×) maior que 1. `None` quando `razao_f`
+    não pôde ser calculado (sem graus de liberdade para a regressão).
     """
 
     linhas: list[LinhaAnova]
     f_tabelado: float | None = None
     razao_f: float | None = None
     regressao_significativa: bool | None = None
+    util_para_previsao: bool | None = None
 
 
 class Equacao(_Congelado):
@@ -337,6 +345,12 @@ class AjusteResposta(_Congelado):
     diagnostico: Diagnostico | None = None
     anova_regressao: AnovaRegressao | None = None
     r2_predicao: float | None = None
+    # (SQ_total − SQ_erro_puro) / SQ_total (BARROS NETO; SCARMINIO; BRUNS,
+    # 2010, p. 245-246): o teto que R² pode alcançar com réplicas genuínas,
+    # porque nenhum modelo reproduz o erro puro. Com repetições, comparar R²
+    # contra este teto é mais informativo que comparar contra 100%. `None`
+    # sem réplicas (mesma condição de `falta_de_ajuste.aplicavel`).
+    r2_maximo: float | None = None
     equacao: Equacao | None = None
     # Termo de erro efetivamente usado nos testes desta resposta (o pedido pode
     # cair para o resíduo quando não há réplicas para o erro puro).

@@ -28,7 +28,7 @@
 
 **ANOVA**: a tabela que divide a variação da resposta entre o que o modelo explica (regressão) e o que sobra (resíduo).
 
-**R²**: fração da variação explicada pelo modelo (de 0 a 1). **R² ajustado** desconta o número de termos; **R² de predição** mede quanto o modelo acerta ensaios que não viu.
+**R²**: fração da variação explicada pelo modelo (de 0 a 1). **R² ajustado** desconta o número de termos; **R² de predição** mede quanto o modelo acerta ensaios que não viu; **R² máximo** é o teto que o R² pode alcançar quando há réplicas genuínas (nenhum modelo reproduz o erro puro) — com réplicas, compare o R² a esse teto, não a 100%.
 
 **Falta de ajuste**: teste que compara o erro do modelo com o erro puro das réplicas. Significativo = o modelo não descreve bem a forma da resposta.
 
