@@ -25,3 +25,4 @@ Formato: contexto → decisão → consequências (inclusive as ruins).
 | [0011](0011-interface-nicegui-processo-unico.md) | Interface web em NiceGUI, num processo único (migra do Streamlit) | Aceita |
 | [0012](0012-servidor-mcp-sob-demanda.md) | Servidor MCP com o SDK oficial v2, carregado sob demanda | Aceita |
 | [0013](0013-restricao-a-dccr.md) | Restringir o escopo a DCCR; generalização vira trabalho futuro | Aceita |
+| [0014](0014-reducao-de-modelo-reajusta.md) | Redução de modelo sempre reajusta (diverge do livro-texto num exemplo) | Aceita |
