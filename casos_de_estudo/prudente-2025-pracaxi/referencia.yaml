@@ -1,0 +1,117 @@
+# Valores publicados no artigo original. Transcritos por extração direta do
+# HTML da scifiniti.com (não resumo de IA) em 2026-10-23. Caso incompleto por
+# construção: falta a tabela bruta de ensaios (ver dados.csv) — nenhuma
+# métrica do §4.3 pode ser calculada até ela aparecer, apesar de termos as
+# três equações do modelo reduzido.
+
+caso: prudente-2025-pracaxi
+status: rascunho   # bloqueado: sem dados.csv não dá para rodar validar_caso
+tipo_planejamento: composto_central
+
+fatores:
+  # minimo/maximo = níveis -1 e +1 do FATORIAL (vértices), NÃO os axiais.
+  tempo:
+    minimo: 15.0
+    maximo: 60.0
+    unidade: "min"
+  razao_solido_liquido:
+    minimo: 0.5
+    maximo: 2.0
+    unidade: "% m/v"
+  etanol:
+    minimo: 0.5
+    maximo: 60.0
+    unidade: "% v/v"
+
+escala_coeficientes: codificada
+grandeza_reportada: coeficiente
+
+# Três respostas, cada uma com seu próprio modelo reduzido (Equações 3-5 do
+# artigo, publicadas no corpo do texto como MathML, não material
+# suplementar). Os termos de cada modelo são as chaves de `coeficientes`
+# abaixo — cada resposta usa um subconjunto diferente (TPC/AA usam
+# tempo²+etanol+etanol²+interação; TF usa só razão sólido:líquido). O runner
+# (`_termos_publicados`) só aceita um `termos_modelo` ÚNICO por caso (aplicado
+# a todas as respostas de uma vez), que não serve aqui — por isso omitido;
+# de qualquer forma o caso está `status: rascunho` e não roda `validar_caso`
+# até a tabela bruta aparecer.
+respostas:
+  tpc:
+    coeficientes:
+      Intercepto: 0.159095
+      tempo^2: 0.086953
+      etanol: 0.143040
+      etanol^2: 0.120958
+      razao_solido_liquido:etanol: -0.108432
+    significancia: {}   # ANOVA publicada é do modelo como um todo, não termo a termo
+    r2: 0.9844
+    r2_ajustado: null   # ver observações — célula "Maximum % explainable variation" ambígua
+    alfa_usado_no_artigo: 0.10
+  tf:
+    coeficientes:
+      Intercepto: 0.011513
+      razao_solido_liquido: -0.008558
+      razao_solido_liquido^2: 0.006454
+    significancia: {}
+    r2: 0.5997
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.10
+  aa:
+    coeficientes:
+      Intercepto: 21.8935
+      tempo^2: 11.8883
+      etanol: 19.3863
+      etanol^2: 16.7622
+      razao_solido_liquido:etanol: -14.5911
+    significancia: {}
+    r2: 0.5627
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.10
+
+condicao_otima:
+  coordenadas:
+    tempo: 20.0
+    razao_solido_liquido: 0.7
+    etanol: 70.0
+  resposta_prevista:
+    tpc: 0.763   # mg GAE/g, previsto pela função desirability (D = 71,57%)
+    tf: 0.029    # mg QE/g
+    aa: 104.22   # µmol ET/g
+
+observacoes: |
+  CASO BLOQUEADO — falta a tabela bruta dos 17 ensaios (mesma lacuna do
+  Carapa guianensis e do Murumuru, mesmo grupo de pesquisa). O que ESTE caso
+  tem a mais que os outros dois: as TRÊS equações do modelo reduzido (Eq.
+  3-5, corpo do texto, não material suplementar) — então, quando a tabela
+  bruta aparecer, dá pra comparar coeficiente a coeficiente de verdade, para
+  as três respostas.
+
+  ANOVA (Tabela 3): TPC — Regressão GL=4, F calculado=3,86, F tabelado=5,40
+  (df 4 e 12, p<=0,1; o texto corrido troca TPC por "TCP" neste trecho, erro
+  de digitação do próprio artigo); % variação explicada=98,44%. TF —
+  Regressão GL=2, F calculado=10,49, F tabelado=2,73 (df 2 e 14); %
+  variação explicada=59,97%, variação máxima explicável=98,41%. AA —
+  Regressão GL=4, F calculado=3,84, F tabelado=2,48 (df 4 e 12); % variação
+  explicada=56,27%.
+
+  A coluna "Maximum % explainable variation" (candidata a R² ajustado) tem
+  uma ambiguidade de leitura na extração: o valor 98,44 aparece tanto na
+  linha do TPC quanto, de novo, na linha da AA — mesmo padrão de suspeita de
+  mesclagem de célula (rowspan) já visto no Carapa. Por isso `r2_ajustado`
+  fica null nas três respostas; só a linha "% variation explained" (R², sem
+  ambiguidade de posição) entrou em `referencia.yaml`.
+
+  Condição ótima (função desirability, D=71,57%): tempo=20 min, razão
+  sólido:líquido=0,7% m/v, etanol=70% v/v — dentro da faixa axial estudada
+  (não é extrapolação). Valores PREVISTOS pelo modelo: TPC=0,763 mg GAE/g,
+  TF=0,029 mg QE/g, AA=104,22 µmol ET/g. Confirmação experimental em
+  laboratório (não prevista pelo modelo): TPC=0,85 mg GAE/g (erro 10,23%),
+  TF=0,028 mg QE/g (erro 3,57%), AA=92 µmol ET/g (erro 13,28%) — esses erros
+  de confirmação são do próprio artigo, não de EnsaIA.
+
+  X1=tempo, X2=razão sólido:líquido, X3=etanol — mesma Tabela 1 de níveis do
+  Carapa e do Murumuru (−α=0,34/0,1/0,01, −1=15/0,5/0,5, 0=37,5/1,25/32,5,
+  +1=60/2/60, +α=75,34/2,5/78,75 para X1/X2/X3 respectivamente).
+
+  Próximo passo: baixar o material suplementar do artigo (se existir) ou
+  contatar os autores para obter a tabela bruta dos 17 ensaios.

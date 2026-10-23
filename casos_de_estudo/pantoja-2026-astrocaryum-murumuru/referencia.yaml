@@ -1,0 +1,71 @@
+# Valores publicados no artigo original. Transcritos por extração direta do
+# HTML do PMC (não resumo de IA) em 2026-10-23. Caso incompleto por
+# construção: falta a tabela bruta de ensaios (ver dados.csv) — nenhuma
+# métrica do §4.3 pode ser calculada até ela aparecer, apesar de termos a
+# equação do modelo.
+
+caso: pantoja-2026-astrocaryum-murumuru
+status: rascunho   # bloqueado: sem dados.csv não dá para rodar validar_caso
+tipo_planejamento: composto_central
+
+fatores:
+  tempo:
+    minimo: 15.0
+    maximo: 60.0
+    unidade: "min"
+  razao_solido_liquido:
+    minimo: 0.5
+    maximo: 2.0
+    unidade: "% m/v"
+  etanol:
+    minimo: 0.5
+    maximo: 60.0
+    unidade: "% v/v"
+
+escala_coeficientes: codificada
+grandeza_reportada: coeficiente
+
+# Modelo reduzido publicado (Equação 3 do artigo) — tempo (X1) foi excluído
+# por não significativo (Pareto a 90% de confiança).
+termos_modelo:
+  - Intercepto
+  - razao_solido_liquido
+  - etanol
+  - etanol^2
+  - razao_solido_liquido:etanol
+
+respostas:
+  tpc:
+    coeficientes:
+      Intercepto: 3.93
+      razao_solido_liquido: 1.38
+      etanol: -3.38
+      etanol^2: 2.52
+      razao_solido_liquido:etanol: -1.28
+    significancia: {}   # ANOVA publicada é do modelo como um todo, não termo a termo
+    r2: 0.993
+    r2_ajustado: 0.879
+    alfa_usado_no_artigo: 0.10   # artigo usa 90% de confiança (p <= 0,1)
+
+condicao_otima: null   # artigo escolhe só uma faixa prática (ver observações), não um ponto único
+
+observacoes: |
+  CASO BLOQUEADO — falta a tabela bruta dos 17 ensaios (mesma lacuna do
+  Carapa guianensis e do Pracaxi, mesmo grupo de pesquisa). O que ESTE caso
+  tem a mais que os outros dois: a equação do modelo reduzido (Equação 3,
+  corpo do texto, não material suplementar) — então, quando a tabela bruta
+  aparecer, dá pra comparar coeficiente a coeficiente de verdade.
+
+  ANOVA (Tabela 2, valores confirmados por repetição no texto corrido, não
+  só na tabela): Regressão GL=4, F calculado=21,79 (8,7× o F tabelado de
+  2,48 citado no texto — a própria tabela mostra "F calculado (4,12)" no
+  cabeçalho, divergência entre texto e tabela, sinalizada, não resolvida).
+  Falta de ajuste: F=3,51, menor que o F tabelado de 9,39 (texto) — modelo
+  SEM falta de ajuste significativa (diferente do caso do açaí). R²=0,993,
+  R² ajustado=0,879 ("variação explicada 87,90%, variação máxima explicável
+  99,35%" — linguagem do próprio artigo).
+
+  O artigo não escolhe uma condição ótima pontual: decide usar concentração
+  de etanol abaixo de 70% (para economizar reagente) e tempo abaixo de 30
+  min (já que o tempo não é significativo) — uma faixa prática, não um
+  ponto único de desejabilidade. Por isso `condicao_otima` fica null.

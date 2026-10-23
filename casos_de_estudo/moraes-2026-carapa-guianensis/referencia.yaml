@@ -1,0 +1,69 @@
+# Valores publicados no artigo original. Transcritos por extração direta do
+# HTML do PMC (não resumo de IA) em 2026-10-23. Caso incompleto por
+# construção: falta a tabela bruta de ensaios (ver dados.csv) — nenhuma
+# métrica do §4.3 pode ser calculada até ela aparecer.
+
+caso: moraes-2026-carapa-guianensis
+status: rascunho   # bloqueado: sem dados.csv não dá para rodar validar_caso
+tipo_planejamento: composto_central
+
+fatores:
+  # minimo/maximo = níveis -1 e +1 do FATORIAL (vértices), NÃO os axiais.
+  tempo:
+    minimo: 15.0
+    maximo: 60.0
+    unidade: "min"
+  razao_solido_liquido:
+    minimo: 0.5
+    maximo: 2.0
+    unidade: "% m/v"
+  etanol:
+    minimo: 0.5
+    maximo: 60.0
+    unidade: "% v/v"
+
+escala_coeficientes: codificada
+grandeza_reportada: coeficiente
+
+respostas:
+  tpc:
+    coeficientes: {}       # só a ANOVA pós-seleção foi publicada, não a equação
+    significancia: {}
+    r2: 0.99
+    r2_ajustado: 0.81
+    alfa_usado_no_artigo: 0.05
+  tfc:
+    coeficientes: {}
+    significancia: {}
+    r2: null               # ANOVA de TFC não localizada no texto principal
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+
+condicao_otima: null   # não extraída desta leitura
+
+observacoes: |
+  CASO BLOQUEADO — falta a tabela bruta dos 17 ensaios. O artigo (e o mesmo
+  vale para `pantoja-2026-astrocaryum-murumuru` e `prudente-2025-pracaxi`,
+  do mesmo grupo de pesquisa e mesmo template de delineamento) publica:
+  - Tabela 1: níveis do DCCR (−α/−1/0/+1/+α por fator) — usado em `fatores`.
+  - Tabela 2: ANOVA de Y2=TPC já reduzida (6 termos, não a equação completa).
+  Mas NÃO publica os 17 ensaios individuais (fator × resposta) em nenhum
+  lugar acessível do corpo do texto nem do HTML do PMC.
+
+  A ANOVA da Tabela 2 tem uma ambiguidade de leitura: as colunas "F
+  calculado" e "F tabelado" parecem ter sofrido mesclagem de células
+  (rowspan) na extração — os valores 7,25/3,22 e 6,99/19,37 aparecem em
+  linhas que não batem obviamente com Regressão/Resíduo/Total. Não foram
+  usados aqui por falta de confiança na leitura; R²=0,99 e R² ajustado=0,81
+  vieram de células não ambíguas (linhas próprias, sem rowspan).
+
+  X1=tempo, X2=razão sólido:líquido, X3=etanol — a Seção 2.4 do artigo chama
+  X1 de "temperature" no parágrafo de abertura, o que contradiz a nota de
+  rodapé da própria Tabela 1 ("X1 = extraction time (min)") e a Tabela 3
+  (condição ótima em minutos, não graus). Tratado como erro de template do
+  artigo (mesma nota de rodapé idêntica aparece no Murumuru), não como
+  ambiguidade real — seguimos a tabela, não o parágrafo.
+
+  Próximo passo: baixar o artigo completo (PDF) e procurar por uma tabela de
+  ensaios que talvez não tenha virado uma <table> própria no HTML do PMC, ou
+  conseguir o material suplementar, se existir.

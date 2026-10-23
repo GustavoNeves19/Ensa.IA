@@ -1,0 +1,16 @@
+# PENDENTE: o artigo (DOI 10.3390/foods15152641) publica a Tabela 1 (níveis
+# do DCCR) e a Tabela 2 (ANOVA resumida de Y2=TPC), mas NÃO publica a tabela
+# bruta dos 17 ensaios (fator por fator, resposta por resposta) no corpo do
+# texto nem no HTML do PMC (pmc.ncbi.nlm.nih.gov/articles/PMC13464831/) — só
+# os coeficientes já resumidos na ANOVA pós-seleção de termos.
+#
+# Os 3 fatores e seus 5 níveis (−α,−1,0,+1,+α) são conhecidos com certeza
+# (ver referencia.yaml), e dá pra reconstruir as 17 combinações-padrão de um
+# DCCR 2³ (8 fatoriais + 6 axiais + 3 centrais) — mas SEM o valor de resposta
+# real de cada ensaio, preencher essas linhas seria inventar dado, o que o
+# protocolo deste repositório proíbe (README.md: "nunca preencha por
+# estimativa"). Precisa do material suplementar do artigo (não acessado) ou
+# de alguém com acesso institucional abrindo a planilha original.
+#
+# Colunas esperadas, quando a tabela bruta aparecer:
+# tempo,razao_solido_liquido,etanol,tfc,tpc
