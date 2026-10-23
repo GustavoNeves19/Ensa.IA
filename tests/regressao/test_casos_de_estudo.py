@@ -77,23 +77,6 @@ def test_caso_reproduz_valores_publicados(caso) -> None:
             assert d.diferenca_pct_faixa is not None
 
 
-def test_go_respeita_modelo_2fi_publicado() -> None:
-    nome = "go-2022-levofloxacino-hidroxiapatita-bbd"
-    caso = next(c for c in CASOS if c.name == nome)
-
-    resultado = validar_caso(caso)
-
-    assert resultado["termos"] == [
-        "Intercepto",
-        "dose_catalisador",
-        "concentracao_levofloxacino",
-        "ph",
-        "dose_catalisador:concentracao_levofloxacino",
-        "dose_catalisador:ph",
-        "concentracao_levofloxacino:ph",
-    ]
-
-
 def test_gravar_resultados_produz_jsons_validos(tmp_path) -> None:
     """A gravação cria os dois JSONs de evidência e eles são relegíveis.
 
@@ -102,7 +85,7 @@ def test_gravar_resultados_produz_jsons_validos(tmp_path) -> None:
     """
     import shutil
 
-    origem = next(c for c in CASOS if c.name.startswith("go-2022"))
+    origem = CASOS[0]
     caso = tmp_path / origem.name
     shutil.copytree(origem, caso)
 

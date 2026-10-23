@@ -3,6 +3,12 @@
 São os mesmos dados dos casos de estudo da validação, publicados em acesso
 aberto e citados abaixo. Servem para o usuário explorar o EnsaIA antes de usar
 os próprios dados — e para o professor mostrar uma análise completa em aula.
+
+Os dois exemplos abaixo são DCCR de verdade (ver ADR 0013), com os dados
+transcritos em `casos_de_estudo/tylosin-photo-fenton` e
+`casos_de_estudo/igreja-2023-acai-hidrolise-acida` — ambos ainda com status
+`rascunho` lá (pendente dupla conferência humana), mas já confiáveis o
+bastante para servir de "experimente antes de usar seus dados".
 """
 
 from __future__ import annotations
@@ -27,29 +33,30 @@ EXEMPLOS: dict[str, Exemplo] = {
     e.id: e
     for e in (
         Exemplo(
-            id="metronidazol",
-            titulo="Remoção de metronidazol (Box-Behnken)",
+            id="tylosin",
+            titulo="Degradação de tilosina por foto-Fenton (DCCR)",
             descricao=(
-                "3 fatores (dose de adsorvente, tempo, pH), 15 ensaios, 3 no "
-                "ponto central; resposta: remoção (%)."
+                "3 fatores (H2O2, pH, Fe2+), 20 ensaios, 6 no ponto central; "
+                "resposta: remoção de TOC (%)."
             ),
-            arquivo="mazloomi_2023_metronidazol.csv",
+            arquivo="sarrai_2016_tylosin.csv",
             citacao=(
-                "MAZLOOMI, S. et al. Scientific Reports, v. 13, art. 14654, 2023. "
-                "DOI: 10.1038/s41598-023-41724-y (CC BY 4.0)."
+                "SARRAI, A. E. et al. Materials, v. 9, n. 6, art. 428, 2016. "
+                "DOI: 10.3390/ma9060428."
             ),
         ),
         Exemplo(
-            id="levofloxacino",
-            titulo="Fotodegradação de levofloxacino (Box-Behnken)",
+            id="acai",
+            titulo="Hidrólise ácida de sementes de açaí (DCCR)",
             descricao=(
-                "3 fatores (dose de catalisador, concentração, pH), 15 ensaios; "
-                "resposta: eficiência de fotodegradação (%)."
+                "3 fatores (ácido sulfúrico, tempo, sólidos), 17 ensaios, 3 no "
+                "ponto central; respostas: açúcares redutores totais (g/L), "
+                "HMF (mg/L) e massa solubilizada (%)."
             ),
-            arquivo="go_2022_levofloxacino.csv",
+            arquivo="igreja_2023_acai.csv",
             citacao=(
-                "GO, A. D. et al. Data in Brief, v. 42, art. 108219, 2022. "
-                "DOI: 10.1016/j.dib.2022.108219."
+                "IGREJA, W. S. et al. Molecules, v. 28, n. 18, art. 6661, 2023. "
+                "DOI: 10.3390/molecules28186661."
             ),
         ),
     )

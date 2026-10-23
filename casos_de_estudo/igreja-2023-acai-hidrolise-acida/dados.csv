@@ -1,0 +1,27 @@
+# Um ensaio por linha, nos níveis REAIS (não codificados).
+# Fonte: Tabela 1 do artigo (DOI 10.3390/molecules28186661), 17 ensaios de um
+# DCCR (3 fatores, 5 níveis, alfa=1,68) para a hidrólise ácida com H2SO4.
+# Transcrito diretamente do PDF original (texto completo colado pelo usuário
+# em 2026-10-23) — maior confiança de todo o levantamento desta sessão.
+# hmf e massa_solubilizada: "<LOD"/"NC2" do artigo (ensaios 11 e 13) entram
+# como 0, exatamente como o próprio artigo instrui na nota de rodapé da
+# Tabela 1 ("equal 0 for the prediction purpose" / "not calculated (equals
+# to 0)") — não é inferência nossa.
+acido,tempo,solidos,trs,hmf,massa_solubilizada
+1,30,5,12.25,5.60,27.93
+4,30,5,17.65,33.68,38.58
+1,90,5,14.76,12.82,31.94
+4,90,5,25.40,90.30,48.83
+1,30,20,28.98,19.92,21.53
+4,30,20,59.60,82.06,35.23
+1,90,20,57.54,14.79,29.25
+4,90,20,103.12,448.83,48.49
+0,60,12.5,6.93,1.49,11.56
+5,60,12.5,44.70,148.90,49.58
+2.5,9.54,12.5,15.93,0,23.52
+2.5,110,12.5,51.34,191.34,41.22
+2.5,60,0.1,0,0.59,0
+2.5,60,25,63.95,87.01,33.28
+2.5,60,12.5,49.06,70.05,37.13
+2.5,60,12.5,48.16,70.58,38.50
+2.5,60,12.5,48.92,72.53,37.18

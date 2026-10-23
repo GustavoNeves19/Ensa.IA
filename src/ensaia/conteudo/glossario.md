@@ -12,7 +12,7 @@
 
 **Fatorial 2ᵏ**: todas as combinações de dois níveis de k fatores. Serve para triagem: descobrir quais fatores importam.
 
-**Composto central (DCCR)**: fatorial + pontos axiais (±α) + pontos centrais. Permite ajustar um modelo quadrático.
+**Composto central (DCCR)**: fatorial + pontos axiais (±α) + pontos centrais. Permite ajustar um modelo quadrático. É o único tipo de planejamento que o EnsaIA analisa hoje (ver ADR 0013) — os termos abaixo são vocabulário geral de DOE, úteis para ler artigos, mas o EnsaIA não reconhece esses outros tipos.
 
 **Box-Behnken**: planejamento de três níveis sem os vértices do cubo, também para modelo quadrático, com menos ensaios.
 
@@ -28,7 +28,7 @@
 
 **ANOVA**: a tabela que divide a variação da resposta entre o que o modelo explica (regressão) e o que sobra (resíduo).
 
-**R²**: fração da variação explicada pelo modelo (de 0 a 1). **R² ajustado** desconta o número de termos; **R² de predição** mede quanto o modelo acerta ensaios que não viu.
+**R²**: fração da variação explicada pelo modelo (de 0 a 1). **R² ajustado** desconta o número de termos; **R² de predição** mede quanto o modelo acerta ensaios que não viu; **R² máximo** é o teto que o R² pode alcançar quando há réplicas genuínas (nenhum modelo reproduz o erro puro) — com réplicas, compare o R² a esse teto, não a 100%.
 
 **Falta de ajuste**: teste que compara o erro do modelo com o erro puro das réplicas. Significativo = o modelo não descreve bem a forma da resposta.
 

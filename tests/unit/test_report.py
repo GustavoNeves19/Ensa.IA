@@ -88,7 +88,7 @@ def _ajuste(
 def _resultado(ajustes: list[AjusteResposta] | None = None) -> AnalysisResult:
     ajustes = ajustes or [_ajuste()]
     return AnalysisResult(
-        tipo_planejamento="box_behnken",
+        tipo_planejamento="composto_central",
         fatores=["temperatura", "ph"],
         respostas=[a.resposta for a in ajustes],
         ajustes=ajustes,

@@ -1,4 +1,16 @@
-"""Grupo B (efeitos, Lenth, curvatura, médias), D3/D4 e A1."""
+"""Grupo B (efeitos, Lenth, curvatura, médias), D3/D4 e A1.
+
+O Grupo B só é alimentado quando `Planejamento.tipo` é `"fatorial_completo"`
+ou `"fatorial_fracionado"` (ver `fatorial.FATORIAIS`). Desde a restrição a
+DCCR (ADR 0013), `identificar_planejamento` nunca mais produz esses tipos —
+e por isso `AnalysisResult.tipo_planejamento` (o contrato congelado) também
+não os aceita mais. O módulo `fatorial.py` continua no código, preservado
+para uma eventual generalização futura, mas só é alcançável hoje com um
+`Planejamento` montado à mão, como aqui. Por isso estes testes chamam o
+pipeline por baixo (`_ajuste_resposta`, a mesma função que `analisar()` usa
+por resposta) em vez de `analisar()`, que já rejeitaria esse tipo no
+`AnalysisResult` final.
+"""
 
 from __future__ import annotations
 
@@ -13,9 +25,11 @@ from ensaia.core import fatorial
 from ensaia.core.descritiva import estatistica_descritiva, matriz_codificada
 from ensaia.core.design import Fator, Planejamento
 from ensaia.core.fatorial import analise_lenth, pontos_meio_normal
-from ensaia.core.pipeline import analisar
+from ensaia.core.model import ajustar_ols, matriz_modelo
+from ensaia.core.pipeline import ALFA_PADRAO, _ajuste_resposta, _termo_de_erro, analisar
+from ensaia.core.results import AjusteResposta
 from ensaia.core.table import Table
-from ensaia.core.termos import escolher_termos
+from ensaia.core.termos import SelecaoTermos, escolher_termos
 
 
 def _fatorial_com_centros() -> tuple[Table, Planejamento]:
@@ -43,12 +57,35 @@ def _fatorial_com_centros() -> tuple[Table, Planejamento]:
     return tabela, plan
 
 
+def _ajustar(
+    tabela: Table, plan: Planejamento, sel: SelecaoTermos
+) -> AjusteResposta:
+    """O mesmo que um passo de `analisar()` faz por resposta, sem o `AnalysisResult`."""
+    avisos: list[str] = []
+    qm_erro, gl_erro, termo_erro = _termo_de_erro(
+        tabela, "y", plan.nomes_fatores, "residuo", avisos
+    )
+    matriz = matriz_modelo(tabela, plan, sel.termos, codificar=True)
+    ajuste = ajustar_ols(matriz, tabela.coluna("y"))
+    return _ajuste_resposta(
+        "y",
+        ajuste,
+        sel.termos,
+        avisos,
+        tabela,
+        plan,
+        alfa=ALFA_PADRAO,
+        qm_erro=qm_erro,
+        gl_erro=gl_erro,
+        termo_erro=termo_erro,
+        ordem=[float(v) for v in tabela.coluna("ordem")],
+    )
+
+
 def _analise():
     tabela, plan = _fatorial_com_centros()
     sel = escolher_termos(tabela, plan)
-    return analisar(
-        tabela, plan, sel.termos, ["y"], versao_ensaia="t", coluna_ordem="ordem"
-    ), sel
+    return _ajustar(tabela, plan, sel), sel
 
 
 def test_fatorial_com_centros_usa_modelo_com_interacoes() -> None:
@@ -58,8 +95,7 @@ def test_fatorial_com_centros_usa_modelo_com_interacoes() -> None:
 
 
 def test_efeito_e_duas_vezes_o_coeficiente() -> None:
-    resultado, _ = _analise()
-    ajuste = resultado.ajustes[0]
+    ajuste, _ = _analise()
     ef = ajuste.efeitos_fatorial
     assert ef is not None
     coef = {c.termo: c for c in ajuste.coeficientes}
@@ -73,8 +109,8 @@ def test_efeito_e_duas_vezes_o_coeficiente() -> None:
 
 
 def test_medias_por_nivel_e_interacao() -> None:
-    resultado, _ = _analise()
-    ef = resultado.ajustes[0].efeitos_fatorial
+    ajuste, _ = _analise()
+    ef = ajuste.efeitos_fatorial
     assert ef is not None
     temp = next(m for m in ef.medias_principais if m.fator == "temp")
     assert temp.niveis == [50.0, 70.0]  # só os vértices, sem o centro
@@ -120,8 +156,8 @@ def test_curvatura_feita_a_mao() -> None:
 
 
 def test_meio_normal_ordena_por_magnitude() -> None:
-    resultado, _ = _analise()
-    ef = resultado.ajustes[0].efeitos_fatorial
+    ajuste, _ = _analise()
+    ef = ajuste.efeitos_fatorial
     assert ef is not None
     pontos = pontos_meio_normal(ef.efeitos)
     assert pontos.absolutos == sorted(pontos.absolutos)
@@ -130,11 +166,11 @@ def test_meio_normal_ordena_por_magnitude() -> None:
 
 
 def test_influencia_e_ordem() -> None:
-    resultado, _ = _analise()
-    d = resultado.ajustes[0].diagnostico
+    ajuste, _ = _analise()
+    d = ajuste.diagnostico
     assert d is not None
     assert d.ordem == [float(i) for i in range(1, 13)]
-    p = len(resultado.ajustes[0].termos_incluidos)
+    p = len(ajuste.termos_incluidos)
     assert sum(d.alavancagem) == pytest.approx(p)  # traço da matriz chapéu
     i = 0
     h, r = d.alavancagem[i], d.residuos_studentizados[i]
@@ -149,8 +185,8 @@ def test_outlier_plantado_e_apontado() -> None:
     colunas = {c: list(tabela.coluna(c)) for c in tabela.colunas}
     tabela = Table.de_colunas({**colunas, "y": y})
     sel = escolher_termos(tabela, plan)
-    resultado = analisar(tabela, plan, sel.termos, ["y"], versao_ensaia="t")
-    d = resultado.ajustes[0].diagnostico
+    ajuste = _ajustar(tabela, plan, sel)
+    d = ajuste.diagnostico
     assert d is not None
     assert 3 in d.possiveis_outliers or 3 in d.ensaios_influentes
 
@@ -177,8 +213,8 @@ def test_fora_de_fatorial_nao_ha_efeitos() -> None:
 
 
 def test_lenth_so_sem_replicas() -> None:
-    resultado, _ = _analise()  # tem 4 pontos centrais = réplicas
-    ef = resultado.ajustes[0].efeitos_fatorial
+    ajuste, _ = _analise()  # tem 4 pontos centrais = réplicas
+    ef = ajuste.efeitos_fatorial
     assert ef is not None and ef.lenth is None
     assert all(e.ativo_lenth is None for e in ef.efeitos)
 
@@ -187,15 +223,15 @@ def test_lenth_so_sem_replicas() -> None:
         {c: list(tabela.coluna(c))[:8] for c in tabela.colunas}
     )
     sel = escolher_termos(sem_centro, plan)
-    r = analisar(sem_centro, plan, sel.termos, ["y"], versao_ensaia="t")
-    ef2 = r.ajustes[0].efeitos_fatorial
+    ajuste2 = _ajustar(sem_centro, plan, sel)
+    ef2 = ajuste2.efeitos_fatorial
     assert ef2 is not None and ef2.lenth is not None
     assert any(e.ativo_lenth for e in ef2.efeitos)
 
 
 def test_fatorial_limpo_nao_gera_influente_falso() -> None:
-    resultado, _ = _analise()
-    d = resultado.ajustes[0].diagnostico
+    ajuste, _ = _analise()
+    d = ajuste.diagnostico
     assert d is not None
     assert d.ensaios_influentes == []
     assert d.possiveis_outliers == []

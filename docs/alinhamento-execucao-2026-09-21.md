@@ -116,3 +116,12 @@ sem fonte não satisfazem esse critério.
 4. Demonstração do primeiro caso, incluindo qualquer divergência encontrada.
 5. Pedido objetivo de crítica: suficiência dos casos, métricas e recorte do
    diferencial MCP como extensão, não como substituto da validação.
+
+---
+
+**Adendo de 2026-10-20 ([ADR 0013](decisoes/0013-restricao-a-dccr.md)):** a
+linha "Validação externa" acima — um fatorial completo, um CCD e um
+Box-Behnken — foi substituída por uma decisão posterior de restringir o
+escopo a só DCCR (composto central rotacional). Este registro fica como está,
+por ser ata de uma reunião; o acordo vigente sobre quais tipos de
+planejamento validar está no ADR 0013, não mais aqui.

@@ -100,7 +100,6 @@ def disponibilidade(
         else tem_replicas
     )
     fatorial = ident.tipo in FATORIAIS_2_NIVEIS
-    niveis = [len(f.niveis) for f in ident.fatores]
 
     if n <= k + 1 + (n_blocos - 1):
         sem_modelo = f"{n} ensaios não bastam nem para o modelo linear"
@@ -133,8 +132,8 @@ def disponibilidade(
     if k < 2:
         for id_ in ("E1", "E2"):
             motivos[id_] = "exige ao menos 2 fatores"
-    if fatorial or min(niveis) < 3:
-        motivos["E3"] = "exige modelo quadrático (3 ou mais níveis por fator)"
+    if ident.tipo != "composto_central":
+        motivos["E3"] = "exige modelo quadrático (delineamento composto central)"
     if n_respostas < 2:
         motivos["E5"] = "exige ao menos 2 respostas"
 

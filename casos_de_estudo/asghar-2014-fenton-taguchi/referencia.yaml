@@ -1,0 +1,103 @@
+# Valores publicados no artigo original. Transcritos por extração direta do
+# HTML do PMC (não resumo de IA) em 2026-10-23 — PENDENTE conferência humana
+# dupla. Ver fonte.md para o que falta e por quê.
+
+caso: asghar-2014-fenton-taguchi
+status: rascunho   # coeficientes não transcritos com confiança — ver observações
+tipo_planejamento: composto_central
+
+fatores:
+  # ATENÇÃO (ver fonte.md): os pontos axiais deste CCD coincidem com os
+  # vértices do fatorial em cada fator (α=1, "face centrada") — não é o DCCR
+  # rotacional que o EnsaIA reconhece automaticamente (ADR 0013).
+  dye:
+    minimo: 100.0
+    maximo: 300.0
+    unidade: "mg/L"
+  h2o2_fe2:
+    minimo: 5.0
+    maximo: 25.0
+    unidade: "(m/m)"
+  dye_fe2:
+    minimo: 10.0
+    maximo: 50.0
+    unidade: "(m/m)"
+  ph:
+    minimo: 2.0
+    maximo: 9.0
+    unidade: ""
+
+escala_coeficientes: real   # o artigo publica a equação em unidades reais, não codificada
+grandeza_reportada: coeficiente
+
+respostas:
+  cod:
+    # Coeficientes NÃO transcritos: a equação publicada é uma expressão densa
+    # em MathML, quebrada em várias linhas de alinhamento, e uma leitura
+    # manual arriscava inverter sinal/termo. Só o que dá pra confirmar com
+    # segurança a partir do texto corrido e da ANOVA (Tabela 3) entrou aqui.
+    coeficientes: {}
+    significancia:
+      dye: true          # p = 0,0017
+      h2o2_fe2: true      # p = 0,0012
+      dye_fe2: true        # p = 0,0020
+      ph: true            # p < 0,0001
+    r2: 0.9789
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+  descoloracao:
+    coeficientes: {}
+    significancia:
+      dye: true           # p < 0,0001
+      h2o2_fe2: true       # p < 0,0001
+      dye_fe2: true         # p = 0,0242
+      ph: true             # p < 0,0001
+    r2: 0.9581
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+
+condicao_otima: null   # artigo reporta otimização (~80% COD, ~99% descoloração), mas as
+                        # coordenadas exatas não foram extraídas com confiança ainda
+
+observacoes: |
+  STATUS: RASCUNHO. Transcrição feita por mim (IA) via download direto do
+  HTML do PMC (https://pmc.ncbi.nlm.nih.gov/articles/PMC4167450/) e extração
+  determinística das tabelas por código — não um resumo de outra IA, e não um
+  humano abrindo o PDF. A Tabela 2 (30 ensaios, valores reais E previstos) e os
+  R² (0,9789 para COD e 0,9581 para descoloração, citados em texto corrido,
+  não numa tabela densa) têm confiança alta. Os COEFICIENTES não entraram:
+  a equação (Equação 13 do artigo) é uma expressão polinomial de 4 fatores
+  quebrada em várias linhas MathML de alinhamento, e uma tentativa manual de
+  leitura produziu um termo repetido com sinais diferentes — sinal de erro de
+  leitura, não de transcrever às cegas.
+
+  ACHADO IMPORTANTE: os pontos axiais coincidem exatamente com os vértices
+  do fatorial em todos os 4 fatores (ex.: Dye vértice e axial são os mesmos
+  100/300) — ou seja, α=1 (composto central de face centrada), não o
+  rotacional. Mesma situação do caso `koohikamali-2012-...` (lá α=2). Como
+  no outro caso, isto fica `composto_central` aqui porque o runner usa o tipo
+  declarado, mas `identificar_planejamento` classificaria como
+  "desconhecido" — não usar como exemplo de reconhecimento automático na
+  tela/MCP.
+
+  O modelo publicado (Tabela 3) tem graus de liberdade de 12 (COD) e 14
+  (descoloração) — ou seja, é um modelo reduzido para COD (2 termos a menos
+  que o quadrático completo de 14 termos para k=4) e o quadrático completo
+  para descoloração. Qual(is) termo(s) foi(ram) removido(s) do modelo de COD
+  não foi identificado com segurança — por isso `termos_modelo` não foi
+  declarado aqui, e o EnsaIA vai ajustar o quadrático completo por padrão
+  para as duas respostas. Para COD isso deve dar um R² um pouco MAIOR que o
+  publicado (0,9789), porque o modelo completo nunca piora o ajuste em
+  relação a um reduzido — não é um erro do EnsaIA se isso acontecer, é
+  esperado, mas precisa ficar documentado assim no capítulo de resultados.
+
+  Próximos passos antes de usar como evidência do TCC:
+  1. Abrir o PDF/HTML real e transcrever a Equação 13 com cuidado (os 15
+     coeficientes de cada resposta), termo a termo, conferido em dupla.
+  2. Identificar os termos exatos do modelo reduzido de COD (12 graus de
+     liberdade) a partir da Tabela 3 completa (ela pode ter mais linhas que
+     as 4 transcritas aqui — a extração pegou só os termos marcados como
+     parte do resumo narrativo do texto).
+  3. Localizar as coordenadas exatas da condição ótima (o texto menciona os
+     valores de resposta ~80%/~99%, mas não as coordenadas dos 4 fatores
+     nesta leitura).

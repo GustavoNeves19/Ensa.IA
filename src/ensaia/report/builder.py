@@ -406,6 +406,12 @@ def _secao_anova(
         if ajuste.r2_predicao is not None:
             r2 += f"; de predição {numero_ptbr(ajuste.r2_predicao, tema.casas_r2)}"
         pdf.rotulo_valor("R²", r2 + ")")
+        if ajuste.r2_maximo is not None:
+            pdf.nota(
+                f"Com réplicas genuínas, o teto de variação explicável é "
+                f"R² máximo = {numero_ptbr(ajuste.r2_maximo, tema.casas_r2)} — "
+                "o erro puro impede qualquer modelo de chegar a 100%."
+            )
     reg = ajuste.anova_regressao
     if "C2" in sel and reg is not None:
         pdf.subtitulo("ANOVA da regressão")
@@ -421,6 +427,13 @@ def _secao_anova(
                 f"(F tabelado = {numero_ptbr(reg.f_tabelado, 2)} a α = "
                 f"{_num_alfa(alfa)}), {leitura}."
             )
+            if reg.util_para_previsao is not None:
+                pdf.nota(
+                    "Razão ≥ 10: útil para previsão."
+                    if reg.util_para_previsao
+                    else "Razão < 10: significativa, mas não necessariamente "
+                    "útil para previsão."
+                )
     if "C2" in sel and ajuste.anova:
         pdf.subtitulo("Efeito de cada termo (ANOVA Tipo II)")
         _tabela_anova(pdf, ajuste.anova)

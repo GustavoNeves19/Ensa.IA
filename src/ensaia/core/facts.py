@@ -127,11 +127,19 @@ def _fatos_significancia(ajuste: AjusteResposta, alfa: float) -> list[str]:
 
 
 def _fato_r2(ajuste: AjusteResposta) -> str:
-    return (
+    fato = (
         f"O modelo explica {_num(ajuste.r2 * 100, 1)}% da variação da resposta "
         f"{ajuste.resposta!r} (R² = {_num(ajuste.r2, 3)}; "
         f"R² ajustado = {_num(ajuste.r2_ajustado, 3)})."
     )
+    if ajuste.r2_maximo is not None:
+        fato += (
+            f" Como há réplicas genuínas, o teto de variação explicável é "
+            f"{_num(ajuste.r2_maximo * 100, 1)}% (R² máximo = "
+            f"{_num(ajuste.r2_maximo, 3)}) — o erro puro impede qualquer "
+            f"modelo de chegar a 100%."
+        )
+    return fato
 
 
 def _fatos_termo_erro(ajuste: AjusteResposta) -> list[str]:
@@ -164,6 +172,16 @@ def _fatos_regressao(ajuste: AjusteResposta, alfa: float) -> list[str]:
                 f"F calculado = {_num(regressao.valor_f, 2)}, F tabelado = "
                 f"{_num(anova.f_tabelado, 2)}, razão = {_num(anova.razao_f, 2)}."
             )
+            if anova.util_para_previsao:
+                fatos.append(
+                    "Essa razão é maior que 10: a regressão não é só "
+                    "significativa, é útil para previsão."
+                )
+            elif anova.util_para_previsao is False:
+                fatos.append(
+                    "Essa razão não chega a 10: a regressão é significativa, "
+                    "mas isso não garante que seja útil para previsão."
+                )
         else:
             fatos.append(
                 f"A regressão não é significativa (p = {_num(regressao.valor_p, 4)} "

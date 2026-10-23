@@ -107,7 +107,7 @@ def test_nenhum_termo_significativo() -> None:
 def _resultado(
     ajustes: list[AjusteResposta],
     *,
-    tipo: str = "box_behnken",
+    tipo: str = "composto_central",
     fatores: list[str] | None = None,
     respostas: list[str] | None = None,
     ponto_otimo: PontoOtimo | None = None,
@@ -131,12 +131,12 @@ def test_por_secao_tem_todas_as_chaves() -> None:
 def test_secao_planejamento() -> None:
     resultado = _resultado(
         [_ajuste([_coef("x1", 0.01, sig=True)])],
-        tipo="box_behnken",
+        tipo="composto_central",
         fatores=["temperatura", "ph", "tempo"],
         respostas=["rendimento"],
     )
     planejamento = fatos_por_secao(resultado)["planejamento"]
-    assert any("Box-Behnken" in f and "3 fatores" in f for f in planejamento)
+    assert any("composto central" in f and "3 fatores" in f for f in planejamento)
     assert any("1 resposta " in f for f in planejamento)
     assert any("17 ensaios" in f for f in planejamento)
 

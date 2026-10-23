@@ -1,0 +1,14 @@
+# PENDENTE: o artigo (DOI 10.3390/foods15081368) publica a Tabela 1 (níveis
+# do DCCR), a Tabela 2 (ANOVA) e a Equação (3) do modelo, mas NÃO publica a
+# tabela bruta dos 17 ensaios no corpo do texto nem no HTML do PMC
+# (pmc.ncbi.nlm.nih.gov/articles/PMC13114846/) — mesma lacuna do Carapa
+# guianensis e do Pracaxi (mesmo grupo de pesquisa, mesmo template).
+#
+# Diferente do Carapa, aqui JÁ TEMOS a equação do modelo reduzido (ver
+# referencia.yaml) — então, mesmo sem a tabela bruta, dá pra comparar a
+# PREVISÃO do modelo publicado em qualquer ponto, se algum dia a tabela
+# bruta aparecer. Sem ela, não dá para rodar validar_caso (precisa da
+# resposta OBSERVADA por ensaio, não só a equação).
+#
+# Colunas esperadas, quando a tabela bruta aparecer:
+# tempo,razao_solido_liquido,etanol,tpc

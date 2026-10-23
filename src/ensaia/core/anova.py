@@ -18,6 +18,12 @@ from ensaia.core.table import Table
 
 ALFA_PADRAO = 0.05
 
+# Regra prática de Box e Wetz (1973) apud BARROS NETO; SCARMINIO; BRUNS
+# (2010, p. 238): uma regressão só é útil para previsão quando F_calc/F_tab é
+# de uma ordem de grandeza maior que 1 — "pelo menos cerca de 10 vezes". É um
+# critério mais exigente que a significância (razão > 1) e distinto dela.
+RAZAO_UTIL_PREVISAO = 10.0
+
 # Fontes da ANOVA da regressão (a linha do resíduo usa RESIDUO, de model.py).
 REGRESSAO = "Regressão"
 BLOCOS = "Blocos"
@@ -37,8 +43,10 @@ def anova_regressao(
         Total       gl = n − 1     SQ_T
 
     Além do p-valor, devolve o F tabelado F(1 − α; gl_R, gl_res) e a razão
-    F calculado / F tabelado, critério de Barros Neto et al. muito usado em
-    artigos brasileiros: razão maior que 1 é regressão significativa.
+    F calculado / F tabelado (razão maior que 1 é regressão significativa —
+    é o mesmo teste F, só reexpresso). Também devolve `util_para_previsao`:
+    regra de Box e Wetz (1973) apud Barros Neto, Scarminio e Bruns (2010,
+    p. 238), mais exigente que a significância — só com razão ≳10×.
 
     Com blocos (colunas fixas do ajuste), a variação entre blocos sai numa
     linha própria, antes da regressão, e a regressão mede o que os fatores
@@ -77,6 +85,7 @@ def anova_regressao(
     f_tab: float | None = None
     razao: float | None = None
     significativa: bool | None = None
+    util: bool | None = None
     if gl_r > 0:
         qm_r = sq_r / gl_r
         f = qm_r / qm_res if qm_res > 0 else None
@@ -84,6 +93,7 @@ def anova_regressao(
         f_tab = float(stats.f.ppf(1.0 - alfa, gl_r, gl_res))
         razao = f / f_tab if f is not None else None
         significativa = p < alfa
+        util = razao >= RAZAO_UTIL_PREVISAO if razao is not None else None
         linhas.append(
             LinhaAnova(
                 fonte=REGRESSAO,
@@ -142,6 +152,7 @@ def anova_regressao(
         f_tabelado=f_tab,
         razao_f=razao,
         regressao_significativa=significativa,
+        util_para_previsao=util,
     )
 
 

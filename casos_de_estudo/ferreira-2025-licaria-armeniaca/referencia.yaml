@@ -1,0 +1,130 @@
+# Valores publicados no artigo original. Transcritos por extração direta do
+# HTML do PMC (não resumo de IA) em 2026-10-23. Caso incompleto por
+# construção: falta a resposta observada por ensaio (ver dados.csv) — nenhuma
+# métrica do §4.3 pode ser calculada até ela aparecer, apesar de termos as
+# equações dos dois modelos que os próprios autores validaram.
+#
+# ATENÇÃO — estrutura fora do padrão dos outros casos: o mesmo DCCR (17
+# ensaios, 3 fatores codificados) foi aplicado a 3 matrizes vegetais (folhas,
+# galhos finos, galhos grossos) × 2 respostas (DPPH, TPC) = 6 combinações,
+# mas só 2 das 6 geraram modelo significativo e preditivo (ver observações).
+# Pior: o fator X3 (razão sólido:líquido) usa DUAS escalas reais diferentes
+# dependendo da matriz (folhas: 0,8–8,0 %m/v; galhos finos: 2–20 %m/v) — o
+# `fatores` abaixo usa a escala de FOLHAS (a do modelo mais forte, R²=0,9976)
+# porque o schema só suporta uma faixa por fator; a resposta `tpc_galhos_finos`
+# usa a MESMA posição codificada de X3, mas numa régua real diferente — não
+# dá pra comparar X3 em unidade real entre as duas respostas deste arquivo.
+
+caso: ferreira-2025-licaria-armeniaca
+status: rascunho   # bloqueado: sem dados.csv não dá para rodar validar_caso
+tipo_planejamento: composto_central
+
+fatores:
+  # minimo/maximo = níveis -1 e +1 do FATORIAL (vértices), NÃO os axiais.
+  # razao_solido_liquido é a escala de FOLHAS — ver aviso acima sobre a
+  # resposta tpc_galhos_finos, que usa outra escala para o mesmo fator.
+  etanol:
+    minimo: 20.24
+    maximo: 79.76
+    unidade: "%"
+  tempo:
+    minimo: 17.14
+    maximo: 52.86
+    unidade: "min"
+  razao_solido_liquido:
+    minimo: 2.24
+    maximo: 6.54
+    unidade: "% m/v (folhas)"
+
+escala_coeficientes: codificada
+grandeza_reportada: coeficiente
+
+# Únicos 2 dos 6 pares matriz×resposta que os autores consideraram
+# "significativos e preditivos" (Fcalc > Ftab na regressão E lack-of-fit não
+# significativo) — ver observações para os outros 4, incluindo o 3º bloco de
+# ANOVA publicado (Thin Branches—DPPH) que FALHOU no teste e não virou
+# equação.
+respostas:
+  dpph_folhas:
+    # Equação (1) do artigo — 8 termos, todos citados como significativos no
+    # texto corrido ("three linear effects, three quadratic effects and two
+    # interaction effects were significant").
+    coeficientes:
+      Intercepto: 65.26
+      etanol: 5.92
+      tempo: 2.63
+      razao_solido_liquido: 1.99
+      etanol^2: -11.89
+      tempo^2: -1.68
+      razao_solido_liquido^2: -1.96
+      etanol:tempo: 4.4
+      etanol:razao_solido_liquido: 3.32
+    significancia: {}   # texto confirma todos os termos como significativos, mas sem p-valor por termo
+    r2: 0.9976
+    r2_ajustado: 0.9342
+    alfa_usado_no_artigo: 0.10
+  tpc_galhos_finos:
+    # Equação (2) do artigo — 3 termos. ATENÇÃO: razao_solido_liquido aqui
+    # está na escala de GALHOS FINOS (2-20 %m/v), não na de folhas declarada
+    # em `fatores` acima.
+    coeficientes:
+      Intercepto: 328.61
+      etanol: 38.13
+      tempo: 13.64
+      tempo:razao_solido_liquido: -20.69
+    significancia: {}
+    r2: 0.9916
+    r2_ajustado: 0.7383
+    alfa_usado_no_artigo: 0.10
+
+condicao_otima: null   # o artigo não extrai um ponto ótimo único, só as duas equações/superfícies
+
+observacoes: |
+  CASO BLOQUEADO — falta a resposta OBSERVADA por ensaio. O artigo publica
+  (a) Tabela 4: níveis do DCCR (−1,68/−1/0/+1/+1,68 por fator, com X3 em
+  DUAS réguas reais, uma para folhas e outra para galhos finos); (b)
+  Apêndice A.1: a matriz de entrada completa dos 17 ensaios, codificada e
+  real (transcrita verbatim em `dados.csv`, como comentário) — isso é mais
+  informação de entrada do que Carapa/Murumuru/Pracaxi têm; (c) Tabela 1:
+  ANOVA de 3 (não 6) combinações matriz×resposta; (d) as duas equações dos
+  modelos aprovados (Eq. 1 e 2, corpo do texto). Mas, como nos outros três
+  casos desta leva, NÃO publica a resposta (DPPH%, TPC) medida em cada um
+  dos 17 ensaios — só os agregados.
+
+  Desenho do experimento: DCCR de 3 fatores (etanol X1, tempo X2, razão
+  sólido:líquido X3), 17 ensaios, aplicado a 3 matrizes do mesmo vegetal
+  (folhas, galhos finos, galhos grossos) × 2 respostas (DPPH = atividade
+  antioxidante, TPC = compostos fenólicos totais) = 6 combinações possíveis.
+  As 6 combinações aparecem como gráfico de Pareto de efeitos padronizados na
+  Figura 1 (a-f), mas só 3 delas tiveram ANOVA completa publicada (Tabela 1):
+  Folhas-DPPH, Galhos finos-TPC e Galhos finos-DPPH. As outras 3
+  (Folhas-TPC, Galhos grossos-DPPH, Galhos grossos-TPC) ficaram só no
+  gráfico de Pareto — sem QS/GL/F/R² publicados, não dá pra saber se foram
+  sequer ajustadas a um modelo quadrático ou só inspecionadas visualmente.
+
+  Das 3 ANOVAs publicadas, só 2 passaram nos dois testes do próprio artigo
+  (Fcalc da regressão > Ftab E lack-of-fit não significativo) e viraram
+  equação: Folhas-DPPH (R²=0,9976, R²adj=0,9342, Fcalc=14,20 > Ftab=2,59,
+  lack-of-fit Fcalc=8,92 < Ftab=9,33) e Galhos finos-TPC (R²=0,9916,
+  R²adj=0,7383, Fcalc=12,23 > Ftab=2,56). A terceira (Galhos finos-DPPH)
+  FALHOU nos dois testes (Fcalc=1,47 < Ftab=2,59 — regressão não
+  significativa; lack-of-fit Fcalc=42,61 >> Ftab=9,33 — falta de ajuste
+  significativa) e o próprio artigo diz explicitamente "the antioxidant
+  activity for fine twigs was not considered significant and predictive" —
+  por isso NÃO entrou em `respostas` aqui, mesmo tendo R²=0,9969 e
+  R²adj=0,5944 na tabela (R² alto não significa modelo válido quando o teste
+  F e o lack-of-fit reprovam).
+
+  Ensaio 4 do Apêndice A.1 tem um valor de RSL-folhas (1,12) que não bate com
+  nenhum dos 5 níveis codificados da Tabela 4 para folhas — ver ressalva em
+  `dados.csv`, transcrito verbatim, não corrigido.
+
+  Mesmo tipo de lacuna estrutural (sem tabela/resposta bruta por ensaio) dos
+  outros três casos desta leva (Carapa, Murumuru, Pracaxi), mas template de
+  artigo e grupo de pesquisa diferentes (laboratório de Licaria é da UFPA,
+  não o grupo UFRA/Martins dos outros três — aqui Luiza H. S. Martins é
+  coautora, não a correspondente).
+
+  Próximo passo: baixar o material suplementar do artigo (se existir) ou
+  contatar os autores para obter a resposta por ensaio das 3 (ou 6)
+  combinações matriz×resposta.

@@ -28,7 +28,7 @@ def _ajuste():
     ]
     tabela = Table.de_colunas({"temp_reator": x1, "ph": x2, "rend": y})
     plan = Planejamento(
-        tipo="fatorial_completo",
+        tipo="desconhecido",
         fatores=[Fator("temp_reator", -1.0, 1.0), Fator("ph", -1.0, 1.0)],
     )
     termos = termos_do_modelo(["temp_reator", "ph"], incluir_quadraticos=False)
@@ -114,13 +114,11 @@ def test_superficie_3d_pede_echarts_gl() -> None:
 def test_graficos_do_fatorial_e_da_ordem() -> None:
     from ensaia.core.fatorial import pontos_meio_normal
     from ensaia.core.termos import escolher_termos
-    from tests.unit.test_fatorial_diagnostico import _fatorial_com_centros
+    from tests.unit.test_fatorial_diagnostico import _ajustar, _fatorial_com_centros
 
     tabela, plan = _fatorial_com_centros()
     sel = escolher_termos(tabela, plan)
-    ajuste = analisar(
-        tabela, plan, sel.termos, ["y"], versao_ensaia="t", coluna_ordem="ordem"
-    ).ajustes[0]
+    ajuste = _ajustar(tabela, plan, sel)
     ef = ajuste.efeitos_fatorial
     assert ef is not None
 

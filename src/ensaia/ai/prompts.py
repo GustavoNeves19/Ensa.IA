@@ -68,14 +68,15 @@ _CONFIG: dict[Secao, _ConfigSecao] = {
         titulo="Planejamento experimental",
         exemplo=_Exemplo(
             fatos=[
-                "O delineamento é um delineamento Box-Behnken com 3 fatores "
-                "('temperatura', 'pH', 'tempo') e 1 resposta ('rendimento').",
-                "A matriz experimental tem 17 ensaios.",
+                "O delineamento é um delineamento composto central rotacional "
+                "(DCCR) com 3 fatores ('temperatura', 'pH', 'tempo') e 1 "
+                "resposta ('rendimento').",
+                "A matriz experimental tem 20 ensaios.",
             ],
             saida=(
-                "O estudo empregou um delineamento Box-Behnken para avaliar três "
-                "fatores — temperatura, pH e tempo — sobre o rendimento, "
-                "totalizando 17 ensaios experimentais."
+                "O estudo empregou um delineamento composto central rotacional "
+                "(DCCR) para avaliar três fatores — temperatura, pH e tempo — "
+                "sobre o rendimento, totalizando 20 ensaios experimentais."
             ),
         ),
     ),

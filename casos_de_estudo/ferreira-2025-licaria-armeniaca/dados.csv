@@ -1,0 +1,41 @@
+# PENDENTE: o artigo (DOI 10.3390/plants14203158) publica a Tabela 4 (níveis
+# do DCCR) E o Apêndice A.1 (matriz completa dos 17 ensaios, fator a fator,
+# codificado e real — isso é MAIS do que Carapa/Murumuru/Pracaxi têm, que não
+# têm nem a matriz de entrada). Mas, mesmo assim, NÃO publica a resposta
+# OBSERVADA (DPPH%, TPC) de cada um dos 17 ensaios — só a ANOVA agregada e a
+# equação dos 2 modelos que os autores consideraram significativos. Sem a
+# resposta por ensaio, não dá pra montar `dados.csv` real nem rodar
+# `validar_caso` (precisa de entrada E saída por linha).
+#
+# Matriz de entrada publicada (Apêndice A.1, verbatim) — útil para quem for
+# tentar reconstruir isto futuramente, por isso registrada aqui mesmo sem as
+# respostas:
+#
+# ensaio,etanol_pct,tempo_min,rsl_folhas_pct_mv,rsl_galhos_finos_pct_mv
+# 1,20.24,17.14,2.24,5.56
+# 2,79.76,17.14,2.24,5.56
+# 3,20.24,52.86,2.24,5.56
+# 4,20.24,17.14,1.12,16.35
+# 5,79.76,52.86,2.24,5.56
+# 6,79.76,17.14,6.54,16.35
+# 7,20.24,52.86,6.54,16.35
+# 8,79.76,52.86,6.54,16.35
+# 9,0,35,4.4,11
+# 10,100,35,4.4,11
+# 11,50,5,4.4,11
+# 12,50,65,4.4,11
+# 13,50,35,0.8,2
+# 14,50,35,8,20
+# 15,50,35,4.4,11
+# 16,50,35,4.4,11
+# 17,50,35,4.4,11
+#
+# Ressalva sobre o ensaio 4: a coluna "RSL folhas" publicada é 1.12, mas
+# todos os outros ensaios de vértice (+1) com RSL-folhas mostram 6.54 (ex.:
+# ensaios 6, 7, 8) — 1.12 não bate com nenhum dos 5 níveis codificados da
+# Tabela 4 para folhas (0.8/2.24/4.4/6.54/8.0). Provável erro de digitação
+# do próprio artigo (ou outra grandeza colada na célula errada); transcrito
+# verbatim, não corrigido.
+#
+# Colunas esperadas, quando as respostas por ensaio aparecerem:
+# etanol,tempo,razao_solido_liquido,dpph_folhas,tpc_galhos_finos

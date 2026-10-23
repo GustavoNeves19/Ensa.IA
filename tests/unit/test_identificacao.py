@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 import itertools
-from pathlib import Path
 
 import pytest
 
 from ensaia.core.identificacao import identificar_planejamento, inferir_fator
-from ensaia.io.readers import ler_dados
-
-CASOS = Path(__file__).resolve().parents[2] / "casos_de_estudo"
 
 
 def _colunas(pontos: list[tuple[float, ...]], nomes: str = "abcdefg") -> dict:
@@ -73,19 +69,22 @@ def test_fator_constante_e_recusado() -> None:
 # --- identificação do planejamento --------------------------------------------
 
 
-def test_fatorial_completo_com_pontos_centrais() -> None:
+def test_fatorial_completo_fica_fora_do_escopo() -> None:
+    # Só DCCR é reconhecido (ver ADR 0013): um fatorial puro, mesmo com pontos
+    # centrais, não tem estrela axial e volta como "desconhecido".
     pontos = _fatorial(3) + [(0.0, 0.0, 0.0)] * 3
     ident = identificar_planejamento(_colunas(pontos))
-    assert ident.tipo == "fatorial_completo"
+    assert ident.tipo == "desconhecido"
     assert ident.n_pontos_centrais == 3
-    assert ident.planejamento.alfa_axial is None
+    assert any("fatorial completo" in a for a in ident.avisos)
 
 
-def test_fatorial_fracionado_meia_fracao() -> None:
+def test_fatorial_fracionado_fica_fora_do_escopo() -> None:
     # 2^(4-1) com gerador D = ABC.
     pontos = [(a, b, c, a * b * c) for a, b, c in _fatorial(3)]
     ident = identificar_planejamento(_colunas(pontos))
-    assert ident.tipo == "fatorial_fracionado"
+    assert ident.tipo == "desconhecido"
+    assert any("fracionado" in a for a in ident.avisos)
 
 
 @pytest.mark.parametrize(("k", "alfa"), [(2, 1.414), (3, 1.682)])
@@ -97,10 +96,11 @@ def test_composto_central_rotacional(k: int, alfa: float) -> None:
     assert not ident.avisos
 
 
-def test_composto_central_de_face_centrada() -> None:
+def test_composto_central_de_face_centrada_fica_fora_do_escopo() -> None:
+    # α=1 (face centrada) não é rotacional: só o DCCR é reconhecido (ADR 0013).
     ident = identificar_planejamento(_colunas(_dcc(3, 1.0, centrais=3)))
-    assert ident.tipo == "composto_central"
-    assert ident.planejamento.alfa_axial == pytest.approx(1.0)
+    assert ident.tipo == "desconhecido"
+    assert any("face centrada" in a for a in ident.avisos)
 
 
 def test_dcc_em_unidades_reais_recupera_alfa_e_niveis() -> None:
@@ -115,28 +115,33 @@ def test_dcc_em_unidades_reais_recupera_alfa_e_niveis() -> None:
     assert ident.planejamento.alfa_axial == pytest.approx(1.682, abs=1e-3)
 
 
-def test_alfa_fora_do_rotacional_gera_aviso() -> None:
+def test_alfa_fora_do_rotacional_fica_fora_do_escopo() -> None:
+    # α=1,3 não é o rotacional (1,682 para k=3) nem o de face centrada (1):
+    # fora do escopo do DCCR (ADR 0013), mas ainda reconhecível como "quase".
     ident = identificar_planejamento(_colunas(_dcc(3, 1.3, centrais=2)))
-    assert ident.tipo == "composto_central"
+    assert ident.tipo == "desconhecido"
     assert any("rotacional" in a for a in ident.avisos)
 
 
-def test_box_behnken_dos_casos_validados() -> None:
-    for caso in ("go-2022-levofloxacino-hidroxiapatita-bbd",
-                 "mazloomi-2023-zif67-metronidazol"):
-        dados = ler_dados(CASOS / caso / "dados.csv")
-        fatores = list(dados.colunas)[:3]
-        ident = identificar_planejamento(
-            {f: [float(v) for v in dados.coluna(f)] for f in fatores}
-        )
-        assert ident.tipo == "box_behnken", caso
-        assert ident.n_pontos_centrais == 3
+def test_box_behnken_fica_fora_do_escopo() -> None:
+    # Box-Behnken (aresta, sem vértice) não é mais um tipo reconhecido.
+    pontos = [
+        tuple(float(v) for v in p)
+        for p in itertools.product([-1, 0, 1], repeat=3)
+        if sum(1 for x in p if x == 0) == 1
+    ]
+    pontos += [(0.0, 0.0, 0.0)] * 3
+    ident = identificar_planejamento(_colunas(pontos))
+    assert ident.tipo == "desconhecido"
+    assert any("Box-Behnken" in a for a in ident.avisos)
 
 
-def test_box_behnken_nao_e_confundido_com_fatorial_3k() -> None:
+def test_fatorial_3k_fica_fora_do_escopo() -> None:
     pontos3k = [tuple(float(v) for v in p)
                 for p in itertools.product([-1, 0, 1], repeat=3)]
-    assert identificar_planejamento(_colunas(pontos3k)).tipo == "fatorial_3k"
+    ident = identificar_planejamento(_colunas(pontos3k))
+    assert ident.tipo == "desconhecido"
+    assert any("3^k" in a for a in ident.avisos)
 
 
 def test_disposicao_irregular_vira_generico_com_aviso() -> None:

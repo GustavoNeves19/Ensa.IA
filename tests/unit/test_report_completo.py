@@ -8,11 +8,9 @@ import pytest
 
 from ensaia.ai.report import gerar_relatorio
 from ensaia.core.descritiva import matriz_ensaios
-from ensaia.core.identificacao import identificar_planejamento
 from ensaia.core.pipeline import analisar, fatores_do_contrato
 from ensaia.core.results import AnalysisResult
 from ensaia.core.termos import escolher_termos
-from ensaia.exemplos import carregar_exemplo
 from ensaia.report import gerar_pdf
 from ensaia.report.charts import grafico_diagnostico, numero_curto
 from ensaia.report.pdf import numero_sig
@@ -21,22 +19,21 @@ _PNG = bytes.fromhex("89504e470d0a1a0a")
 
 
 def _exemplo(analises: list[str] | None = None):
-    tabela, nome = carregar_exemplo("metronidazol")
-    colunas = list(tabela.colunas)
-    fatores, resposta = colunas[:-1], colunas[-1]
-    plan = identificar_planejamento(
-        {f: [float(v) for v in tabela.coluna(f)] for f in fatores}
-    ).planejamento
+    # Sem exemplo DCCR curado ainda (ver ensaia/exemplos/__init__.py), reusa o
+    # DCCR k=2 sintético já usado nos testes do núcleo (test_modelo_opcoes).
+    from tests.unit.test_modelo_opcoes import _dccr
+
+    tabela, plan = _dccr()
     res = analisar(
         tabela,
         plan,
         escolher_termos(tabela, plan).termos,
-        [resposta],
+        ["y"],
         versao_ensaia="t",
-        objetivos={resposta: "maximizar"},
+        objetivos={"y": "maximizar"},
         analises=analises,
     )
-    return res, matriz_ensaios(tabela, plan, res.respostas, nome), plan
+    return res, matriz_ensaios(tabela, plan, res.respostas, "dccr.csv"), plan
 
 
 def _paginas(pdf: bytes) -> int:
@@ -72,10 +69,13 @@ def test_fatores_voltam_do_contrato_com_a_mesma_codificacao() -> None:
 
 
 def test_matriz_dos_ensaios_tem_real_codificado_e_respostas() -> None:
-    _, dados, _ = _exemplo()
-    assert dados.n_ensaios == 15
+    _, dados, plan = _exemplo()
+    assert dados.n_ensaios == 13
     assert set(dados.codificada) == set(dados.real)
-    assert all(abs(v) <= 1.0 + 1e-9 for col in dados.codificada.values() for v in col)
+    limite = plan.alfa_axial or 1.0  # DCCR: a estrela vai até ±α, não só ±1
+    assert all(
+        abs(v) <= limite + 1e-9 for col in dados.codificada.values() for v in col
+    )
     assert dados.nome_arquivo is not None and dados.nome_arquivo.endswith(".csv")
 
 

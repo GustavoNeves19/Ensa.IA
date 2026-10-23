@@ -27,7 +27,7 @@ def _coeficiente() -> Coeficiente:
 
 def _resultado() -> AnalysisResult:
     return AnalysisResult(
-        tipo_planejamento="fatorial_completo",
+        tipo_planejamento="composto_central",
         fatores=["temperatura"],
         respostas=["rendimento"],
         ajustes=[

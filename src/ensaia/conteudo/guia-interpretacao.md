@@ -4,9 +4,11 @@ Os números vêm sempre do núcleo determinístico do EnsaIA. Ao explicar, use o
 valores exatamente como aparecem e não refaça contas.
 
 ## 1. O planejamento
-Confira o tipo reconhecido (fatorial, composto central, Box-Behnken), quantos
-ensaios e quantos pontos centrais. Os avisos da análise dizem se algo no
-planejamento limita as conclusões.
+Confira o tipo reconhecido — hoje só o composto central rotacional (DCCR) —,
+quantos ensaios e quantos pontos centrais. Se os dados não formam um DCCR, o
+tipo vem "não identificado" e os avisos dizem a que a disposição mais se
+parece; os avisos da análise também dizem se algo no planejamento limita as
+conclusões.
 
 ## 2. Os termos significativos
 Cada termo do modelo tem um p-valor. Se p < α (normalmente 0,05), o termo é
@@ -16,9 +18,13 @@ resposta, negativo diminui.
 
 ## 3. A ANOVA e o R²
 - A regressão significativa (p < α), ou F calculado / F tabelado maior que 1,
-  indica que o modelo explica a resposta.
+  indica que o modelo explica a resposta. Mas significativa não é o mesmo que
+  útil para previsão: só quando essa razão passa de aproximadamente 10 a
+  regressão serve para prever de verdade (regra de Box e Wetz).
 - R² perto de 1 é bom, mas olhe também o R² ajustado e o de predição: se o de
-  predição for muito menor, o modelo pode estar decorando os dados.
+  predição for muito menor, o modelo pode estar decorando os dados. Com
+  réplicas genuínas, compare o R² ao R² máximo, não a 100% — nenhum modelo
+  reproduz a variação do erro puro.
 - Falta de ajuste não significativa (p ≥ α) é o desejável.
 
 ## 4. O diagnóstico
