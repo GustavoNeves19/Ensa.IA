@@ -12,6 +12,13 @@ issues #3–#10.
 | [`nucleo-estatistico.md`](nucleo-estatistico.md) | OLS, matriz de modelo, ANOVA tipo II, falta de ajuste, seleção de termos, efeitos, desejabilidade de Derringer-Suich, amostragem LHS | #3, #4, #5, #6, notas de #9 e #10 |
 | [`narrativa-llm.md`](narrativa-llm.md) | Chain LangChain + Gemini, saída estruturada, versionamento de prompt, e como fechar o §4.3(e) em `validation/fidelity.py` | #7 (e o elo que falta para #8) |
 | [`casos-de-estudo-candidatos.md`](casos-de-estudo-candidatos.md) | Candidatos reais (fatorial 2^k, CCD, Box-Behnken) para `casos_de_estudo/`, cada um com o que foi de fato conferido abrindo o artigo — **desde o [ADR 0013](../decisoes/0013-restricao-a-dccr.md), só a seção CCD está em escopo ativo** | #2 do pré-projeto (§4.2), alimenta #8 |
+| [`barros-neto-dccr.md`](barros-neto-dccr.md) | Resumo de Barros Neto, Scarminio e Bruns (2010), capítulos 5 e 6 — a referência bibliográfica de DCCR do TCC. Mapeia cada métrica do EnsaIA à página do livro que a sustenta (ou diz que o livro não cobre), e traz 5 datasets dourados (seção 16) para teste de regressão | valida #3, #4, #5, #6; cita página em vez de "a literatura diz" |
+
+Diferente dos três de cima, `barros-neto-dccr.md` não veio de um agente de
+pesquisa varrendo a internet — é leitura humana do livro-texto citado no TCC,
+então tem prioridade de citação sobre os outros quando o assunto se sobrepõe
+(ex.: desejabilidade de Derringer-Suich aparece em `nucleo-estatistico.md` e
+em `barros-neto-dccr.md` seção 15; cite o livro, que é a fonte primária).
 
 ## Como usar isto
 
