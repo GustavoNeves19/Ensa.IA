@@ -208,7 +208,17 @@ def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
             ) from erro
         fatores.append(Fator(nome, minimo, maximo, str(faixa.get("unidade", ""))))
 
-    return Planejamento(tipo=cast(TipoPlanejamento, tipo), fatores=fatores)
+    # O α axial define até onde vai a região estudada (e a busca do ótimo, que
+    # na tela vai até ±α). Sem `alfa_axial` no arquivo, um composto central usa
+    # o rotacional (2^k)^(1/4), que é o que faz dele um DCCR.
+    alfa = referencia.get("alfa_axial")
+    if alfa is None and tipo == "composto_central":
+        alfa = (2 ** len(fatores)) ** 0.25
+    return Planejamento(
+        tipo=cast(TipoPlanejamento, tipo),
+        fatores=fatores,
+        alfa_axial=float(alfa) if alfa is not None else None,
+    )
 
 
 def _objetivos(referencia: dict[str, Any]) -> dict[str, Sentido] | None:
