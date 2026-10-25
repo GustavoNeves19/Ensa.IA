@@ -1,10 +1,5 @@
-"""Otimização multirresposta pela função de desejabilidade de Derringer-Suich.
-
-Quarto item do pipeline prometido no pré-projeto. Diferente do protótipo
-inicial, que só maximizava, esta implementação precisa cobrir os três sentidos
-(maximizar, minimizar, alvo) — casos de estudo reais de química quase sempre
-têm ao menos uma resposta a minimizar, como teor de impureza ou tempo de
-processo.
+"""Otimização: melhor condição de uma resposta ou de várias (desejabilidade).
+Função de Derringer-Suich para maximizar, minimizar ou atingir um alvo.
 """
 
 from __future__ import annotations
@@ -20,27 +15,13 @@ from ensaia.core.design import Fator
 from ensaia.core.results import AjusteResposta, PontoOtimo, Sentido
 from ensaia.core.surface import prever
 
-# Abaixo deste R², o modelo não descreve os dados bem o bastante para que
-# otimizar sobre ele signifique alguma coisa. O protótipo usava 0,50; o valor
-# fica configurável e o bloqueio é reportado como aviso no AnalysisResult,
-# nunca silenciosamente.
+# Abaixo deste R², o modelo não serve para otimizar (vira aviso).
 R2_MINIMO_PARA_OTIMIZAR = 0.50
 
 
 @dataclass(frozen=True)
 class AlvoResposta:
-    """O que se quer de cada resposta na otimização.
-
-    `s` é o parâmetro de forma de Derringer-Suich: controla a curvatura da
-    transição entre inaceitável (d=0) e ideal (d=1). Com `s = 1` a subida é
-    linear; `s > 1` exige chegar perto do ideal para a desejabilidade crescer
-    (mais rigoroso); `0 < s < 1` recompensa já qualquer melhora (mais tolerante).
-    O default 1,0 reproduz a forma linear, que é a dos casos de estudo usados na
-    validação. Para o sentido 'alvo', a mesma forma `s` vale nos dois lados.
-
-    `peso` pondera esta resposta na média geométrica global (não é a forma `s`):
-    uma resposta com peso maior puxa mais a desejabilidade composta.
-    """
+    """Meta de uma resposta: sentido, limites, alvo, forma e peso."""
 
     resposta: str
     sentido: Sentido
@@ -51,6 +32,7 @@ class AlvoResposta:
     s: float = 1.0
 
     def __post_init__(self) -> None:
+        """Valida limites, alvo, forma e peso da meta."""
         if self.limite_superior <= self.limite_inferior:
             raise ValueError(
                 f"Resposta {self.resposta!r}: limite_superior deve ser maior "
@@ -81,22 +63,7 @@ class AlvoResposta:
 
 
 def desejabilidade_individual(valor: float, alvo: AlvoResposta) -> float:
-    """d_i em [0, 1] para uma resposta, pelas formas de Derringer-Suich (1980).
-
-    As três formas, com L = limite inferior, U = limite superior, T = alvo e
-    s = parâmetro de forma:
-
-        maximizar  0 se y <= L;  ((y-L)/(U-L))^s se L < y < U;  1 se y >= U
-        minimizar  1 se y <= L;  ((U-y)/(U-L))^s se L < y < U;  0 se y >= U
-        alvo       0 fora de [L, U];
-                   ((y-L)/(T-L))^s   se L <= y <= T   (sobe até 1 no alvo)
-                   ((U-y)/(U-T))^s   se T <  y <= U   (desce depois)
-
-    Fora da faixa o valor é *saturado*, não extrapolado: uma resposta melhor que
-    o limite superior num problema de maximizar vale 1, nunca mais que 1. Isso é
-    o que torna a desejabilidade comparável entre respostas de escalas diferentes
-    — é o ponto da transformação.
-    """
+    """Desejabilidade d (0 a 1) de um valor previsto para uma meta."""
     inf = alvo.limite_inferior
     sup = alvo.limite_superior
     s = alvo.s
@@ -126,17 +93,7 @@ def desejabilidade_individual(valor: float, alvo: AlvoResposta) -> float:
 
 
 def desejabilidade_global(individuais: list[float], pesos: list[float]) -> float:
-    """D = média geométrica ponderada das desejabilidades individuais.
-
-        D = (Π d_i^{w_i})^{1 / Σ w_i}
-
-    Média geométrica, não aritmética: se qualquer resposta for inaceitável
-    (d_i = 0), D tem que zerar. Com média aritmética, uma resposta péssima seria
-    compensada por outras boas, e o otimizador recomendaria uma condição que
-    viola um requisito — exatamente o tipo de erro que um usuário sem formação
-    em estatística não teria como perceber no relatório. O veto (qualquer d_i = 0
-    ⇒ D = 0) é tratado explicitamente, antes de cair no log, porque ln(0) = −∞.
-    """
+    """Desejabilidade global D: média geométrica ponderada dos d."""
     if len(individuais) != len(pesos):
         raise ValueError(
             f"Número de desejabilidades ({len(individuais)}) difere do de pesos "
@@ -163,11 +120,7 @@ def desejabilidade_global(individuais: list[float], pesos: list[float]) -> float
 def desejabilidade_vetor(
     valores: NDArray[np.float64], alvo: AlvoResposta
 ) -> NDArray[np.float64]:
-    """`desejabilidade_individual` aplicada a muitos pontos de uma vez (numpy).
-
-    Mesmas formas e mesma saturação; existe para a busca do ótimo avaliar a
-    malha inteira sem laço em Python.
-    """
+    """Desejabilidade individual para muitos pontos de uma vez."""
     y = np.asarray(valores, dtype=float)
     inf, sup, s = alvo.limite_inferior, alvo.limite_superior, alvo.s
     if alvo.sentido == "maximizar":
@@ -186,12 +139,7 @@ def metas_padrao(
     sentidos: Mapping[str, Sentido],
     alvos: Mapping[str, float] | None = None,
 ) -> list[AlvoResposta]:
-    """Metas com os limites usuais: o menor e o maior valor observado.
-
-    É o padrão de softwares como o Design-Expert: a desejabilidade vai de 0 no
-    pior valor observado a 1 no melhor. Respostas fora de `sentidos` ficam de
-    fora da otimização.
-    """
+    """Metas com os limites no menor e no maior valor observado."""
     alvos = alvos or {}
     metas: list[AlvoResposta] = []
     for ajuste in ajustes:
@@ -222,25 +170,8 @@ def otimizar(
     limite_codificado: float = 1.0,
     r2_minimo: float = R2_MINIMO_PARA_OTIMIZAR,
 ) -> tuple[PontoOtimo | None, list[str]]:
-    """Busca a melhor condição dentro da região experimental (spec §9, E4/E5).
-
-    - **Uma resposta a maximizar ou minimizar (E4):** otimiza a própria
-      resposta prevista. A desejabilidade satura em 1 e deixaria o ótimo
-      indefinido no platô; a resposta não satura.
-    - **Várias respostas, ou uma com alvo (E5):** maximiza a desejabilidade
-      global de Derringer e Suich.
-
-    A região é a caixa [−limite, +limite] na escala codificada (±1 no fatorial
-    e no Box-Behnken, ±α no composto central). Busca determinística: malha
-    regular (ou amostra fixa quando há muitos fatores) e refinamento local a
-    partir dos 5 melhores pontos dela; o resultado se repete byte a byte, o que
-    o §4.3(d) exige para comparar com o artigo.
-
-    Devolve `(ponto, avisos)`. Com R² abaixo de `r2_minimo` numa resposta
-    usada, a otimização é recusada e o motivo vai nos avisos.
-    """
-    # Importação tardia (spec §16.2): o scipy.optimize pesa na memória ociosa do
-    # servidor e só é preciso quando alguém pede o ótimo.
+    """Busca a melhor condição dentro da região estudada (E4 e E5)."""
+    # Importação tardia: scipy.optimize só carrega quando se pede o ótimo.
     from scipy.optimize import minimize
 
     avisos: list[str] = []
@@ -262,10 +193,12 @@ def otimizar(
     direto = len(metas) == 1 and metas[0].sentido != "alvo"
 
     def respostas(pontos: NDArray[np.float64]) -> dict[str, NDArray[np.float64]]:
+        """Respostas previstas pelos modelos nos pontos dados."""
         colunas = {n: pontos[:, j] for j, n in enumerate(nomes)}
         return {m.resposta: prever(por_nome[m.resposta], colunas) for m in metas}
 
     def custo(pontos: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Valor a minimizar na busca: −ŷ, ŷ ou −log D."""
         previstas = respostas(pontos)
         if direto:
             y = previstas[metas[0].resposta]
@@ -274,8 +207,7 @@ def otimizar(
             [desejabilidade_vetor(previstas[m.resposta], m) for m in metas]
         )
         pesos = np.array([m.peso for m in metas])
-        # Média geométrica ponderada; o piso evita log(0), e o veto (algum
-        # d = 0 ⇒ D = 0) é aplicado à parte, como em desejabilidade_global.
+        # Média geométrica ponderada; o piso evita log(0).
         log_d = np.log(np.maximum(individuais, 1e-300))
         global_ = np.exp((log_d * pesos).sum(axis=1) / pesos.sum())
         return -np.where(np.any(individuais == 0, axis=1), 0.0, global_)
@@ -329,7 +261,7 @@ def otimizar(
 
 
 def _malha(k: int, limite: float) -> NDArray[np.float64]:
-    """Pontos de partida: malha regular até 4 fatores; amostra fixa acima disso."""
+    """Pontos de partida da busca: malha regular ou amostra fixa."""
     if k <= 4:
         por_fator = {1: 201, 2: 41, 3: 21, 4: 11}[k]
         eixo = np.linspace(-limite, limite, por_fator)

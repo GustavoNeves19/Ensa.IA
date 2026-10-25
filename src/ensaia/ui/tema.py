@@ -1,23 +1,5 @@
-"""Identidade visual da interface — o ponto único de troca de marca da UI.
-
-A paleta é a **oficial da Universidade Federal Rural da Amazônia** (Manual de
-Uso da Marca da Ufra, ASCOM/Ufra, 2022, p. 10): o logotipo é composto por dois
-verdes — verde (#40A551) e verde oliva (#9B921C) — mais o preto (#1D1D1B).
-Trabalhamos sobre esses três, acrescidos de um verde-mata profundo derivado
-(para profundidade e ações) e de um papel quente levemente oliva como fundo —
-nada do cinza neutro dos UI kits nem do creme genérico.
-
-As fontes são da família **IBM Plex** (IBM, licença SIL OFL 1.1), desenhada
-para contexto técnico: a **Plex Serif** carrega a marca e os títulos, a **Plex
-Sans** o corpo, as tabelas e as fórmulas. Entram os recortes oficiais da IBM
-por alfabeto (`unicode-range`): o português cabe no Latin1, e o grego e os
-símbolos só são baixados quando aparecem (nas fórmulas). Os subscritos das
-fórmulas (eᵢ, hᵢᵢ, Xᵀ) não existem no Plex; vêm de um recorte mínimo da Noto
-Sans (OFL), o "EnsaIA Simbolos". Arquivos e licenças em `ui/static/fonts/`.
-
-Trocar a marca inteira é mexer só neste arquivo: as cores entram no tema do
-Quasar via `ui.colors` e todo o resto (fonte, fundo, atmosfera) via o CSS
-injetado em `aplicar_tema`.
+"""Identidade visual da interface: cores da UFRA, fontes IBM Plex e todo o CSS.
+Trocar a marca da tela é mexer só aqui.
 """
 
 from __future__ import annotations
@@ -41,8 +23,7 @@ LINHA = "rgba(29,29,27,0.08)"  # borda auto-colorida, sentida mais que vista
 # Compat: `report/theme.py` e trechos antigos ainda falam em "acento".
 ACENTO = VERDE
 
-# --- Cores dos gráficos (validadas: daltonismo, visão normal e contraste ≥ 3:1
-# sobre PAPEL_ALTO; a rampa passa o teste ordinal de tom único e passo visível).
+# Cores dos gráficos (validadas para daltonismo e contraste).
 SERIE = "#2E8540"  # marca principal: termo significativo, ensaios
 SERIE_APAGADA = "#968F7A"  # cinza quente de ênfase: termo não significativo
 REFERENCIA = CINZA  # linhas de referência (y = x, zero, t crítico, reta do Q-Q)
@@ -51,20 +32,15 @@ GRADE = "#E7E4D8"  # linhas de grade: um passo fora da superfície, recessivas
 RAMPA = ["#8FBD7D", "#6FA96A", "#529257", "#3B7B47", "#28643A", "#1A4E2D", "#0E3A26"]
 
 _STATIC = Path(__file__).parent / "static"
-# Rota estática servida uma única vez (nível de módulo roda no import). Serve as
-# fontes self-hosted sem depender de CDN — a interface roda offline (princípio
-# do núcleo), então a marca também não pode pedir rede. `suppress` cobre o
-# reimport em testes/reload, quando a rota já existe.
+# Rota das fontes, servida uma vez e sem CDN.
 with contextlib.suppress(Exception):
     app.add_static_files("/ensaia-static", str(_STATIC))
 
-# Grão finíssimo (feTurbulence, dessaturado) em data-uri: quebra o achatado dos
-# fundos e remove banding. Fica ATRÁS do conteúdo, a 3,5% — sente-se, não se vê.
+# Grão leve no fundo, atrás do conteúdo.
 _GRAO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/></svg>"  # noqa: E501
 
 
-# Recortes oficiais do IBM Plex (fonts/split da IBM) e os intervalos Unicode de
-# cada um, copiados do CSS que a própria IBM publica junto dos arquivos.
+# Recortes do IBM Plex e seus intervalos Unicode.
 _LATIN1 = (
     "U+0000, U+000D, U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, "
     "U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, "
@@ -99,7 +75,7 @@ _ARQUIVOS_FONTE: tuple[tuple[str, str, int, str, str], ...] = (
 
 
 def _fontes() -> str:
-    """Os @font-face de cada recorte, servidos da pasta estática do pacote."""
+    """Regras @font-face das fontes servidas pelo pacote."""
     return "\n".join(
         f"""    @font-face {{
       font-family: '{familia}';
@@ -112,7 +88,7 @@ def _fontes() -> str:
 
 
 def _css() -> str:
-    """Folha de estilo da marca: fontes, atmosfera, grão e o uploader."""
+    """Folha de estilo da interface."""
     return f"""
     <style>
 {_fontes()}
@@ -690,10 +666,7 @@ def _css() -> str:
 
 
 def aplicar_tema() -> None:
-    """Aplica a paleta da marca ao Quasar e injeta o CSS da identidade.
-
-    Chamada no início de cada página, antes de montar os elementos.
-    """
+    """Aplica as cores ao Quasar e injeta o CSS na página."""
     ui.colors(
         primary=VERDE_ESCURO,
         secondary=TINTA,

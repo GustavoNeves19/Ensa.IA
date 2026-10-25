@@ -1,23 +1,5 @@
-"""Passos 3 e 4 do fluxo (spec §4): mapear colunas, analisar e mostrar o laudo.
-
-Depois que `ui/upload.py` lê a planilha numa `Table`, esta tela:
-
-1. **Mapear** — para cada coluna, o usuário diz se é fator (entrada), resposta
-   (saída) ou se deve ser ignorada. O padrão é inteligente: colunas numéricas
-   viram fatores, a última numérica vira resposta, texto é ignorado.
-2. **Analisar** — reconhece o planejamento a partir dos próprios dados
-   (`core.identificacao`: codificação de cada fator, com os ±1 certos no
-   composto central, e o tipo pela geometria dos pontos), escolhe os termos do
-   modelo conforme o tipo e roda o núcleo determinístico (`core.pipeline`).
-3. **Mostrar** — por resposta, abas Efeitos (Pareto + coeficientes), ANOVA,
-   Diagnóstico (preditos × observados, resíduos, Q-Q) e Superfície (contorno e
-   3D com os demais fatores ajustáveis). Cada aba só é montada quando aberta
-   (spec §7.3: a NiceGUI guarda no servidor a árvore de cada aba aberta).
-4. **Relatório** — o texto (sem IA, colado de uma IA qualquer, Ollama local ou
-   nuvem; ver `ui/narrar.py`) e os downloads de PDF e JSON.
-
-Nada é calculado aqui: a conta é toda do núcleo; esta camada só coleta escolhas,
-chama o pipeline e desenha o resultado.
+"""Tela de análise: mapear colunas, escolher opções, analisar e mostrar resultados.
+Inclui abas de efeitos, ANOVA, diagnóstico e superfície, otimização e downloads.
 """
 
 from __future__ import annotations
@@ -117,14 +99,13 @@ _GRUPOS_MAPA: list[tuple[Papel, str, str]] = [
     ),
 ]
 
-# Prefixo do dado arrastado: o drop só aceita o que saiu de um cartão do quadro,
-# não um texto qualquer arrastado de outra janela.
+# Prefixo do dado arrastado: só aceita o que saiu de um cartão.
 _ARRASTO = "ensaia-coluna:"
 
 
 @dataclass
 class _Opcoes:
-    """Escolhas do usuário sobre o modelo (spec §4, opções avançadas)."""
+    """Escolhas do usuário sobre o modelo."""
 
     tipo_planejamento: str = "auto"
     tipo_modelo: str = "auto"
@@ -135,10 +116,7 @@ class _Opcoes:
 
 
 def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
-    """Monta o fluxo mapear → analisar → resultados para a `Table` carregada.
-
-    `nome_arquivo` vai para a capa do PDF.
-    """
+    """Monta o fluxo mapear → analisar → resultados para a planilha."""
     mapa = _Mapeamento(tabela)
 
     with ui.element("div").classes("ea-mapear"):
@@ -153,6 +131,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
     _painel_opcoes(opcoes)
 
     async def analisar_e_mostrar(botao: ui.button | None = None) -> None:
+        """Roda a análise com o mapeamento atual e mostra o resultado."""
         fatores = mapa.colunas("fator")
         respostas = mapa.colunas("resposta")
         blocos = mapa.colunas("bloco")
@@ -168,8 +147,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
         with resultado:
             ui.spinner(size="lg").classes("ea-spinner")
         try:
-            # Fora da thread da interface: ANOVA/backward elimination podem levar
-            # um instante perceptível (spec IHC: visibilidade do status, H1).
+            # Fora da thread da tela: a análise pode levar um instante.
             saida = await run.io_bound(
                 _rodar_analise,
                 tabela,
@@ -212,6 +190,7 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
             )
 
     async def ao_analisar() -> None:
+        """Nova análise a partir do modelo completo."""
         opcoes.excluidos.clear()  # nova análise parte do modelo completo
         await analisar_e_mostrar(botao_analisar)
 
@@ -225,32 +204,25 @@ def construir_analise(tabela: Table, nome_arquivo: str | None = None) -> None:
 
 
 class _Mapeamento:
-    """O papel de cada coluna da planilha, ponto de partida do passo "mapear".
-
-    Começa na sugestão do núcleo (`sugerir_mapeamento`) e avisa os `ouvintes`
-    a cada mudança: o quadro se redesenha e o painel de análises recalcula o
-    que se aplica. A ordem de execução dos ensaios (spec §8.3) não tem tela
-    própria: só entra quando `ordem_sugerida` reconhece uma coluna pronta na
-    planilha (ex.: "Ensaio", "N", "Run" com valores 1..n) — informar a ordem
-    é problema do pesquisador, não do EnsaIA; sem essa coluna, o gráfico D3
-    simplesmente não aparece.
-    """
+    """Papel de cada coluna, com aviso aos ouvintes a cada mudança."""
 
     def __init__(self, tabela: Table) -> None:
+        """Começa pela sugestão de papéis do núcleo."""
         self.tabela = tabela
         self.papeis: dict[str, Papel] = sugerir_mapeamento(tabela)
         self.ouvintes: list[Callable[[], None]] = []
         self.ordem_postos: list[int] | None = ordem_sugerida(tabela)
 
     def colunas(self, papel: Papel) -> list[str]:
-        """As colunas de um papel, na ordem em que aparecem na planilha."""
+        """Colunas de um papel, na ordem da planilha."""
         return [c for c in self.tabela.colunas if self.papeis[c] == papel]
 
     def pode_ser(self, coluna: str, papel: Papel) -> bool:
-        """Fator e resposta precisam de números; bloco e "não usar" aceitam texto."""
+        """Diz se a coluna pode ter esse papel (fator e resposta exigem números)."""
         return self.tabela.e_numerica(coluna) or papel in ("bloco", "ignorar")
 
     def mover(self, coluna: str, papel: Papel) -> None:
+        """Muda o papel de uma coluna e avisa os ouvintes."""
         if self.papeis[coluna] == papel:
             return
         if not self.pode_ser(coluna, papel):
@@ -268,20 +240,15 @@ class _Mapeamento:
             ouvinte()
 
     def tem_ordem(self) -> bool:
-        """Se há ordem de execução detectada (D3 só aparece se houver)."""
+        """Diz se há coluna de ordem de execução."""
         return self.ordem_postos is not None
 
 
 class _QuadroMapeamento:
-    """Os grupos de colunas, com arrastar e soltar (e um menu, sem mouse).
-
-    O arrasto acontece todo no navegador; só o soltar vai ao servidor, levando
-    a posição da coluna na planilha. O menu "Mover para" de cada cartão faz o
-    mesmo pelo clique ou pelo teclado, e no celular, onde o arrastar do HTML
-    nem sempre funciona.
-    """
+    """Zonas de colunas com arrastar e soltar (e menu, sem mouse)."""
 
     def __init__(self, mapa: _Mapeamento) -> None:
+        """Cria as zonas e se inscreve nas mudanças do mapeamento."""
         self.mapa = mapa
         self.listas: dict[Papel, ui.element] = {}
         with ui.element("div").classes("ea-quadro"):
@@ -291,6 +258,7 @@ class _QuadroMapeamento:
         self.desenhar()
 
     def _zona(self, papel: Papel, titulo: str, explica: str) -> ui.element:
+        """Cria uma zona (fatores, respostas, blocos ou não usar)."""
         zona = ui.element("div").classes(f"ea-zona ea-zona-{papel}")
         zona.props(f'role="group" aria-label="{escape(titulo)}"')
         with zona:
@@ -321,6 +289,7 @@ class _QuadroMapeamento:
         return lista
 
     def _soltar(self, indice: Any, papel: Papel) -> None:
+        """Move para a zona a coluna solta nela."""
         colunas = self.mapa.tabela.colunas
         try:
             coluna = colunas[int(indice)]
@@ -329,6 +298,7 @@ class _QuadroMapeamento:
         self.mapa.mover(coluna, papel)
 
     def desenhar(self) -> None:
+        """Redesenha os cartões de cada zona."""
         for papel, lista in self.listas.items():
             lista.clear()
             with lista:
@@ -339,6 +309,7 @@ class _QuadroMapeamento:
                     ui.label("Nenhuma Coluna").classes("ea-zona-vazia")
 
     def _cartao(self, coluna: str) -> None:
+        """Cartão arrastável de uma coluna, com o menu Mover para."""
         indice = self.mapa.tabela.colunas.index(coluna)
         texto = not self.mapa.tabela.e_numerica(coluna)
         cartao = ui.element("div").classes("ea-cartao")
@@ -388,9 +359,7 @@ _PROPS_TOGGLE = (
     "toggle-color=primary toggle-text-color=white"
 )
 
-# Cada opção do modelo: título, o que ela decide e, para cada valor que o usuário
-# pode escolher, a dica em texto e em fórmula. A lâmpada mostra sempre a do valor
-# escolhido no momento.
+# Cada opção: título, o que decide e a dica de cada valor.
 _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
     "tipo_planejamento": (
         "Tipo de delineamento",
@@ -504,7 +473,7 @@ _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
 
 
 def _resumo_opcoes(opcoes: _Opcoes) -> str:
-    """A escolha atual numa linha, para o cabeçalho recolhido."""
+    """Escolha atual das opções numa linha."""
     partes = []
     if opcoes.tipo_planejamento != "auto":
         partes.append(
@@ -523,12 +492,7 @@ def _resumo_opcoes(opcoes: _Opcoes) -> str:
 def _card_recolhivel(
     icone: str, titulo: str, resumo: str, *, aberto: bool = False
 ) -> tuple[ui.expansion, ui.label]:
-    """Card que abre e fecha, no padrão das etapas de análise.
-
-    O cabeçalho tem um ícone no círculo, o título e um resumo de uma linha;
-    devolve o card (para preencher com `with`) e o rótulo do resumo, para quem
-    quiser atualizá-lo depois.
-    """
+    """Card que abre e fecha, com ícone, título e resumo."""
     card = ui.expansion(value=aberto).classes("ea-etapa ea-card w-full").props("dense")
     with (
         card.add_slot("header"),
@@ -542,12 +506,7 @@ def _card_recolhivel(
 
 
 def _painel_opcoes(opcoes: _Opcoes) -> None:
-    """Opções do modelo, recolhidas como as etapas das análises.
-
-    O padrão já serve a quem está começando; o cabeçalho mostra a escolha atual,
-    e cada opção é um cartão com o que ela faz e a dica do valor escolhido (em
-    texto ou fórmula), que muda junto com a escolha.
-    """
+    """Painel recolhível com as opções do modelo."""
     painel, resumo = _card_recolhivel(
         "tune", "Opções do modelo", _resumo_opcoes(opcoes)
     )
@@ -575,11 +534,7 @@ def _cartao_opcao(
     largo: bool,
     resumo: ui.label,
 ) -> None:
-    """Um cartão de opção: título, dica no canto, o que faz e o controle.
-
-    A dica mostra a explicação do valor escolhido e troca quando ele muda; o
-    resumo do cabeçalho do painel também.
-    """
+    """Cartão de uma opção: título, dica, explicação e controle."""
     titulo, faz, dicas = _OPCOES_MODELO[chave]
     with ui.element("div").classes(
         "ea-opcao-cartao" + (" ea-opcao-larga" if largo else "")
@@ -590,6 +545,7 @@ def _cartao_opcao(
         ui.label(faz).classes("ea-analise-texto")
 
         def mudou(evento: Any) -> None:
+            """Atualiza a dica e o resumo quando a opção muda."""
             lampada.trocar(*dicas[evento.value])
             resumo.set_text(_resumo_opcoes(opcoes))
 
@@ -607,7 +563,7 @@ def _cartao_opcao(
 
 
 def _nota_blocos(ajuste: AjusteResposta) -> list[str]:
-    """Quanto os blocos tiraram do erro e o efeito de cada um (só com blocos)."""
+    """Nota com quanto os blocos tiraram do erro e o efeito de cada um."""
     reg = ajuste.anova_regressao
     linha = (
         next((li for li in reg.linhas if li.fonte == "Blocos"), None) if reg else None
@@ -635,11 +591,7 @@ def _rodar_analise(
     analises: list[str] | None = None,
     coluna_bloco: str | None = None,
 ) -> tuple[AnalysisResult, Planejamento, list[str]]:
-    """Roda o fluxo do núcleo com as opções da tela (o mesmo do servidor MCP).
-
-    Devolve também o `Planejamento` (a superfície precisa das faixas dos fatores)
-    e os termos candidatos do modelo, para o usuário escolher o que excluir.
-    """
+    """Roda o fluxo do núcleo com as opções da tela."""
     pedido = None if opcoes.tipo_modelo == "auto" else opcoes.tipo_modelo
     delineamento = (
         None if opcoes.tipo_planejamento == "auto" else opcoes.tipo_planejamento
@@ -671,6 +623,7 @@ def _mostrar_resultados(
     tabela: Table,
     nome_arquivo: str | None = None,
 ) -> None:
+    """Mostra os resultados: resumo, indicadores, abas e blocos finais."""
     tipo = NOME_PLANEJAMENTO.get(analise.tipo_planejamento, analise.tipo_planejamento)
     primeiro = analise.ajustes[0]
     partes = [tipo[:1].upper() + tipo[1:], f"{primeiro.n_observacoes} ensaios"]
@@ -734,12 +687,7 @@ _SINAL = {"ok": ("check_circle", "Bom sinal"), "atencao": ("error", "Pede atenç
 def _painel_indicativos(
     ajuste: AjusteResposta, alfa: float, sel: frozenset[str]
 ) -> None:
-    """Primeira leitura de uma resposta (US-06): os indicadores e seus sinais.
-
-    Só para ler, como um quadro de relatório: sem caixa nem clique, cada métrica
-    separada por uma linha fina. O sinal é um ícone ao lado do valor e a lâmpada
-    explica a métrica.
-    """
+    """Primeira leitura de uma resposta: indicadores e sinais."""
     itens = [i for i in indicativos(ajuste, alfa) if i.analise in sel]
     if not itens:
         return
@@ -764,16 +712,13 @@ def _painel_indicativos(
 
 
 def _bloco_proximos_passos(sessao: Sessao, limite: float) -> None:
-    """O que fazer agora (US-17), refeito quando a melhor condição é calculada.
-
-    Uma lista numerada, como os passos da abertura e as etapas das análises: o
-    número num círculo e a frase ao lado, separados por linhas finas.
-    """
+    """Lista do que fazer agora, refeita quando o resultado muda."""
     with ui.element("div").classes("ea-otimizacao"):
         ui.label("Próximos passos").classes("ea-secao-titulo")
         lista = ui.element("ol").classes("ea-passos-sugeridos")
 
     def mostrar() -> None:
+        """Redesenha a lista de próximos passos."""
         lista.clear()
         passos = proximos_passos(sessao.analise, limite_codificado=limite)
         with lista:
@@ -791,22 +736,14 @@ def _bloco_proximos_passos(sessao: Sessao, limite: float) -> None:
 
 
 def _marcadas(analise: AnalysisResult) -> frozenset[str]:
-    """Análises marcadas; um resultado antigo sem a lista mostra tudo."""
+    """Análises marcadas no resultado (todas, se não houver lista)."""
     return frozenset(analise.metadados.analises or IDS)
 
 
 def _dados_experimento(
     analise: AnalysisResult, planejamento: Planejamento, tabela: Table
 ) -> None:
-    """Estatística descritiva e matriz do planejamento — sempre as duas.
-
-    As duas são sempre calculadas e sempre entram no laudo (`painel_analises.
-    _SEMPRE_INCLUIDAS`): nenhuma regra de `disponibilidade` desliga uma ou
-    outra, então não há cartão de "incluir ou não" para elas. O olho abaixo
-    não é isso — a codificação em si nunca é opcional (toda análise ajusta
-    o modelo em escala −1/+1, ADR 0001); ele só decide se a coluna aparece
-    NESTA tela, sem tocar no PDF nem recalcular nada.
-    """
+    """Estatística descritiva e matriz do planejamento."""
     card, _ = _card_recolhivel(
         "table_chart", "Dados do experimento", "Estatística descritiva e matriz"
     )
@@ -861,6 +798,7 @@ def _dados_experimento(
         ]
 
         def linhas_matriz(com_codigo: bool) -> list[dict[str, object]]:
+            """Linhas da matriz, com ou sem o valor codificado."""
             return [
                 {
                     "n": i + 1,
@@ -891,6 +829,7 @@ def _dados_experimento(
         estado = {"com_codigo": True}
 
         def alternar_codigo() -> None:
+            """Mostra ou esconde a coluna codificada."""
             estado["com_codigo"] = not estado["com_codigo"]
             icone_olho.props(
                 f'name="{"visibility" if estado["com_codigo"] else "visibility_off"}"'
@@ -906,12 +845,7 @@ def _dados_experimento(
 
 
 def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
-    """Melhor condição (spec §9, E4/E5): metas por resposta e a busca no núcleo.
-
-    Cada resposta é um cartão com a meta em botões (e o valor-alvo, quando é o
-    caso); a lâmpada explica a meta escolhida. O resultado sai como um quadro de
-    leitura: os níveis dos fatores, a resposta prevista e, com várias, o D.
-    """
+    """Melhor condição: metas por resposta e a busca no núcleo."""
     analise = sessao.analise
     with ui.element("div").classes("ea-otimizacao"):
         titulo_com_dica("Melhor condição", "desejabilidade", "ea-secao-titulo")
@@ -925,6 +859,7 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
                 escolhas[ajuste.resposta] = _cartao_meta(ajuste, inicial=i == 0)
 
         async def buscar() -> None:
+            """Busca a melhor condição com as metas escolhidas."""
             sentidos = {
                 r: cast(Sentido, sel.value)
                 for r, (sel, _) in escolhas.items()
@@ -940,6 +875,7 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
             }
 
             def calcular() -> tuple[PontoOtimo | None, list[str]]:
+                """Calcula o ótimo fora da thread da tela."""
                 metas = metas_padrao(analise.ajustes, sentidos, alvos)
                 return otimizar(
                     analise.ajustes,
@@ -948,8 +884,7 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
                     limite_codificado=limite_da_regiao(planejamento),
                 )
 
-            # Fora da thread da interface: LHS + Nelder-Mead multi-start (k>4)
-            # pode demorar o bastante para precisar de indicação de progresso.
+            # Fora da thread da tela: a busca do ótimo pode demorar.
             botao_buscar.props("loading")
             try:
                 saida = await run.io_bound(calcular)
@@ -981,8 +916,7 @@ def _bloco_otimizacao(sessao: Sessao, planejamento: Planejamento) -> None:
         area = ui.column().classes("w-full ea-slot")
 
 
-# Meta de cada resposta: rótulo do botão, o que a busca faz e a desejabilidade
-# individual (L e U: o menor e o maior valor observado; T: o alvo).
+# Meta de cada resposta: rótulo, o que a busca faz e a desejabilidade.
 _METAS: dict[str, tuple[str, str, str | None]] = {
     "maximizar": (
         "Maximizar",
@@ -1013,7 +947,7 @@ _METAS: dict[str, tuple[str, str, str | None]] = {
 def _cartao_meta(
     ajuste: AjusteResposta, *, inicial: bool
 ) -> tuple[ui.toggle, ui.number]:
-    """Um cartão por resposta: a meta em botões e, se for alvo, o valor."""
+    """Cartão da meta de uma resposta (e o alvo, se for o caso)."""
     observados = ajuste.diagnostico.observados if ajuste.diagnostico else []
     meio = (min(observados) + max(observados)) / 2 if observados else None
     valor = "maximizar" if inicial else "ignorar"
@@ -1047,12 +981,7 @@ def _cartao_meta(
 
 
 def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
-    """Prever uma condição (US-15, "e se?"): valores dos fatores → respostas.
-
-    Cada fator é um cartão com a unidade, a faixa estudada e o campo; o resultado
-    sai num quadro de leitura, como o da melhor condição, com o aviso de
-    extrapolação em destaque quando a condição sai da região estudada.
-    """
+    """Prever uma condição: valores dos fatores → respostas."""
     with ui.element("div").classes("ea-otimizacao"):
         with ui.element("div").classes("ea-titulo-linha ea-titulo-dica"):
             ui.label("Prever uma condição").classes("ea-secao-titulo")
@@ -1087,6 +1016,7 @@ def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
                     )
 
         def prever() -> None:
+            """Calcula e mostra as respostas previstas."""
             valores = {
                 n: float(c.value) for n, c in campos.items() if c.value is not None
             }
@@ -1126,7 +1056,7 @@ def _bloco_prever(analise: AnalysisResult, planejamento: Planejamento) -> None:
 def _mostrar_otimo(
     ponto: PontoOtimo | None, avisos: list[str], planejamento: Planejamento
 ) -> None:
-    """A condição encontrada, só para ler: fatores, resposta prevista e o D."""
+    """Quadro com a condição encontrada e as respostas previstas."""
     for aviso in avisos:
         ui.html(f'<div class="ea-aviso">{escape(aviso)}</div>')
     if ponto is None:
@@ -1177,7 +1107,7 @@ def _mostrar_otimo(
 
 
 def _bloco_baixar(sessao: Sessao) -> None:
-    """Passo 7 do fluxo (spec §4): baixar o relatório em PDF e os resultados em JSON."""
+    """Botões para baixar o relatório PDF e o JSON."""
     with ui.element("div").classes("ea-baixar"):
         with ui.element("div").classes("ea-acoes"):
             botao_pdf = (
@@ -1198,6 +1128,7 @@ def _bloco_baixar(sessao: Sessao) -> None:
 
 
 async def _baixar_pdf(sessao: Sessao, botao: ui.button) -> None:
+    """Gera e baixa o relatório PDF."""
     try:
         from ensaia.report import gerar_pdf  # extra [report]: fpdf2 + matplotlib
     except ImportError:
@@ -1241,6 +1172,7 @@ async def _baixar_pdf(sessao: Sessao, botao: ui.button) -> None:
 
 
 def _baixar_json(analise: AnalysisResult) -> None:
+    """Baixa os resultados em JSON."""
     agora = datetime.now()
     ui.download.content(
         analise.to_json(),
@@ -1252,18 +1184,13 @@ def _baixar_json(analise: AnalysisResult) -> None:
 def _ajustar_modelo(
     candidatos: list[str], opcoes: _Opcoes, reanalisar: Callable[..., Any]
 ) -> None:
-    """Tirar termos do modelo e reajustar, vendo os indicadores mudarem (RF-09).
-
-    Cada termo é uma pílula, como os cartões de análise: verde está no modelo,
-    clicar tira ou devolve. O "Reajustar" só se acende quando a escolha difere
-    do modelo atual. Depois de reajustar, o card volta aberto, para ver o que
-    mudou sem procurar.
-    """
+    """Tirar termos do modelo e reajustar, vendo os indicadores mudarem."""
     atuais = {t for t in opcoes.excluidos if t in candidatos}
     fora = set(atuais)
 
     def resumo() -> str:
         # +1: o intercepto, que não sai, conta como no subtítulo dos resultados.
+        """Quantos termos estão no modelo e quais saíram."""
         dentro = len(candidatos) - len(fora) + 1
         return f"{dentro} de {len(candidatos) + 1} termos no modelo" + (
             f" · fora: {', '.join(nome_legivel(t) for t in candidatos if t in fora)}"
@@ -1277,6 +1204,7 @@ def _ajustar_modelo(
     pilulas: dict[str, ui.element] = {}
 
     def desenhar() -> None:
+        """Atualiza as pílulas dos termos."""
         for termo, pilula in pilulas.items():
             no_modelo = termo not in fora
             pilula.classes(
@@ -1288,10 +1216,12 @@ def _ajustar_modelo(
         botao.set_enabled(fora != atuais)
 
     def alternar(termo: str) -> None:
+        """Tira ou devolve um termo."""
         fora.symmetric_difference_update({termo})
         desenhar()
 
     async def reajustar() -> None:
+        """Reajusta o modelo sem os termos tirados."""
         opcoes.excluidos[:] = [t for t in candidatos if t in fora]
         await reanalisar(botao)
 
@@ -1343,12 +1273,7 @@ def _abas_resposta(
     alfa: float,
     sel: frozenset[str] = frozenset(IDS),
 ) -> None:
-    """Abas de uma resposta, cada uma montada só na primeira vez que é aberta.
-
-    O clique numa barra do Pareto leva à superfície daquele termo (o "zoom" do
-    efeito para a forma da resposta): uma interação a × b abre a superfície com
-    a e b nos eixos.
-    """
+    """Abas de uma resposta, montadas só quando abertas."""
     tem_superficie = len(fatores) >= 2 and bool(sel & _POR_ABA[_ABA_SUPERFICIE])
     nomes = [
         nome
@@ -1381,6 +1306,7 @@ def _abas_resposta(
     painel: dict[str, _PainelSuperficie] = {}
 
     def abrir(nome: str) -> None:
+        """Monta o conteúdo de uma aba na primeira abertura."""
         if nome in montadas:
             return
         montadas.add(nome)
@@ -1397,6 +1323,7 @@ def _abas_resposta(
                 painel["superficie"] = _PainelSuperficie(ajuste, fatores, sel)
 
     def ao_clicar_termo(termo: str) -> None:
+        """Abre a superfície com os fatores do termo clicado."""
         envolvidos = list(dict.fromkeys(n for n, _ in interpretar_termo(termo)))
         abas.set_value(_ABA_SUPERFICIE)
         abrir(_ABA_SUPERFICIE)
@@ -1412,12 +1339,7 @@ def _grafico(
     descricao: str,
     on_point_click: Callable[[EChartPointClickEventArguments], None] | None = None,
 ) -> ui.echart:
-    """Um gráfico ECharts com texto alternativo para leitores de tela (RNF-04).
-
-    O canvas não tem texto que um leitor de tela consiga ler; `descricao` diz o
-    que o gráfico mostra e fica no próprio elemento, valendo também quando as
-    opções do gráfico são trocadas depois (superfície).
-    """
+    """Gráfico ECharts com texto alternativo para leitores de tela."""
     grafico = (
         ui.echart(opcoes, on_point_click=on_point_click)
         .classes("ea-grafico")
@@ -1434,6 +1356,7 @@ def _aba_efeitos(
     ao_clicar: Callable[[str], None] | None,
     sel: frozenset[str] = frozenset(IDS),
 ) -> None:
+    """Aba de efeitos: Pareto, coeficientes e equação."""
     if "C1" in sel:
         _pareto(ajuste, alfa, ao_clicar)
         titulo_com_dica(
@@ -1447,9 +1370,11 @@ def _aba_efeitos(
 def _pareto(
     ajuste: AjusteResposta, alfa: float, ao_clicar: Callable[[str], None] | None
 ) -> None:
+    """Gráfico de Pareto dos efeitos padronizados e sua leitura."""
     titulo_com_dica("Pareto dos efeitos padronizados", "pareto")
 
     def clique(evento: EChartPointClickEventArguments) -> None:
+        """Leva à superfície do termo clicado."""
         if ao_clicar and isinstance(evento.data, dict) and evento.data.get("termo"):
             ao_clicar(str(evento.data["termo"]))
 
@@ -1502,12 +1427,7 @@ _FORMAS_EQUACAO: dict[str, tuple[str, str]] = {
 
 
 def _termos_equacao(texto: str) -> list[tuple[str, str, str]]:
-    """(sinal, coeficiente, variável) de cada termo do texto da equação.
-
-    O núcleo escreve "ŷ = 53,48 + 7,025·X1 − 7,538·X2 …": o sinal entre termos
-    vem cercado de espaços e o primeiro termo pode começar com "−". A tela só
-    separa os pedaços; a formatação dos números continua sendo do núcleo.
-    """
+    """Separa a equação em (sinal, coeficiente, variável)."""
     corpo = texto.split("=", 1)[1].strip()
     pedacos = re.split(r" ([+−]) ", corpo)
     sinais = ["−" if pedacos[0].startswith("−") else "+", *pedacos[1::2]]
@@ -1520,7 +1440,7 @@ def _termos_equacao(texto: str) -> list[tuple[str, str, str]]:
 
 
 def _variavel_legivel(variavel: str) -> str:
-    """X1·X2 → X₁ · X₂; dose_catalisador → dose catalisador."""
+    """Variável da equação para leitura (X₁ · X₂)."""
     partes = [p.replace("_", " ") for p in variavel.split("·")]
     return " · ".join(
         p.translate(_SUBSCRITO) if re.fullmatch(r"X\d+[²³]?", p) else p for p in partes
@@ -1528,7 +1448,7 @@ def _variavel_legivel(variavel: str) -> str:
 
 
 def _equacao(ajuste: AjusteResposta) -> None:
-    """A equação termo a termo, nas três formas, com as variáveis e o copiar."""
+    """Equação termo a termo, nas três formas, com o botão de copiar."""
     eq = ajuste.equacao
     if eq is None:
         return
@@ -1586,6 +1506,7 @@ def _equacao(ajuste: AjusteResposta) -> None:
 
 
 def _copiar_equacao(texto: str) -> None:
+    """Copia a equação para a área de transferência."""
     ui.clipboard.write(texto.replace("_", " "))
     ui.notify("Equação copiada.", type="positive", position="top", timeout=2500)
 
@@ -1593,6 +1514,7 @@ def _copiar_equacao(texto: str) -> None:
 def _aba_anova(
     ajuste: AjusteResposta, alfa: float, sel: frozenset[str] = frozenset(IDS)
 ) -> None:
+    """Aba de ANOVA: regressão, F/Ftab, R² e falta de ajuste."""
     reg = ajuste.anova_regressao
     if reg is not None and "C2" in sel:
         titulo_com_dica("ANOVA da regressão", "anova", "ea-tabela-rotulo")
@@ -1635,6 +1557,7 @@ def _aba_anova(
 def _aba_diagnostico(
     ajuste: AjusteResposta, alfa: float, sel: frozenset[str] = frozenset(IDS)
 ) -> None:
+    """Aba de diagnóstico: gráficos e tabela por ensaio."""
     d = ajuste.diagnostico
     if d is None:
         ui.html(
@@ -1706,6 +1629,7 @@ def _aba_diagnostico(
     ]
 
     def coluna(valores: Sequence[float | None], i: int, casas: int = 3) -> str:
+        """Valor formatado de uma coluna no ensaio i."""
         return _fmt(valores[i], casas) if i < len(valores) else "—"
 
     linhas = [
@@ -1736,6 +1660,7 @@ def _aba_diagnostico(
 
 
 def _texto_influencia(d: Diagnostico) -> str:
+    """Frase com os ensaios influentes e outliers."""
     if not d.alavancagem:
         return ""
     partes = []
@@ -1761,11 +1686,12 @@ def _texto_influencia(d: Diagnostico) -> str:
 
 
 def _sem_html(texto: str) -> str:
-    """Texto puro a partir de um trecho de HTML curto (para o aria-label)."""
+    """Texto puro a partir de HTML curto (para aria-label)."""
     return unescape(re.sub(r"<[^>]+>", "", texto))
 
 
 def _texto_normalidade(ajuste: AjusteResposta, alfa: float) -> str:
+    """Frase com o resultado do Shapiro-Wilk."""
     d = ajuste.diagnostico
     if d is None or d.shapiro_p is None:
         motivo = (d.motivo_sem_shapiro if d else None) or "dados insuficientes"
@@ -1782,12 +1708,7 @@ def _texto_normalidade(ajuste: AjusteResposta, alfa: float) -> str:
 
 
 class _PainelSuperficie:
-    """Contorno e superfície 3D de uma resposta, com eixos e fatores fixos ajustáveis.
-
-    A grade vem sempre de `core.surface.grade_superficie`; aqui só se escolhe o
-    par de eixos, o valor dos demais fatores e a forma (contorno ou 3D). O 3D
-    carrega a echarts-gl só quando pedido (spec RNF-11: primeira carga leve).
-    """
+    """Contorno e superfície 3D com eixos e fatores fixos ajustáveis."""
 
     def __init__(
         self,
@@ -1795,6 +1716,7 @@ class _PainelSuperficie:
         fatores: list[Fator],
         sel: frozenset[str] = frozenset(IDS),
     ) -> None:
+        """Monta os controles e o primeiro gráfico."""
         self.ajuste = ajuste
         self.fatores = fatores
         candidatas = (("contorno", "Contorno", "E2"), ("3d", "3D", "E1"))
@@ -1841,6 +1763,7 @@ class _PainelSuperficie:
         self._redesenhar(recriar=True)
 
     def _linha_estacionario(self) -> None:
+        """Linha que descreve o ponto estacionário."""
         pe = self.estacionario
         assert pe is not None
         natureza = {"maximo": "máximo", "minimo": "mínimo", "sela": "ponto de sela"}
@@ -1864,7 +1787,7 @@ class _PainelSuperficie:
                 ).props("flat dense").classes("ea-botao-sec")
 
     def _ir_ao_estacionario(self) -> None:
-        """Fixa os demais fatores no ponto estacionário e o marca no contorno."""
+        """Fixa os fatores no ponto estacionário e o marca."""
         pe = self.estacionario
         assert pe is not None
         self.fixos.update(pe.real)
@@ -1872,7 +1795,7 @@ class _PainelSuperficie:
         self._redesenhar(recriar=self.forma.value == "3d")
 
     def _destaque(self) -> tuple[float, float, str] | None:
-        """Ponto a marcar no contorno: só quando o corte passa por ele."""
+        """Ponto a marcar no contorno, se o corte passa por ele."""
         pe = self.estacionario
         if pe is None or not pe.dentro_da_regiao:
             return None
@@ -1889,7 +1812,7 @@ class _PainelSuperficie:
 
     # -- interação ---------------------------------------------------------
     def focar(self, envolvidos: list[str]) -> None:
-        """Põe nos eixos os fatores de um termo clicado no Pareto."""
+        """Põe nos eixos os fatores de um termo."""
         nomes = [f.nome for f in self.fatores]
         par = [n for n in envolvidos if n in nomes][:2]
         if len(par) == 1:  # termo de um fator só: completa com o outro mais forte
@@ -1900,6 +1823,7 @@ class _PainelSuperficie:
         self._definir_eixos(par[0], par[1])
 
     def _trocar_eixo(self, qual: str, valor: str) -> None:
+        """Troca um eixo pela escolha do usuário."""
         if self._sincronizando:  # mudança feita por código, não pelo usuário
             return
         antigo_x, antigo_y = self._eixos
@@ -1911,6 +1835,7 @@ class _PainelSuperficie:
         self._definir_eixos(x, y)
 
     def _definir_eixos(self, x: str, y: str) -> None:
+        """Define o par de eixos e redesenha."""
         if (x, y) == self._eixos and (self.sel_x.value, self.sel_y.value) == (x, y):
             return
         self._eixos = (x, y)
@@ -1925,6 +1850,7 @@ class _PainelSuperficie:
 
     # -- montagem ----------------------------------------------------------
     def _montar_fixos(self) -> None:
+        """Cria os controles dos fatores fixos."""
         self.area_fixos.clear()
         with self.area_fixos:
             for fator in self.fatores:
@@ -1933,10 +1859,12 @@ class _PainelSuperficie:
                 self._controle_fixo(fator)
 
     def _controle_fixo(self, fator: Fator) -> None:
+        """Controle deslizante de um fator fixo."""
         with ui.element("div").classes("ea-fixo"):
             rotulo = ui.html("").classes("ea-fixo-rotulo")
 
             def atualizar_rotulo(valor: float) -> None:
+                """Atualiza o rótulo com o valor fixo."""
                 rotulo.set_content(
                     f"{escape(nome_legivel(fator.nome))} fixo em "
                     f"<b>{_fmt_curto(valor)}</b>"
@@ -1953,6 +1881,7 @@ class _PainelSuperficie:
             controle.on_value_change(lambda e: atualizar_rotulo(float(e.value)))
 
             def soltar(evento: object) -> None:
+                """Guarda o valor e redesenha ao soltar."""
                 valor = getattr(evento, "args", None)
                 self.fixos[fator.nome] = float(
                     valor if isinstance(valor, int | float) else controle.value
@@ -1963,11 +1892,11 @@ class _PainelSuperficie:
             controle.on("change", soltar)
 
     def _redesenhar(self, *, recriar: bool) -> None:
+        """Recalcula a grade e redesenha o gráfico."""
         x, y = self._eixos
         fixos = {n: v for n, v in self.fixos.items() if n not in (x, y)}
         tres_d = self.forma.value == "3d"
-        # Contorno com grade mais fina: em 25 × 25 as faixas saem em degraus
-        # visíveis. O 3D fica nos 25 × 25 da spec (§7.3), que já é liso ali.
+        # Contorno com grade mais fina; o 3D fica em 25 × 25.
         grade = grade_superficie(
             self.ajuste,
             self.fatores,
@@ -2014,18 +1943,18 @@ class _PainelSuperficie:
 
 
 def _fmt_curto(valor: float) -> str:
-    """Número pt-BR sem zeros sobrando: 7 → "7"; 0,625 → "0,625"; 37,5 → "37,5"."""
+    """Número pt-BR sem zeros sobrando."""
     texto = f"{valor:.4f}".rstrip("0").rstrip(".")
     return "0" if texto in ("-0", "") else texto.replace(".", ",")
 
 
 def _fmt_p(valor: float | None) -> str:
-    """p-valor para texto em HTML (o "<" vai escapado)."""
+    """p-valor para texto em HTML."""
     return escape(_fmt_p_tabela(valor))
 
 
 def _fmt_p_tabela(valor: float | None) -> str:
-    """p-valor em texto puro (célula de tabela): '< 0,0001' em vez de '0,0000'."""
+    """p-valor para célula de tabela."""
     if valor is None or (isinstance(valor, float) and math.isnan(valor)):
         return "—"
     if valor < 0.0001:
@@ -2034,6 +1963,7 @@ def _fmt_p_tabela(valor: float | None) -> str:
 
 
 def _tabela_coeficientes(ajuste: AjusteResposta) -> None:
+    """Tabela de coeficientes."""
     colunas = [
         {"name": "termo", "label": "Termo", "field": "termo", "align": "left"},
         {"name": "est", "label": "Estimativa", "field": "est", "align": "right"},
@@ -2059,6 +1989,7 @@ def _tabela_coeficientes(ajuste: AjusteResposta) -> None:
 
 
 def _tabela_anova(linhas_anova: list[LinhaAnova]) -> None:
+    """Tabela de ANOVA."""
     colunas = [
         {"name": "fonte", "label": "Fonte", "field": "fonte", "align": "left"},
         {"name": "sq", "label": "SQ", "field": "sq", "align": "right"},
@@ -2084,6 +2015,7 @@ def _tabela_anova(linhas_anova: list[LinhaAnova]) -> None:
 
 
 def _texto_falta(ajuste: AjusteResposta) -> str:
+    """Frase com o resultado da falta de ajuste."""
     falta = ajuste.falta_de_ajuste
     if not falta.aplicavel:
         motivo = falta.motivo_inaplicavel or "não há réplicas genuínas no delineamento"
@@ -2097,7 +2029,7 @@ def _texto_falta(ajuste: AjusteResposta) -> str:
 
 
 def _fmt(valor: object, casas: int = 4) -> str:
-    """Número no padrão brasileiro (vírgula decimal) ou '—' quando ausente."""
+    """Número com vírgula decimal, ou — quando ausente."""
     if valor is None:
         return "—"
     try:

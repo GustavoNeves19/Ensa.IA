@@ -1,9 +1,5 @@
-"""Validação dos dados experimentais de entrada.
-
-Mensagens de erro aqui são parte do produto, não detalhe técnico. O
-usuário-alvo do EnsaIA não tem formação em programação: "KeyError: 'temp'" não
-ajuda ninguém. Toda falha de validação precisa dizer o que está errado, em
-qual linha, e o que fazer.
+"""Validação dos dados de entrada, com mensagens em português claro.
+Cada problema diz o que está errado, em qual linha e o que fazer.
 """
 
 from __future__ import annotations
@@ -21,6 +17,7 @@ class ProblemaValidacao:
     coluna: str | None = None
 
     def __str__(self) -> str:
+        """Mensagem do problema com linha e coluna."""
         local = ""
         if self.linha is not None:
             local = f" (linha {self.linha}"
@@ -31,17 +28,5 @@ class ProblemaValidacao:
 
 
 def validar_dados_experimentais(dados, fatores: list[str], respostas: list[str]):
-    """Verifica se a planilha carregada serve para uma análise de DOE.
-
-    TODO(#9): implementar. Verificações mínimas:
-        - todas as colunas de fatores e respostas existem
-        - valores numéricos (avisar sobre vírgula decimal — planilha
-          brasileira exportada em CSV é o caso comum)
-        - sem célula vazia nas colunas de fator
-        - nº de ensaios >= nº de termos do modelo (senão não há graus de
-          liberdade e o ajuste é vacuamente perfeito, R² = 1)
-        - avisar quando não há repetição de condição: sem isso, não há teste
-          de falta de ajuste
-        - avisar sobre fator com um único nível (não é fator)
-    """
+    """Verifica se a planilha serve para a análise (a implementar)."""
     raise NotImplementedError("Ver issue #9 — validação de entrada.")

@@ -1,25 +1,5 @@
-"""As ferramentas, os recursos e os prompts do EnsaIA para assistentes de IA.
-
-## O que é o MCP, do zero
-
-O *Model Context Protocol* é um jeito padronizado de um assistente de IA usar
-programas de fora. O servidor (este arquivo) diz "tenho estas ferramentas, com
-estes parâmetros"; o assistente decide chamar uma, recebe a resposta em JSON e
-continua a conversa. Aqui, cada ferramenta é uma etapa da análise do EnsaIA.
-
-O assistente orquestra e escreve; quem calcula é sempre o núcleo, pelo mesmo
-caminho da tela (`core.fluxo`). Por isso um modelo pequeno, rodando no
-computador do usuário, entrega os mesmos números de um químico usando a tela.
-
-Sem estado (spec §11.1): toda ferramenta recebe os dados no próprio chamado.
-Planilhas de DOE têm dezenas de linhas, então repassar o CSV é barato e nada
-precisa ficar guardado no servidor (princípio P1).
-
-## Como subir
-
-    ensaia-mcp          # stdio: local e privado (Claude Desktop, LM Studio…)
-
-No servidor web, o mesmo `mcp` atende em `/api/mcp` (ver `montagem.py`).
+"""Ferramentas, recursos e prompts do EnsaIA para assistentes de IA (MCP).
+Sem estado: cada chamada traz os dados; ensaia-mcp sobe o modo stdio.
 """
 
 from __future__ import annotations
@@ -81,8 +61,7 @@ mcp = MCPServer(
     ),
 )
 
-# `path` só faz sentido (e só é seguro) no modo local, stdio: no servidor web,
-# ler um caminho seria ler arquivos do próprio servidor.
+# path só no modo local (stdio): no servidor web, seria ler arquivos dele.
 _LER_CAMINHO = False
 
 
@@ -97,16 +76,7 @@ def read_table(
     sheet: str | None = None,
     path: str | None = None,
 ) -> dict[str, Any]:
-    """Lê a planilha do experimento e sugere o papel de cada coluna.
-
-    Passe UMA das entradas: `data_csv` (o texto do CSV), `file_base64` +
-    `filename` (arquivo .xlsx, .xls, .ods, .csv codificado em base64) ou
-    `path` (só quando o EnsaIA roda no seu computador). `sheet` escolhe a aba.
-    Devolve as colunas, uma prévia, o formato detectado e `data_csv`
-    normalizado: use esse `data_csv` nas outras ferramentas.
-
-    Exemplo: read_table(data_csv="temp,ph,rend\\n40,5,61.2\\n60,5,70.4\\n...")
-    """
+    """Lê a planilha (CSV, base64 ou caminho) e sugere o papel das colunas."""
     conteudo, nome = _entrada(data_csv, file_base64, filename, path)
     try:
         abas = listar_abas(conteudo, nome)
@@ -147,15 +117,7 @@ def read_table(
 def detect_design(
     data_csv: str, factors: list[str], responses: list[str]
 ) -> dict[str, Any]:
-    """Reconhece o planejamento (só o composto central rotacional — DCCR).
-
-    Devolve o tipo, o número de ensaios e de pontos centrais, a codificação de
-    cada fator (centro e passo, em unidades reais) e os avisos. Outras
-    geometrias (fatorial, Box-Behnken etc.) voltam como "desconhecido", com um
-    aviso que diz a que mais se parecem — fora do escopo atual (ADR 0013).
-
-    Exemplo: detect_design(data_csv, factors=["temp", "ph"], responses=["rend"])
-    """
+    """Reconhece o DCCR: ensaios, pontos centrais, codificação e avisos."""
     feita = _analisar(data_csv, factors, responses, analises=["A2"])
     resultado = feita.resultado
     return {
@@ -176,16 +138,7 @@ def fit_model(
     alpha: float = 0.05,
     block_column: str | None = None,
 ) -> dict[str, Any]:
-    """Ajusta o modelo de regressão: coeficientes, ANOVA, R² e equações.
-
-    `model_type`: "auto" (escolhe pelo planejamento), "linear", "interacoes"
-    ou "quadratico". `excluded_terms` tira termos (ex.: ["temp:ph"]).
-    `error_term`: "residuo" ou "erro_puro" (exige réplicas).
-    `block_column`: coluna que agrupa os ensaios em blocos (dias, lotes); a
-    diferença entre blocos sai do erro e aparece na linha "Blocos" da ANOVA.
-
-    Exemplo: fit_model(data_csv, ["temp", "ph"], "rend", model_type="quadratico")
-    """
+    """Ajusta o modelo: coeficientes, ANOVA, R² e equações."""
     ajuste = _um_ajuste(
         data_csv,
         factors,
@@ -227,14 +180,7 @@ def compute_effects(
     error_term: TermoErro = "residuo",
     alpha: float = 0.05,
 ) -> dict[str, Any]:
-    """Efeitos de um fatorial: efeito de cada termo, Pareto, Lenth e curvatura.
-
-    Efeito, Lenth e curvatura só saem para um fatorial 2^k de triagem — fora do
-    escopo atual (ADR 0013), então sempre vêm vazios num DCCR. Os dados do
-    Pareto (|t| de cada termo) saem sempre, para qualquer planejamento.
-
-    Exemplo: compute_effects(data_csv, ["a", "b", "c"], "rend")
-    """
+    """Pareto dos efeitos padronizados (|t| de cada termo)."""
     ajuste = _um_ajuste(
         data_csv,
         factors,
@@ -269,12 +215,7 @@ def check_residuals(
     model_type: Modelo = "auto",
     order_column: str | None = None,
 ) -> dict[str, Any]:
-    """Resíduos por ensaio, normalidade (Shapiro-Wilk), alavancagem e Cook.
-
-    `order_column` é a coluna com a ordem de execução, se houver.
-
-    Exemplo: check_residuals(data_csv, ["temp", "ph"], "rend")
-    """
+    """Resíduos, Shapiro-Wilk, alavancagem e distância de Cook."""
     ajuste = _um_ajuste(
         data_csv,
         factors,
@@ -293,10 +234,7 @@ def check_residuals(
 def find_stationary_point(
     data_csv: str, factors: list[str], response: str
 ) -> dict[str, Any]:
-    """Onde a superfície fica plana: máximo, mínimo ou sela, e se cai na região.
-
-    Exemplo: find_stationary_point(data_csv, ["temp", "ph", "tempo"], "rend")
-    """
+    """Ponto estacionário: máximo, mínimo ou sela, e se cai na região."""
     ajuste = _um_ajuste(
         data_csv, factors, response, ["E3"], "auto", None, "residuo", 0.05
     )
@@ -315,13 +253,7 @@ def optimize(
     responses: list[str],
     goals: dict[str, Sentido] | None = None,
 ) -> dict[str, Any]:
-    """Melhor condição dentro da região estudada, por desejabilidade.
-
-    `goals` diz o que fazer com cada resposta: "maximizar" ou "minimizar"
-    (padrão: maximizar todas).
-
-    Exemplo: optimize(data_csv, ["temp", "ph"], ["rend"], {"rend": "maximizar"})
-    """
+    """Melhor condição na região estudada, por desejabilidade."""
     feita = _analisar(
         data_csv, factors, responses, analises=["E4", "E5"], objetivos=goals
     )
@@ -343,19 +275,7 @@ def run_full_analysis(
     order_column: str | None = None,
     block_column: str | None = None,
 ) -> dict[str, Any]:
-    """Tudo numa chamada só: o resultado completo e os fatos já interpretados.
-
-    `block_column` (opcional): coluna que agrupa os ensaios em blocos (dias,
-    lotes); a diferença entre blocos sai do erro antes de testar os fatores.
-
-    `analyses` escolhe as análises pelos IDs do catálogo (A1–E5; padrão: todas
-    as que os dados permitem). Devolve `analysis_result` (o resultado completo,
-    para render_pdf e verify_text), `fatos`: frases prontas por seção, com os
-    números já verificados — escreva a explicação a partir delas — e
-    `proximos_passos`: o que o usuário pode fazer em seguida.
-
-    Exemplo: run_full_analysis(data_csv, ["temp", "ph"], ["rend"])
-    """
+    """Análise completa numa chamada: resultado e fatos interpretados."""
     feita = _analisar(
         data_csv,
         factors,
@@ -384,12 +304,7 @@ def render_pdf(
     text: str | None = None,
     data_csv: str | None = None,
 ) -> EmbeddedResource:
-    """Relatório PDF do resultado, com as seções das análises feitas.
-
-    `analysis_result` é o devolvido por run_full_analysis. `text`, se vier, é o
-    texto que você escreveu: ele entra no PDF com a conferência dos números.
-    `data_csv` acrescenta a matriz dos ensaios. Devolve o PDF em base64.
-    """
+    """Relatório PDF do resultado, com o texto conferido se vier."""
     try:
         from ensaia.report import gerar_pdf  # extra [report]: fpdf2 + matplotlib
     except ImportError as erro:
@@ -418,12 +333,7 @@ def render_pdf(
 
 @mcp.tool(title="Conferir um texto")
 def verify_text(text: str, analysis_result: dict[str, Any]) -> dict[str, Any]:
-    """Confere cada número do texto contra o resultado (fidelidade, spec §12.5).
-
-    Devolve quantos números conferem, os que não têm correspondência (com o
-    trecho) e as afirmações de significância que contradizem os p-valores.
-    Corrija o texto até `fiel` ser verdadeiro.
-    """
+    """Confere cada número de um texto contra o resultado."""
     resultado = _resultado(analysis_result)
     fid = verificar_texto(text, resultado)
     return {
@@ -442,7 +352,7 @@ def verify_text(text: str, analysis_result: dict[str, Any]) -> dict[str, Any]:
 
 @mcp.resource("doe://glossario", mime_type="text/markdown")
 def glossario() -> str:
-    """Glossário de DOE em linguagem simples."""
+    """Glossário do DCCR em linguagem simples."""
     return (_CONTEUDO / "glossario.md").read_text(encoding="utf-8")
 
 
@@ -454,7 +364,7 @@ def guia_interpretacao() -> str:
 
 @mcp.resource("doe://catalogo", mime_type="text/markdown")
 def catalogo() -> str:
-    """Os IDs das análises (A1–E5) aceitos por run_full_analysis."""
+    """IDs das análises aceitos por run_full_analysis."""
     return "\n".join(f"- {a.id}: {a.nome}" for a in CATALOGO)
 
 
@@ -469,7 +379,7 @@ def exemplos() -> str:
 
 @mcp.resource("doe://exemplos/{nome}", mime_type="text/csv")
 def exemplo(nome: str) -> str:
-    """Um dataset público de exemplo, em CSV (ver doe://exemplos)."""
+    """Um dataset público de exemplo, em CSV."""
     if nome not in EXEMPLOS:
         raise ValueError(f"Exemplo {nome!r} não existe. Opções: {sorted(EXEMPLOS)}.")
     return conteudo_exemplo(nome).decode("utf-8")
@@ -534,12 +444,7 @@ def proximo_experimento(contexto: str = "") -> str:
 
 
 def app_http() -> Starlette:
-    """O app ASGI do MCP em modo HTTP sem estado, para montar em `/api`.
-
-    `ENSAIA_HOSTS` (domínios públicos separados por vírgula) libera o servidor
-    para atender por esses nomes; sem ela, só localhost é aceito (proteção do
-    SDK contra *DNS rebinding*).
-    """
+    """App ASGI do MCP em HTTP sem estado, para montar em /api."""
     hosts = [h.strip() for h in os.environ.get("ENSAIA_HOSTS", "").split(",")]
     hosts = [h for h in hosts if h]
     seguranca = None
@@ -555,7 +460,7 @@ def app_http() -> Starlette:
 
 
 def main() -> None:
-    """`ensaia-mcp`: o servidor por stdio, local e privado (spec §11.1)."""
+    """Comando ensaia-mcp: servidor por stdio, local e privado."""
     global _LER_CAMINHO
     _LER_CAMINHO = True
     mcp.run()
@@ -570,6 +475,7 @@ def _entrada(
     filename: str | None,
     path: str | None,
 ) -> tuple[bytes, str]:
+    """Bytes e nome do arquivo a partir de CSV, base64 ou caminho."""
     if data_csv is not None:
         conteudo, nome = data_csv.encode("utf-8"), "dados.csv"
     elif file_base64 is not None:
@@ -596,6 +502,7 @@ def _entrada(
 
 
 def _tabela(data_csv: str) -> Table:
+    """Lê o CSV recebido como Table."""
     try:
         return ler_dados_de_bytes(data_csv.encode("utf-8"), "dados.csv")
     except ValueError as erro:
@@ -616,6 +523,7 @@ def _analisar(
     coluna_ordem: str | None = None,
     coluna_bloco: str | None = None,
 ) -> AnaliseDaTabela:
+    """Roda o fluxo comum de análise e converte erros para o MCP."""
     tabela = _tabela(data_csv)
     modelo: TipoModelo | None = None if tipo_modelo == "auto" else tipo_modelo
     try:
@@ -649,6 +557,7 @@ def _um_ajuste(
     coluna_ordem: str | None = None,
     coluna_bloco: str | None = None,
 ) -> AjusteResposta:
+    """Analisa uma resposta e devolve o seu ajuste."""
     feita = _analisar(
         data_csv,
         fatores,
@@ -665,6 +574,7 @@ def _um_ajuste(
 
 
 def _resultado(dados: dict[str, Any]) -> AnalysisResult:
+    """Valida o AnalysisResult recebido."""
     try:
         return AnalysisResult.model_validate(dados)
     except ValueError as erro:
@@ -675,13 +585,15 @@ def _resultado(dados: dict[str, Any]) -> AnalysisResult:
 
 
 def _json(modelo: BaseModel | None) -> dict[str, Any] | None:
-    """Um modelo do contrato em JSON puro (o que o assistente recebe)."""
+    """Modelo do contrato em JSON puro."""
     return None if modelo is None else _dict(modelo)
 
 
 def _dict(modelo: BaseModel, incluir: set[str] | None = None) -> dict[str, Any]:
+    """Modelo do contrato como dicionário JSON."""
     return modelo.model_dump(mode="json", include=incluir)
 
 
 def _contexto(contexto: str) -> str:
+    """Linha de contexto do usuário para os prompts."""
     return f"\nContexto do usuário: {contexto}" if contexto.strip() else ""

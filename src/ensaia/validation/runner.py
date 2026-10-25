@@ -1,10 +1,5 @@
-"""Executa a validação sobre todos os casos de estudo — §4.3 do pré-projeto.
-
-Ponto de entrada: `uv run ensaia-validar`.
-
-Este é o script que produz o capítulo de resultados do TCC. A saída dele
-precisa ser reproduzível a partir do repositório limpo: mesmos casos, mesmo
-código, mesmas tabelas.
+"""Comando ensaia-validar: roda a validação em todos os casos de estudo.
+Compara com os valores publicados e grava os resultados de cada caso.
 """
 
 from __future__ import annotations
@@ -33,13 +28,12 @@ from ensaia.validation import metrics
 
 RAIZ_CASOS = Path(__file__).resolve().parents[3] / "casos_de_estudo"
 
-# α fixado no §4.3(b) / ADR 0003. A significância do EnsaIA é avaliada neste
-# nível e é também o nível do intervalo de confiança reportado.
+# α fixado no §4.3(b) e na ADR 0003.
 ALFA = metrics.ALFA_SIGNIFICANCIA
 
 
 def listar_casos(raiz: Path = RAIZ_CASOS) -> list[Path]:
-    """Casos aptos à execução, excluindo template e transcrições em rascunho."""
+    """Casos prontos para rodar, sem modelo nem rascunhos."""
     if not raiz.exists():
         return []
     return sorted(
@@ -53,22 +47,7 @@ def listar_casos(raiz: Path = RAIZ_CASOS) -> list[Path]:
 
 
 def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, Any]:
-    """Roda o pipeline determinístico num caso e aplica as métricas do §4.3.
-
-    Monta o `AnalysisResult` a partir do ajuste OLS e compara com os valores
-    publicados em `referencia.yaml` pelos critérios (a) erro relativo dos
-    coeficientes, (b) concordância de significância e (c) diferença de R². O
-    critério (d), condição ótima, só é avaliado quando a desejabilidade produz
-    um ponto ótimo (issue #6); até lá `diferenca_condicao_otima` retorna
-    inaplicável, em vez de inventar uma comparação.
-
-    Quando `referencia.yaml` contém `termos_modelo`, a lista é usada sem
-    alterações. Isso é essencial para artigos que selecionaram um modelo
-    reduzido, como o 2FI de Go et al. (2022).
-
-    `executado_em` é repassado ao resultado para rastreabilidade; fica fora da
-    serialização quando None, mantendo o JSON reproduzível byte a byte em teste.
-    """
+    """Roda a análise de um caso e aplica as métricas do §4.3."""
     referencia = _ler_referencia(caso / "referencia.yaml")
     dados = ler_dados(caso / "dados.csv")
     planejamento = _montar_planejamento(referencia)
@@ -80,8 +59,7 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
     if not isinstance(respostas, dict) or not respostas:
         raise ValueError(f"{caso.name}: 'respostas' deve conter ao menos uma resposta.")
 
-    # O mesmo pipeline da interface (fonte única da conta); aqui os parâmetros
-    # vêm de referencia.yaml em vez de serem inferidos dos dados.
+    # O mesmo pipeline da tela, com parâmetros do referencia.yaml.
     try:
         analise: AnalysisResult = analisar(
             dados,
@@ -91,9 +69,7 @@ def validar_caso(caso: Path, *, executado_em: str | None = None) -> dict[str, An
             versao_ensaia=__version__,
             alfa=ALFA,
             executado_em=executado_em,
-            # Reproduzir o termo de erro do artigo é essencial para comparar os
-            # testes t (spec §9): Statistica e artigos brasileiros costumam usar
-            # o erro puro; o padrão segue o resíduo.
+            # Termo de erro do artigo (Statistica costuma usar o erro puro).
             termo_erro=_termo_erro(referencia),
             objetivos=_objetivos(referencia),
         )
@@ -116,7 +92,7 @@ def _aplicar_metricas(
     referencia: dict[str, Any],
     planejamento: Planejamento,
 ) -> tuple[dict[str, dict[str, Any]], metrics.ResultadoCondicaoOtima]:
-    """Aplica os critérios (a)–(d) do §4.3 contra os valores publicados."""
+    """Aplica os critérios (a) a (d) contra os valores publicados."""
     respostas_ref = referencia["respostas"]
     por_resposta: dict[str, dict[str, Any]] = {}
     for nome_resposta, ref in respostas_ref.items():
@@ -124,8 +100,7 @@ def _aplicar_metricas(
         coefs_ref = {
             str(t): float(v) for t, v in (ref.get("coeficientes") or {}).items()
         }
-        # Termos sem significância publicada (null) ficam fora da taxa: não dá
-        # para concordar ou discordar de uma classificação que o artigo não deu.
+        # Termos sem significância publicada ficam fora da taxa.
         sig_ref = {
             str(t): bool(v)
             for t, v in (ref.get("significancia") or {}).items()
@@ -154,13 +129,7 @@ def _aplicar_metricas(
 
 
 def _exigir_grandeza_suportada(nome_caso: str, referencia: dict[str, Any]) -> None:
-    """A comparação do §4.3(a) é coeficiente-a-coeficiente.
-
-    Converter efeito (−1 → +1) em coeficiente (centro → +1) só é um fator de 2
-    para termos lineares e de interação em escala codificada; para o intercepto
-    e termos quadráticos não é. Em vez de aplicar a regra errada em silêncio,
-    falha alto até o caso que precise disso existir de fato.
-    """
+    """Recusa casos que publicam efeitos em vez de coeficientes."""
     grandeza = referencia.get("grandeza_reportada", "coeficiente")
     if grandeza == "efeito":
         raise ValueError(
@@ -176,6 +145,7 @@ def _exigir_grandeza_suportada(nome_caso: str, referencia: dict[str, Any]) -> No
 
 
 def _ler_referencia(caminho: Path) -> dict[str, Any]:
+    """Lê o referencia.yaml do caso."""
     if not caminho.exists():
         raise FileNotFoundError(f"Referência do caso não encontrada: {caminho}")
     with caminho.open(encoding="utf-8") as arquivo:
@@ -188,6 +158,7 @@ def _ler_referencia(caminho: Path) -> dict[str, Any]:
 
 
 def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
+    """Monta o planejamento a partir do referencia.yaml."""
     tipo = referencia.get("tipo_planejamento")
     if tipo not in get_args(TipoPlanejamento):
         raise ValueError(f"tipo_planejamento inválido: {tipo!r}.")
@@ -208,9 +179,7 @@ def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
             ) from erro
         fatores.append(Fator(nome, minimo, maximo, str(faixa.get("unidade", ""))))
 
-    # O α axial define até onde vai a região estudada (e a busca do ótimo, que
-    # na tela vai até ±α). Sem `alfa_axial` no arquivo, um composto central usa
-    # o rotacional (2^k)^(1/4), que é o que faz dele um DCCR.
+    # Sem alfa_axial, o composto central usa o α rotacional.
     alfa = referencia.get("alfa_axial")
     if alfa is None and tipo == "composto_central":
         alfa = (2 ** len(fatores)) ** 0.25
@@ -222,7 +191,7 @@ def _montar_planejamento(referencia: dict[str, Any]) -> Planejamento:
 
 
 def _objetivos(referencia: dict[str, Any]) -> dict[str, Sentido] | None:
-    """Sentido da otimização por resposta, para comparar o ótimo (§4.3 d)."""
+    """Sentido da otimização de cada resposta."""
     bruto = (referencia.get("condicao_otima") or {}).get("objetivos")
     if not bruto:
         return None
@@ -238,6 +207,7 @@ def _objetivos(referencia: dict[str, Any]) -> dict[str, Sentido] | None:
 
 
 def _termo_erro(referencia: dict[str, Any]) -> TermoErro:
+    """Termo de erro pedido pelo caso."""
     termo = referencia.get("termo_erro", "residuo")
     if termo not in get_args(TermoErro):
         raise ValueError(
@@ -247,6 +217,7 @@ def _termo_erro(referencia: dict[str, Any]) -> TermoErro:
 
 
 def _termos_publicados(referencia: dict[str, Any], fatores: list[str]) -> list[str]:
+    """Termos do modelo do caso (padrão: quadrático completo)."""
     termos = referencia.get("termos_modelo")
     if termos is None:
         return termos_do_modelo(fatores)
@@ -260,12 +231,7 @@ def _termos_publicados(referencia: dict[str, Any], fatores: list[str]) -> list[s
 
 
 def gravar_resultados(caso: Path, resultado: dict[str, Any]) -> list[Path]:
-    """Grava `resultados/analysis_result.json` e `resultados/metricas_validacao.json`.
-
-    Separado de `validar_caso` de propósito: a validação é pura e testável sem
-    tocar no disco; a gravação é o único ponto de escrita. Os JSONs são a
-    evidência versionada do capítulo de resultados (passo 2 do protocolo).
-    """
+    """Grava o resultado e as métricas em JSON na pasta do caso."""
     destino = caso / "resultados"
     destino.mkdir(exist_ok=True)
 
@@ -289,16 +255,7 @@ def gravar_resultados(caso: Path, resultado: dict[str, Any]) -> list[Path]:
 
 
 def _relatorio_m0_md(resultado: dict[str, Any]) -> str | None:
-    """Relatório textual do caso em Markdown, no modo M0, ou None sem a camada de IA.
-
-    M0 é determinístico e offline: o texto são os próprios fatos verificados do
-    núcleo, sem chamar modelo nenhum (ADR 0001, spec §12.2). Fica versionado
-    junto dos JSONs como evidência do fim-a-fim — dos números do código ao texto
-    — e é reproduzível byte a byte.
-
-    A camada de IA é um extra opcional (`ensaia[llm]`); num install só do núcleo
-    ela não existe, e aí a validação segue sem o relatório, em vez de quebrar.
-    """
+    """Relatório em texto sem IA do caso, em Markdown."""
     try:
         from ensaia.ai.report import gerar_relatorio
     except ImportError:
@@ -315,7 +272,7 @@ def _relatorio_m0_md(resultado: dict[str, Any]) -> str | None:
 
 
 def _metricas_para_dict(resultado: dict[str, Any]) -> dict[str, Any]:
-    """Serializa as métricas do §4.3 num JSON autoexplicativo."""
+    """Métricas do §4.3 como dicionário para JSON."""
     return {
         "caso": resultado["caso"],
         "schema_version": SCHEMA_VERSION,
@@ -334,12 +291,7 @@ def _metricas_para_dict(resultado: dict[str, Any]) -> dict[str, Any]:
 
 
 def _dentro_das_tolerancias(resultado: dict[str, Any]) -> bool:
-    """Verdadeiro se todas as respostas passam nos critérios (a), (b) e (c).
-
-    (d) fica de fora porque depende da desejabilidade (issue #6) e, até lá, é
-    sempre inaplicável — exigi-lo reprovaria todo caso por algo ainda não
-    implementado.
-    """
+    """Diz se todas as respostas passam em (a), (b) e (c)."""
     for metricas in resultado["metricas"].values():
         if metricas["erro_coeficientes"].proporcao_dentro_tolerancia < 1.0:
             return False
@@ -351,8 +303,8 @@ def _dentro_das_tolerancias(resultado: dict[str, Any]) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    # Console Windows em cp1252 quebra em símbolos como 'Δ' e '§'; a saída do
-    # relatório é em português e usa esses caracteres, então força UTF-8.
+    # Força UTF-8 no console do Windows.
+    """Ponto de entrada do comando ensaia-validar."""
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
@@ -435,6 +387,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _fmt(valor: float | None) -> str:
+    """Número com 4 casas ou n/d."""
     return f"{valor:.4f}" if valor is not None else "n/d"
 
 

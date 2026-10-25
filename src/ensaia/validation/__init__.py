@@ -1,4 +1,6 @@
-"""Validação do pipeline contra valores publicados — §4.3 do pré-projeto."""
+"""Validação do EnsaIA contra valores publicados (§4.3 do pré-projeto).
+Métricas, fidelidade do texto e o runner dos casos de estudo.
+"""
 
 from ensaia.validation.metrics import (
     comparacao_r2,

@@ -1,18 +1,5 @@
-"""Métricas de validação estatística — implementa o §4.3 do pré-projeto.
-
-Cada função aqui corresponde a um item literal da seção "4.3 Validação
-Estatística" do pré-projeto assinado. Os limiares NÃO são escolha de
-implementação: foram fixados no documento entregue à orientadora, e mudá-los
-sem mudar o documento quebra a correspondência entre o que o TCC promete e o
-que o código faz.
-
-    (a) Erro relativo percentual dos coeficientes  → tolerância 5%
-    (b) Concordância de significância estatística  → alfa 0,05
-    (c) Comparação de R² e R² ajustado             → tolerância 0,01
-    (d) Diferença nas condições ótimas             → absoluta e % da faixa
-
-O item (e) — fidelidade dos relatórios do LLM — vive em fidelity.py, porque
-depende de julgamento humano item a item e não é aritmética.
+"""Métricas de validação do §4.3: coeficientes, significância, R² e ótimo.
+Os limiares vêm do pré-projeto e não mudam sem mudar o documento.
 """
 
 from __future__ import annotations
@@ -31,6 +18,8 @@ TOLERANCIA_R2 = 0.01  # §4.3(c), em valor absoluto de R²
 
 @dataclass(frozen=True)
 class ComparacaoCoeficiente:
+    """Comparação de um coeficiente com o valor publicado."""
+
     termo: str
     valor_ensaia: float
     valor_referencia: float
@@ -41,7 +30,7 @@ class ComparacaoCoeficiente:
 
 @dataclass(frozen=True)
 class ResultadoErroCoeficientes:
-    """§4.3(a)"""
+    """Resultado do critério (a): erro relativo dos coeficientes."""
 
     comparacoes: list[ComparacaoCoeficiente]
     erro_relativo_medio_pct: float | None
@@ -58,19 +47,7 @@ def erro_relativo_coeficientes(
     *,
     tolerancia_pct: float = TOLERANCIA_ERRO_RELATIVO,
 ) -> ResultadoErroCoeficientes:
-    """§4.3(a) — erro relativo percentual de cada coeficiente estimado.
-
-    O erro relativo é indefinido quando o valor de referência é zero; nesse
-    caso `erro_relativo_pct` vem None e a comparação é marcada com uma
-    observação, em vez de virar infinito e contaminar a média. Isso acontece
-    de verdade: artigos frequentemente reportam coeficientes não significativos
-    como 0.
-
-    Coeficientes presentes num lado e ausentes no outro NÃO entram na média —
-    seriam uma comparação sem par. Eles são reportados à parte, porque uma
-    divergência de *quais* termos entraram no modelo é um achado por si só, e
-    normalmente mais interessante que o erro numérico.
-    """
+    """Erro relativo de cada coeficiente contra o publicado."""
     ajuste = resultado.ajuste(resposta)
     estimados = {c.termo: c.estimativa for c in ajuste.coeficientes}
 
@@ -130,7 +107,7 @@ def erro_relativo_coeficientes(
 
 @dataclass(frozen=True)
 class ResultadoConcordanciaSignificancia:
-    """§4.3(b)"""
+    """Resultado do critério (b): concordância de significância."""
 
     taxa_concordancia: float
     n_concordantes: int
@@ -143,22 +120,7 @@ def concordancia_significancia(
     resposta: str,
     significancia_referencia: dict[str, bool],
 ) -> ResultadoConcordanciaSignificancia:
-    """§4.3(b) — taxa de concordância na classificação de significância.
-
-    Taxa = nº de termos com classificação coincidente / nº total de termos
-    avaliados, exatamente como definido no documento.
-
-    Um termo presente na referência mas ausente do modelo do EnsaIA conta como
-    divergência (e não é simplesmente ignorado): se o artigo considerou o termo
-    e o EnsaIA nem o incluiu, isso é discordância de fato, e varrer para debaixo
-    do tapete inflaria artificialmente a taxa.
-
-    O intercepto fica de fora: a concordância de significância do §4.3(b) é
-    sobre *quais efeitos são significativos*, e o intercepto (a média geral) não
-    é um efeito de fator. Os artigos de DOE não o classificam, e incluí-lo só
-    criaria uma divergência artificial contra uma referência que, corretamente,
-    o deixa em branco.
-    """
+    """Taxa de termos com a mesma classificação de significância."""
     ajuste = resultado.ajuste(resposta)
     obtido = {
         c.termo: c.significativo for c in ajuste.coeficientes if c.termo != INTERCEPTO
@@ -200,7 +162,7 @@ def concordancia_significancia(
 
 @dataclass(frozen=True)
 class ResultadoComparacaoR2:
-    """§4.3(c)"""
+    """Resultado do critério (c): diferença de R²."""
 
     r2_ensaia: float
     r2_referencia: float | None
@@ -219,12 +181,7 @@ def comparacao_r2(
     *,
     tolerancia: float = TOLERANCIA_R2,
 ) -> ResultadoComparacaoR2:
-    """§4.3(c) — diferença absoluta de R² e R² ajustado.
-
-    Aceita referência ausente porque é comum: muitos artigos reportam R² e
-    omitem o ajustado. Nesse caso a diferença correspondente vem None e não
-    entra no julgamento de tolerância.
-    """
+    """Diferença de R² e R² ajustado contra o publicado."""
     ajuste = resultado.ajuste(resposta)
 
     dif_r2 = abs(ajuste.r2 - r2_referencia) if r2_referencia is not None else None
@@ -250,6 +207,8 @@ def comparacao_r2(
 
 @dataclass(frozen=True)
 class DiferencaFator:
+    """Diferença de um fator entre os ótimos."""
+
     fator: str
     valor_ensaia: float
     valor_referencia: float
@@ -259,7 +218,7 @@ class DiferencaFator:
 
 @dataclass(frozen=True)
 class ResultadoCondicaoOtima:
-    """§4.3(d)"""
+    """Resultado do critério (d): diferença da condição ótima."""
 
     diferencas: list[DiferencaFator]
     aplicavel: bool
@@ -271,14 +230,7 @@ def diferenca_condicao_otima(
     condicao_referencia: dict[str, float],
     faixas_experimentais: dict[str, tuple[float, float]] | None = None,
 ) -> ResultadoCondicaoOtima:
-    """§4.3(d) — diferença entre a condição ótima do EnsaIA e a publicada.
-
-    Expressa em termos absolutos e, quando `faixas_experimentais` é fornecida,
-    também como percentual da faixa de cada fator. O percentual é o número que
-    de fato importa: 2 unidades de diferença numa faixa de 10 é muito, numa
-    faixa de 1000 é ruído — e sem normalizar pela faixa, fatores em escalas
-    diferentes não são comparáveis entre si.
-    """
+    """Diferença entre o ótimo do EnsaIA e o publicado."""
     if resultado.ponto_otimo is None:
         return ResultadoCondicaoOtima(
             diferencas=[],

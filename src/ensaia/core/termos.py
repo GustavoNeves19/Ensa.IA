@@ -1,20 +1,5 @@
-"""Quais termos entram no modelo: tipo, exclusões, confundimento e redução.
-
-Spec §4 (opções avançadas) e §9 (regras gerais):
-
-- **Tipo de modelo:** linear, com interações de 2ª ordem ou quadrático. Por
-  padrão, quadrático quando todos os fatores têm 3 ou mais níveis (há como
-  estimar curvatura) e com interações nos planejamentos de 2 níveis.
-- **Graus de liberdade:** se o modelo pedido não deixa sobra para o resíduo, ele
-  é rebaixado (quadrático → interações → linear), com aviso.
-- **Confundimento:** numa fração 2^(k−p), interações aparecem confundidas entre
-  si (a coluna de x1·x2 é igual à de x3·x4). Os termos redundantes saem do
-  modelo com aviso, em vez de travar a análise com matriz singular.
-- **Exclusão manual:** o usuário pode tirar termos para reproduzir o modelo de
-  um artigo. Tirar o termo linear de um fator que segue numa interação ou num
-  quadrático viola a hierarquia: avisa, não bloqueia (spec §9).
-- **Redução backward:** "remover termos não significativos e reajustar", um de
-  cada vez (o de maior p), respeitando a hierarquia.
+"""Escolha dos termos do modelo: tipo, exclusões, confundimento e redução.
+Rebaixa o modelo sem g.l., tira termos confundidos e faz a redução backward.
 """
 
 from __future__ import annotations
@@ -46,7 +31,7 @@ NOME_MODELO: dict[TipoModelo, str] = {
 
 @dataclass(frozen=True)
 class SelecaoTermos:
-    """Os termos escolhidos, o tipo efetivo e o que foi preciso avisar."""
+    """Termos escolhidos, tipo efetivo e avisos."""
 
     termos: list[str]
     tipo_modelo: TipoModelo
@@ -56,11 +41,7 @@ class SelecaoTermos:
 def termos_do_tipo(
     niveis_por_fator: dict[str, int], tipo: TipoModelo
 ) -> list[str]:
-    """Termos canônicos de um tipo de modelo, na ordem estável do núcleo.
-
-    Quadráticos só para fatores com 3 ou mais níveis: com 2 níveis, x² é uma
-    coluna de 1 (igual ao intercepto) e não há curvatura a estimar.
-    """
+    """Termos de um tipo de modelo (linear, interações, quadrático)."""
     nomes = list(niveis_por_fator)
     termos = [INTERCEPTO, *nomes]
     if tipo == "quadratico":
@@ -71,16 +52,7 @@ def termos_do_tipo(
 
 
 def tipo_padrao(tipo_planejamento: str | None = None) -> TipoModelo:
-    """Quadrático só para o DCCR reconhecido; senão, com interações.
-
-    Contar níveis por fator não basta para saber se a curvatura é estimável:
-    um fatorial de 2 níveis com pontos centrais também tem 3 valores por fator
-    (−1, 0, +1), mas todas as colunas x² saem iguais (1 nos vértices, 0 no
-    centro) — colineares entre si, sem informação para separar a curvatura de
-    um fator da de outro. Como este sistema só reconhece o DCCR (ADR 0013), o
-    padrão quadrático fica restrito a ele; qualquer outra geometria —
-    reconhecida ou não — usa o modelo com interações.
-    """
+    """Tipo de modelo padrão: quadrático no DCCR, senão com interações."""
     if tipo_planejamento == "composto_central":
         return "quadratico"
     return "interacoes"
@@ -94,13 +66,7 @@ def escolher_termos(
     excluidos: Sequence[str] = (),
     blocos: Blocos | None = None,
 ) -> SelecaoTermos:
-    """Termos do modelo para os dados, com rebaixamento e limpeza de confundidos.
-
-    Com `blocos`, as colunas de bloco entram na conta: um termo que é
-    combinação dos blocos (confundido com eles, como a interação tripla de um
-    fatorial 2³ dividido em blocos de 4) sai do modelo com aviso, e os graus de
-    liberdade gastos com os blocos contam na hora de ver se o modelo cabe.
-    """
+    """Termos do modelo, com rebaixamento e limpeza de confundidos."""
     n_colunas_bloco = blocos.n_blocos - 1 if blocos is not None else 0
     niveis = {
         f.nome: len(np.unique(np.round(tabela.coluna(f.nome), 9)))
@@ -169,7 +135,7 @@ def escolher_termos(
 
 
 def _avisos_hierarquia(termos: list[str]) -> list[str]:
-    """Fatores usados em termos de ordem superior sem o próprio termo linear."""
+    """Avisa fatores usados em termos superiores sem o termo linear."""
     lineares = set(termos)
     orfaos = sorted(
         {
@@ -191,6 +157,7 @@ def _avisos_hierarquia(termos: list[str]) -> list[str]:
 
 
 def _ordem_superior(termo: str) -> bool:
+    """Diz se o termo é quadrático ou interação."""
     partes = interpretar_termo(termo)
     return len(partes) > 1 or (len(partes) == 1 and partes[0][1] > 1)
 
@@ -206,16 +173,7 @@ def reduzir_backward(
     gl_erro: int | None = None,
     blocos: Blocos | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Elimina, um a um, o termo não significativo de maior p, e reajusta.
-
-    Respeita a hierarquia: o termo linear de um fator que ainda está numa
-    interação ou num quadrático não sai. Os blocos, se houver, ficam sempre no
-    modelo (nunca são candidatos a sair). O teste usa o mesmo termo de erro da
-    análise (`qm_erro`/`gl_erro` do erro puro, se for o caso); o erro puro não
-    muda entre os modelos, porque só depende das réplicas.
-
-    Devolve (mantidos, descartados), na ordem original.
-    """
+    """Remove o termo não significativo de maior p e reajusta, em ciclo."""
     atuais = list(termos)
     descartados: list[str] = []
     while True:

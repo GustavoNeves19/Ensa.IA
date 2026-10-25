@@ -1,23 +1,5 @@
-"""Contrato de saída do núcleo determinístico.
-
-Este módulo define `AnalysisResult` e seus tipos auxiliares. Ele é a
-**fronteira arquitetural** do EnsaIA: tudo que o núcleo estatístico calcula sai
-por aqui, e tudo que a camada de LLM narra entra por aqui.
-
-Por que isso importa (e por que estes tipos são congelados):
-
-A hipótese de trabalho do TCC é que um pipeline determinístico acoplado a uma
-camada de LLM produz resultados *estatisticamente equivalentes* aos de
-softwares pagos. Essa afirmação só se sustenta se o LLM não puder alterar
-número nenhum. `AnalysisResult` é `frozen`, serializável e auto-contido
-justamente para que a camada narrativa receba os resultados como dado morto,
-sem meio de recalcular ou "corrigir" nada.
-
-São modelos Pydantic v2 (spec, seção 10): além de congelados, validam os tipos
-na construção, então um JSON malformado vindo de uma ferramenta MCP ou de um
-arquivo de resultado é rejeitado com erro claro, não propagado silenciosamente.
-
-Ver docs/decisoes/0001-fronteira-deterministica-llm.md.
+"""Contrato de saída do núcleo (AnalysisResult), em Pydantic congelado.
+Tela, PDF, IA e MCP só leem este objeto; ninguém recalcula nada.
 """
 
 from __future__ import annotations
@@ -27,23 +9,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Versão do esquema de serialização. Incrementar a parte maior sempre que a
-# forma de AnalysisResult mudar de modo incompatível — os arquivos de resultado
-# guardados em resultados/ e os valores de referência dos casos de estudo
-# dependem disso para continuarem legíveis. A parte menor sobe quando só se
-# acrescentam campos opcionais (1.1: t crítico e diagnóstico por ensaio; 1.2:
-# informações do planejamento; 1.3: ANOVA da regressão, R² de predição,
-# equação e opções do modelo; 1.4: ponto estacionário e ótimo em unidades
-# reais; 1.5: efeitos de fatorial, pontos influentes e estatística
-# descritiva; 1.6: análises marcadas; 1.7: blocos); um JSON 1.0 continua
-# sendo lido.
+# Versão do esquema: a maior sobe com mudança incompatível; a menor, com campo novo.
 SCHEMA_VERSION = "1.7"
 
-# O EnsaIA reconhece hoje só o delineamento composto central rotacional
-# (DCCR) — ver ADR 0013. Outras geometrias (fatorial 2^k, fatorial fracionado,
-# Box-Behnken, fatorial 3^k, composto central não rotacional) voltam de
-# `identificar_planejamento` como "desconhecido", com um aviso explicando o
-# porquê; generalizar para outros tipos é trabalho futuro, não suporte atual.
+# Só o DCCR é reconhecido (ADR 0013); o resto volta como desconhecido.
 TipoPlanejamento = Literal[
     "composto_central",
     "desconhecido",
@@ -59,9 +28,7 @@ Sentido = Literal["maximizar", "minimizar", "alvo"]
 
 # Opções do modelo (spec §4, passo 4, "opções avançadas").
 TipoModelo = Literal["linear", "interacoes", "quadratico"]
-# Termo de erro dos testes t e F: o resíduo (tipo Minitab) ou o erro puro das
-# réplicas (comum no Statistica e em artigos brasileiros). Essencial para
-# comparar com um Artigo Alvo: usar o mesmo termo que o artigo usou.
+# Termo de erro dos testes t e F: resíduo ou erro puro.
 TermoErro = Literal["residuo", "erro_puro"]
 
 
@@ -72,12 +39,7 @@ class _Congelado(BaseModel):
 
 
 class Coeficiente(_Congelado):
-    """Um termo do modelo de regressão ajustado.
-
-    `termo` usa notação canônica para que a comparação com valores publicados
-    seja possível sem heurística de string: "Intercepto", "x1", "x1^2",
-    "x1:x2". A ordem dos fatores numa interação é sempre crescente.
-    """
+    """Um termo do modelo: estimativa, erro, t, p e intervalo."""
 
     termo: str
     estimativa: float
@@ -101,13 +63,7 @@ class LinhaAnova(_Congelado):
 
 
 class FaltaDeAjuste(_Congelado):
-    """Teste de falta de ajuste (lack-of-fit).
-
-    Só é calculável quando o planejamento tem repetições genuínas — em geral
-    os pontos centrais. Quando não há, `aplicavel` é False e o resto é None:
-    isso é informação, não falha, e a camada narrativa precisa saber a
-    diferença entre "não houve falta de ajuste" e "não deu para testar".
-    """
+    """Resultado do teste de falta de ajuste (ou por que não se aplica)."""
 
     aplicavel: bool
     soma_quadrados_falta: float | None = None
@@ -121,14 +77,7 @@ class FaltaDeAjuste(_Congelado):
 
 
 class PontoOtimo(_Congelado):
-    """Condição ótima (spec §9, E4 e E5).
-
-    `coordenadas` estão em **unidades reais** — é como o artigo publica a
-    condição ótima e como o usuário vai ajustar o equipamento;
-    `coordenadas_codificadas` são as mesmas na escala do modelo. `metas` diz o
-    que se pediu de cada resposta (maximizar, minimizar, alvo) e `metodo`
-    distingue a otimização direta de uma resposta da desejabilidade.
-    """
+    """Condição ótima, previsões e desejabilidade."""
 
     coordenadas: dict[str, float]
     resposta_prevista: dict[str, float]
@@ -141,13 +90,7 @@ class PontoOtimo(_Congelado):
 
 
 class PontoEstacionario(_Congelado):
-    """Ponto estacionário do modelo quadrático e sua natureza (spec §9, E3).
-
-    `x_s = −½·B⁻¹·b`. Os autovalores de B dizem a forma da superfície ali:
-    todos negativos → máximo; todos positivos → mínimo; sinais mistos → sela
-    (nem máximo nem mínimo). `dentro_da_regiao` avisa quando o ponto cai fora
-    da região experimental — o modelo não deve ser extrapolado até lá.
-    """
+    """Ponto estacionário do modelo quadrático e sua natureza."""
 
     codificado: dict[str, float]
     real: dict[str, float]
@@ -158,21 +101,7 @@ class PontoEstacionario(_Congelado):
 
 
 class AnovaRegressao(_Congelado):
-    """ANOVA da regressão como a literatura de DOE apresenta (spec §9, C2).
-
-    Linhas: Regressão, Resíduo, Falta de ajuste e Erro puro (quando há réplicas)
-    e Total. `f_tabelado` é o F crítico da regressão no nível α; `razao_f` é
-    F calculado / F tabelado, o mesmo teste F de significância (eq. 5.31,
-    BARROS NETO; SCARMINIO; BRUNS, 2010, p. 237) expresso como razão — razão
-    > 1 é equivalente a `regressao_significativa=True`.
-
-    `util_para_previsao` é um critério mais exigente, distinto da
-    significância: Box e Wetz (1973) apud Barros Neto, Scarminio e Bruns
-    (2010, p. 238) mostram que uma regressão pode ser significativa e ainda
-    assim não servir para prever — só é útil para previsão quando `razao_f`
-    é de uma ordem de grandeza (≈10×) maior que 1. `None` quando `razao_f`
-    não pôde ser calculado (sem graus de liberdade para a regressão).
-    """
+    """ANOVA da regressão no formato da literatura, com F tabelado."""
 
     linhas: list[LinhaAnova]
     f_tabelado: float | None = None
@@ -182,14 +111,7 @@ class AnovaRegressao(_Congelado):
 
 
 class Equacao(_Congelado):
-    """Equação do modelo ajustado (spec §9, C5), já formatada em pt-BR.
-
-    `codificada` usa X1, X2… (ver `variaveis`) e é a escala em que os artigos
-    publicam os coeficientes. `real` é a mesma superfície reescrita nas unidades
-    dos fatores, para prever direto com os valores do laboratório.
-    `significativos` é a codificada só com os termos significativos (sem
-    reajuste). `coeficientes_reais` traz os números da forma real por termo.
-    """
+    """Equação do modelo, codificada e em unidades reais."""
 
     codificada: str
     real: str
@@ -199,20 +121,7 @@ class Equacao(_Congelado):
 
 
 class Diagnostico(_Congelado):
-    """Valores por ensaio e normalidade dos resíduos (spec §9: C6, D1, D2).
-
-    As três listas estão na ordem das linhas da planilha, para que "ensaio 7"
-    signifique a mesma coisa na tela, no PDF e no JSON. É daqui que saem os
-    gráficos de preditos × observados, resíduos × preditos e Q-Q: a interface
-    só desenha estes números, não os recalcula.
-
-    `shapiro_w`/`shapiro_p` ficam None quando o teste não se aplica (menos de 3
-    ensaios ou resíduos todos iguais, como num ajuste exato) — o motivo vai em
-    `motivo_sem_shapiro`, para a interface dizer "não deu para testar" em vez
-    de inventar normalidade. `normalidade_rejeitada` é a decisão no nível α
-    (p < α), tomada aqui pelo mesmo motivo que `Coeficiente.significativo`: quem
-    decide é o núcleo, a tela só mostra.
-    """
+    """Resíduos por ensaio, normalidade e influência."""
 
     observados: list[float]
     preditos: list[float]
@@ -223,24 +132,17 @@ class Diagnostico(_Congelado):
     motivo_sem_shapiro: str | None = None
     # D3: ordem de execução de cada ensaio, quando a planilha a informa.
     ordem: list[float] | None = None
-    # D4: alavancagem hᵢᵢ, resíduo studentizado (interno) e distância de Cook.
-    # None num ensaio com hᵢᵢ = 1 (o modelo passa obrigatoriamente por ele).
+    # D4: alavancagem, resíduo studentizado e distância de Cook.
     alavancagem: list[float] = Field(default_factory=list)
     residuos_studentizados: list[float | None] = Field(default_factory=list)
     distancia_cook: list[float | None] = Field(default_factory=list)
-    # Ensaios (contando de 1) influentes (Cook > 1 e hᵢᵢ > 2p/n) e possíveis
-    # outliers (|R-student| > 3). Regras em core/diagnostico.py.
+    # Ensaios influentes e possíveis outliers (contando de 1).
     ensaios_influentes: list[int] = Field(default_factory=list)
     possiveis_outliers: list[int] = Field(default_factory=list)
 
 
 class Efeito(_Congelado):
-    """Efeito de um termo num fatorial de 2 níveis (spec §9, B1).
-
-    Efeito = 2 × coeficiente codificado: a variação média da resposta quando o
-    fator vai do nível −1 ao +1 (o coeficiente mede só do centro ao +1). O t e
-    o p são os mesmos do coeficiente.
-    """
+    """Efeito de um termo num fatorial de 2 níveis."""
 
     termo: str
     efeito: float
@@ -252,11 +154,7 @@ class Efeito(_Congelado):
 
 
 class AnaliseLenth(_Congelado):
-    """Método de Lenth (1989) para fatoriais sem réplicas (spec §9, B3).
-
-    PSE é o pseudo erro-padrão estimado dos próprios efeitos; ME e SME são as
-    margens de erro individual e simultânea. Efeito com |e| > ME é ativo.
-    """
+    """Resultado do método de Lenth para fatoriais sem réplicas."""
 
     pse: float
     me: float
@@ -265,12 +163,7 @@ class AnaliseLenth(_Congelado):
 
 
 class TesteCurvatura(_Congelado):
-    """Curvatura no fatorial com pontos centrais (spec §9, B5).
-
-    Compara a média dos vértices com a dos pontos centrais. Curvatura
-    significativa diz que o modelo linear não basta e que vale ampliar o
-    planejamento (por exemplo, para um composto central).
-    """
+    """Teste de curvatura de um fatorial com pontos centrais."""
 
     aplicavel: bool
     media_fatorial: float | None = None
@@ -283,7 +176,7 @@ class TesteCurvatura(_Congelado):
 
 
 class MediasNivel(_Congelado):
-    """Médias da resposta em cada nível de um fator (gráfico de efeito, B4)."""
+    """Média da resposta em cada nível de um fator."""
 
     fator: str
     niveis: list[float]
@@ -291,11 +184,7 @@ class MediasNivel(_Congelado):
 
 
 class MediasInteracao(_Congelado):
-    """Médias em cada combinação de níveis de dois fatores (gráfico de interação).
-
-    `medias[j][i]` é a média com `fator_b` no nível `niveis_b[j]` e `fator_a`
-    no nível `niveis_a[i]`.
-    """
+    """Médias em cada combinação de níveis de dois fatores."""
 
     fator_a: str
     fator_b: str
@@ -305,7 +194,7 @@ class MediasInteracao(_Congelado):
 
 
 class EfeitosFatorial(_Congelado):
-    """Tudo o que o grupo B da spec entrega para um fatorial de 2 níveis."""
+    """Resultados do grupo B para um fatorial de 2 níveis."""
 
     efeitos: list[Efeito]
     lenth: AnaliseLenth | None = None
@@ -315,7 +204,7 @@ class EfeitosFatorial(_Congelado):
 
 
 class EstatisticaDescritiva(_Congelado):
-    """Resumo de uma resposta (spec §9, A1)."""
+    """Resumo de uma resposta (A1)."""
 
     resposta: str
     n: int
@@ -327,7 +216,7 @@ class EstatisticaDescritiva(_Congelado):
 
 
 class AjusteResposta(_Congelado):
-    """Resultado completo do ajuste para UMA variável resposta."""
+    """Resultado completo do ajuste de uma resposta."""
 
     resposta: str
     coeficientes: list[Coeficiente]
@@ -339,31 +228,24 @@ class AjusteResposta(_Congelado):
     graus_liberdade_residuo: int
     termos_incluidos: list[str]
     termos_descartados: list[str] = Field(default_factory=list)
-    # Limiar de |t| no nível α (bilateral): a linha de corte do Pareto (spec B2).
-    # None quando não sobra grau de liberdade para o resíduo.
+    # Limiar de |t| no nível α; None sem g.l. no resíduo.
     t_critico: float | None = None
     diagnostico: Diagnostico | None = None
     anova_regressao: AnovaRegressao | None = None
     r2_predicao: float | None = None
-    # (SQ_total − SQ_erro_puro) / SQ_total (BARROS NETO; SCARMINIO; BRUNS,
-    # 2010, p. 245-246): o teto que R² pode alcançar com réplicas genuínas,
-    # porque nenhum modelo reproduz o erro puro. Com repetições, comparar R²
-    # contra este teto é mais informativo que comparar contra 100%. `None`
-    # sem réplicas (mesma condição de `falta_de_ajuste.aplicavel`).
+    # R² máximo: (SQ total − SQ erro puro) / SQ total; None sem réplicas.
     r2_maximo: float | None = None
     equacao: Equacao | None = None
-    # Termo de erro efetivamente usado nos testes desta resposta (o pedido pode
-    # cair para o resíduo quando não há réplicas para o erro puro).
+    # Termo de erro efetivamente usado nesta resposta.
     termo_erro: TermoErro = "residuo"
     ponto_estacionario: PontoEstacionario | None = None
     efeitos_fatorial: EfeitosFatorial | None = None
-    # Com blocos: o efeito de cada bloco (quanto ele se afasta da média entre
-    # blocos; soma zero). Vazio quando a análise não tem blocos.
+    # Com blocos: o efeito de cada bloco (soma zero).
     efeitos_bloco: dict[str, float] = Field(default_factory=dict)
 
 
 class FatorCodificado(_Congelado):
-    """Como um fator foi codificado: `x_cod = (x_real − centro) / passo`."""
+    """Como um fator foi codificado (centro e passo)."""
 
     nome: str
     centro: float
@@ -372,12 +254,7 @@ class FatorCodificado(_Congelado):
 
 
 class InfoPlanejamento(_Congelado):
-    """A geometria do experimento (spec §10, seção `design`).
-
-    `alfa_axial` só existe no composto central (distância codificada dos pontos
-    axiais). `avisos` traz o que a identificação estranhou — níveis axiais
-    assimétricos, α fora do rotacional, fração irregular.
-    """
+    """Geometria do experimento: tipo, fatores, α, centros e avisos."""
 
     k: int
     n_ensaios: int
@@ -385,18 +262,13 @@ class InfoPlanejamento(_Congelado):
     alfa_axial: float | None = None
     fatores: list[FatorCodificado]
     avisos: list[str] = Field(default_factory=list)
-    # A coluna que agrupa os ensaios em blocos e quantos blocos há (None sem
-    # blocos). Ver `core/blocos.py`.
+    # Coluna de bloco e quantos blocos há (None sem blocos).
     coluna_bloco: str | None = None
     n_blocos: int | None = None
 
 
 class MetadadosExecucao(_Congelado):
-    """Tudo que é preciso para reproduzir esta análise.
-
-    Sem isto, um resultado guardado em resultados/ é um número órfão. Com
-    isto, qualquer pessoa da banca consegue refazer a mesma execução.
-    """
+    """Tudo o que é preciso para reproduzir a análise."""
 
     versao_ensaia: str
     schema_version: str = SCHEMA_VERSION
@@ -404,23 +276,16 @@ class MetadadosExecucao(_Congelado):
     tipo_modelo: TipoModelo | None = None
     termo_erro: TermoErro = "residuo"
     reducao_backward: bool = False
-    # Análises marcadas pelo usuário (IDs da spec §9, A1…E5). A tela, o PDF e
-    # o texto mostram só estas (RF-07, RF-11); o núcleo calcula o que é barato.
+    # Análises marcadas pelo usuário (IDs A1…E5).
     analises: list[str] = Field(default_factory=list)
     semente: int | None = None
     tempo_execucao_s: float | None = None
-    # Preenchido pelo chamador, não por relógio interno, para que o resultado
-    # continue reprodutível byte a byte em teste.
+    # Preenchido por quem chama, para o resultado ser reprodutível.
     executado_em: str | None = None
 
 
 class AnalysisResult(_Congelado):
-    """Saída completa e auto-contida do pipeline determinístico.
-
-    A camada de LLM recebe **este objeto e nada mais**. Se algum dado for
-    necessário para escrever o relatório e não estiver aqui, o lugar de
-    corrigir é o núcleo — nunca dar acesso extra ao LLM.
-    """
+    """Saída completa e autocontida do núcleo."""
 
     tipo_planejamento: TipoPlanejamento
     fatores: list[str]
@@ -433,7 +298,7 @@ class AnalysisResult(_Congelado):
     descritiva: list[EstatisticaDescritiva] = Field(default_factory=list)
 
     def ajuste(self, resposta: str) -> AjusteResposta:
-        """Recupera o ajuste de uma resposta pelo nome."""
+        """Busca o ajuste de uma resposta pelo nome."""
         for a in self.ajustes:
             if a.resposta == resposta:
                 return a
@@ -443,10 +308,10 @@ class AnalysisResult(_Congelado):
         )
 
     def to_dict(self) -> dict[str, Any]:
+        """Resultado como dicionário."""
         return self.model_dump()
 
     def to_json(self, *, indent: int = 2) -> str:
-        # Via json.dumps(model_dump()) de propósito: mantém o mesmo formato
-        # (indentação, ordem de campos, repr de float) dos resultados já
-        # versionados, para o diff de evidência não mudar sem a conta mudar.
+        # Mesmo formato dos resultados já versionados.
+        """Resultado como JSON, no formato dos arquivos versionados."""
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)

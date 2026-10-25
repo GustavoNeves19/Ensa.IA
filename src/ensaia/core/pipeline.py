@@ -1,12 +1,5 @@
-"""Monta um `AnalysisResult` a partir de dados + delineamento + termos.
-
-É o fim-a-fim determinístico do núcleo (matriz do modelo → OLS → coeficientes,
-ANOVA, falta de ajuste, diagnóstico e equação), empacotado no contrato congelado
-`AnalysisResult`.
-
-É a fonte única da conta para todas as portas: a interface web (que infere o
-delineamento dos próprios dados), a validação (`validation/runner.py`, que lê os
-parâmetros de `referencia.yaml`) e o servidor MCP. Todos chamam `analisar`.
+"""Fim a fim do núcleo: dados + planejamento + termos → AnalysisResult.
+Fonte única da conta para a tela, a validação e o MCP.
 """
 
 from __future__ import annotations
@@ -69,36 +62,7 @@ def analisar(
     alvos: Mapping[str, float] | None = None,
     coluna_bloco: str | None = None,
 ) -> AnalysisResult:
-    """Ajusta o modelo a cada resposta e devolve o resultado congelado.
-
-    `planejamento` traz os fatores e suas faixas (de onde sai a codificação
-    [-1, +1]); `termos` é a lista de termos do modelo (ex.: de
-    `termos.escolher_termos`); `respostas` são as colunas de resposta.
-
-    - `termo_erro="erro_puro"` usa o erro puro das réplicas nos testes t e F;
-      sem réplicas, cai para o resíduo e avisa.
-    - `reduzir=True` aplica a eliminação backward por resposta (cada resposta
-      pode terminar com termos diferentes).
-    - `tipo_modelo` só é registrado nos metadados (os termos já chegam prontos).
-    - `analises` são os IDs marcados (spec §9; padrão: todos). Só registram a
-      escolha: o que é barato é calculado sempre.
-    - `coluna_ordem` e `ordem_execucao` (opcionais, nunca os dois) são a ordem
-      de execução dos ensaios, para o gráfico de resíduos × ordem (spec §9,
-      D3): o primeiro lê uma coluna da planilha; o segundo já traz o posto de
-      cada linha (`fluxo.postos_da_sequencia`), vindo do arrastar-pra-
-      reordenar da tela.
-    - `coluna_bloco` (opcional) agrupa os ensaios em blocos (dias, lotes): a
-      diferença entre blocos sai do erro e vira a linha "Blocos" da ANOVA;
-      equação, superfície e previsões valem para o bloco médio. Ver
-      `core/blocos.py`.
-    - `objetivos` (maximizar, minimizar ou alvo por resposta; `alvos` traz o
-      valor-alvo) aciona a busca da condição ótima dentro da região
-      experimental (spec §9, E4/E5), com limites pelos valores observados.
-
-    Levanta `ValueError` quando falta uma coluna exigida ou uma resposta tem
-    valor ausente/não numérico — mensagens em português, prontas para virar aviso
-    na interface.
-    """
+    """Ajusta o modelo a cada resposta e devolve o resultado congelado."""
     fatores = planejamento.nomes_fatores
     desconhecidas = sorted(set(analises or ()) - set(IDS))
     if desconhecidas:
@@ -222,12 +186,7 @@ def analisar(
 
 
 def limite_da_regiao(planejamento: Planejamento) -> float:
-    """Borda da região experimental na escala codificada.
-
-    ±α no composto central (os pontos axiais fazem parte da região estudada);
-    ±1 nos demais planejamentos. É até onde o modelo pode ser usado sem
-    extrapolar, e por isso é a caixa da busca do ótimo.
-    """
+    """Borda da região estudada na escala codificada (±α no DCCR)."""
     if planejamento.tipo == "composto_central" and planejamento.alfa_axial:
         return max(1.0, float(planejamento.alfa_axial))
     return 1.0
@@ -241,7 +200,7 @@ def _termo_de_erro(
     avisos: list[str],
     blocos: Sequence[str] | None = None,
 ) -> tuple[float | None, int | None, TermoErro]:
-    """(QM, gl, termo usado) do erro dos testes; None/None = resíduo."""
+    """Quadrado médio e g.l. do erro usado nos testes."""
     if pedido == "residuo":
         return None, None, "residuo"
     sq, gl = erro_puro(tabela, resposta, fatores, blocos)
@@ -263,7 +222,7 @@ def info_planejamento(
     avisos: Sequence[str] = (),
     blocos: Blocos | None = None,
 ) -> InfoPlanejamento:
-    """Seção `design` do contrato: geometria e codificação de cada fator."""
+    """Seção do contrato com a geometria e a codificação dos fatores."""
     codificada = np.column_stack(
         [
             [f.codificar(float(v)) for v in tabela.coluna(f.nome)]
@@ -288,11 +247,7 @@ def info_planejamento(
 
 
 def fatores_do_contrato(info: InfoPlanejamento) -> list[Fator]:
-    """Os fatores de volta a partir da seção `planejamento` do contrato.
-
-    É o inverso de `info_planejamento`: quem só tem o `AnalysisResult` (o PDF,
-    o servidor MCP) reconstrói a codificação sem reler a planilha.
-    """
+    """Reconstrói os fatores a partir do contrato."""
     return [
         Fator(f.nome, f.centro - f.passo, f.centro + f.passo, f.unidade)
         for f in info.fatores
@@ -316,12 +271,7 @@ def _ajuste_resposta(
     ordem: list[float] | None = None,
     blocos: Blocos | None = None,
 ) -> AjusteResposta:
-    """Empacota um ajuste OLS no contrato congelado `AjusteResposta`.
-
-    Cada pedaço vem do seu módulo, que é a fonte única daquela conta:
-    coeficientes (`effects`), ANOVA e falta de ajuste (`anova`), diagnóstico
-    por ensaio (`diagnostico`) e equação (`equacao`).
-    """
+    """Empacota o ajuste de uma resposta no contrato AjusteResposta."""
     fatores = planejamento.nomes_fatores
     rotulos = list(blocos.rotulos) if blocos is not None else None
     falta = teste_falta_ajuste(
@@ -367,11 +317,7 @@ def _ajuste_resposta(
             blocos.efeitos(ajuste.coeficientes) if blocos is not None else {}
         ),
     )
-    # Peças que leem o próprio AjusteResposta (coeficientes já com o termo de
-    # erro escolhido): ponto estacionário (E3) e efeitos de fatorial (grupo B).
-    # Com blocos, o erro puro (curvatura) é o de dentro de cada bloco; já a
-    # escolha entre Lenth e o teste t depende de haver réplicas de verdade,
-    # contadas sem olhar o bloco.
+    # Peças que leem o próprio AjusteResposta: ponto estacionário e grupo B.
     sq_ep, gl_ep = erro_puro(dados, resposta, fatores, rotulos)
     _, gl_replicas = erro_puro(dados, resposta, fatores)
     return ajuste_resposta.model_copy(
@@ -401,11 +347,7 @@ def _linhas_anova(
     qm_erro: float | None = None,
     gl_erro: int | None = None,
 ) -> list[LinhaAnova]:
-    """ANOVA Tipo II em `LinhaAnova`, ou vazia se o modelo não é hierárquico.
-
-    O `AjusteOLS` já devolve as linhas prontas; aqui só se traduz a recusa do
-    modelo não hierárquico (um `ValueError`) num aviso que sobe ao relatório.
-    """
+    """ANOVA Tipo II em linhas do contrato, ou vazia com aviso."""
     try:
         return ajuste.tabela_tipo2(qm_erro, gl_erro)
     except ValueError as erro:

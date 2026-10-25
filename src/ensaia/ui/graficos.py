@@ -1,14 +1,5 @@
-"""Opções ECharts dos gráficos de resultado (spec §9: B2, C6, D1, D2, E1, E2).
-
-Cada função recebe dados JÁ CALCULADOS pelo núcleo (o `AjusteResposta` congelado,
-os pontos do Q-Q, a grade da superfície) e devolve o dicionário de opções que o
-`ui.echart` desenha. Nenhuma estatística é feita aqui: só se escolhe forma, cor e
-texto. Por serem funções puras (dados → dict), dá para testá-las sem navegador.
-
-Regras visuais (skill de visualização + lei anti-slop): marcas finas, grade em
-linha fina e sólida, texto sempre nas cores de texto (nunca na cor da série),
-números no padrão brasileiro, legenda só quando há duas séries, e uma tabela
-equivalente ao lado de todo gráfico (na própria tela) para quem não lê cor.
+"""Opções ECharts dos gráficos da tela (Pareto, diagnóstico, superfície).
+Funções puras: recebem dados prontos do núcleo e devolvem o dicionário do gráfico.
 """
 
 from __future__ import annotations
@@ -34,8 +25,7 @@ from ensaia.ui.tema import (
 
 Opcoes = dict[str, Any]
 
-# Formatação pt-BR feita no navegador. As chaves com ":" na frente viram função
-# JavaScript na NiceGUI (`convertDynamicProperties`).
+# Formatação pt-BR no navegador (chaves com ":" viram função JS).
 _FMT_JS = (
     "(v) => (typeof v === 'number' && isFinite(v))"
     " ? v.toLocaleString('pt-BR', {maximumFractionDigits: 3}) : v"
@@ -44,13 +34,11 @@ _FONTE = "'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-se
 
 
 def _base() -> Opcoes:
-    """Pedaços comuns: fundo transparente, fonte do corpo, tooltip da marca."""
+    """Opções comuns: fundo, fonte e tooltip."""
     return {
         "backgroundColor": "transparent",
         "textStyle": {"fontFamily": _FONTE, "color": TINTA},
-        # Sem animação de entrada: o gráfico nasce pronto (nada depende de uma
-        # animação rodar para aparecer). A transição fica para as mudanças de
-        # estado, como mover o fator fixo da superfície.
+        # Sem animação de entrada; só nas mudanças de estado.
         "animationDuration": 0,
         "animationDurationUpdate": 350,
         "tooltip": {
@@ -68,9 +56,7 @@ def _base() -> Opcoes:
 
 
 def _eixo_valor(nome: str, *, escala: bool = True, pontas: bool = True) -> Opcoes:
-    """Eixo numérico recessivo. `pontas=False` esconde os rótulos de mínimo e
-    máximo quando a faixa é fixada à mão (senão aparecem números quebrados
-    como 44,981 nas bordas)."""
+    """Eixo numérico discreto, com ou sem rótulos nas pontas."""
     return {
         "type": "value",
         "name": nome,
@@ -96,14 +82,14 @@ _GRADE_XY = {"left": 40, "right": 24, "top": 18, "bottom": 44, "containLabel": T
 
 
 def _limites(valores: list[float], folga: float = 0.06) -> tuple[float, float]:
-    """Faixa com uma folga proporcional, para nenhum ponto encostar na borda."""
+    """Faixa com folga para nenhum ponto encostar na borda."""
     baixo, alto = min(valores), max(valores)
     margem = (alto - baixo) * folga or max(abs(alto), 1.0) * folga
     return baixo - margem, alto + margem
 
 
 def _pontos(cor: str = SERIE) -> Opcoes:
-    """Marcador ≥ 8 px com anel de 2 px na cor da superfície (separa sobreposições)."""
+    """Estilo dos marcadores dos ensaios."""
     return {
         "symbolSize": 10,
         "itemStyle": {"color": cor, "borderColor": PAPEL_ALTO, "borderWidth": 2},
@@ -115,12 +101,7 @@ def _pontos(cor: str = SERIE) -> Opcoes:
 
 
 def opcoes_pareto(ajuste: AjusteResposta, *, alfa: float) -> Opcoes:
-    """Barras de |t| por termo, maior no topo, com a linha do t crítico.
-
-    Duas séries empilhadas na mesma categoria (significativo / não) só para
-    ganhar legenda nativa; cada termo tem valor em exatamente uma delas. A
-    posição em relação à linha já diz a significância — a cor reforça.
-    """
+    """Barras de |t| por termo, com a linha do t crítico."""
     termos = sorted(
         (c for c in ajuste.coeficientes if c.termo != INTERCEPTO),
         key=lambda c: abs(c.valor_t),
@@ -129,6 +110,7 @@ def opcoes_pareto(ajuste: AjusteResposta, *, alfa: float) -> Opcoes:
     categorias = [nome_legivel(c.termo) for c in termos]
 
     def item(c: Any) -> Opcoes:
+        """Dado de uma barra do Pareto."""
         return {"value": abs(c.valor_t), "p": c.valor_p, "termo": c.termo}
 
     sig = [item(c) if c.significativo else "-" for c in termos]
@@ -152,8 +134,7 @@ def opcoes_pareto(ajuste: AjusteResposta, *, alfa: float) -> Opcoes:
             "silent": True,
             "symbol": "none",
             "lineStyle": {"color": TINTA, "width": 1, "type": "dashed"},
-            # O valor vai no texto de leitura logo abaixo do gráfico: um rótulo
-            # aqui disputaria espaço com os números do eixo.
+            # O valor vai no texto abaixo do gráfico.
             "label": {"show": False},
             "data": [{"xAxis": ajuste.t_critico}],
         }
@@ -207,8 +188,7 @@ def opcoes_pareto(ajuste: AjusteResposta, *, alfa: float) -> Opcoes:
                 "data": categorias,
                 "axisLine": {"show": True, "lineStyle": {"color": GRADE}},
                 "axisTick": {"show": False},
-                # Nome longo quebra em duas linhas em vez de roubar a largura
-                # das barras (no celular chegava a metade do gráfico).
+                # Nome longo quebra em duas linhas.
                 "axisLabel": {
                     "color": TINTA,
                     "fontSize": 12,
@@ -220,14 +200,13 @@ def opcoes_pareto(ajuste: AjusteResposta, *, alfa: float) -> Opcoes:
             "series": [serie_sig, serie_nao],
         }
     )
-    # O zero é um rótulo limpo e ancora as barras; só o máximo (quebrado, como
-    # 13,27) fica escondido.
+    # O zero fica visível; só o máximo é escondido.
     opcoes["xAxis"]["axisLabel"]["showMinLabel"] = True
     return opcoes
 
 
 def altura_pareto(ajuste: AjusteResposta) -> int:
-    """Altura em px que cabe todas as barras sem espremer (mais o eixo)."""
+    """Altura em px que cabe todas as barras."""
     n = sum(1 for c in ajuste.coeficientes if c.termo != INTERCEPTO)
     return max(180, 34 * n + 96)
 
@@ -243,6 +222,7 @@ _TOOLTIP_ENSAIO = (
 
 
 def _linhas_por_ensaio(ajuste: AjusteResposta) -> list[tuple[int, float, float, float]]:
+    """(ensaio, observado, previsto, resíduo) de cada ensaio."""
     d = ajuste.diagnostico
     if d is None:
         return []
@@ -255,7 +235,7 @@ def _linhas_por_ensaio(ajuste: AjusteResposta) -> list[tuple[int, float, float, 
 
 
 def opcoes_preditos_observados(ajuste: AjusteResposta) -> Opcoes:
-    """Previsto (y) contra observado (x), com a reta y = x de referência."""
+    """Previsto × observado, com a reta y = x."""
     linhas = _linhas_por_ensaio(ajuste)
     baixo, alto = _limites([v for _, o, p, _ in linhas for v in (o, p)])
     opcoes = _base()
@@ -300,7 +280,7 @@ def opcoes_preditos_observados(ajuste: AjusteResposta) -> Opcoes:
 
 
 def opcoes_residuos_preditos(ajuste: AjusteResposta) -> Opcoes:
-    """Resíduo (y) contra previsto (x), com a linha do zero."""
+    """Resíduo × previsto, com a linha do zero."""
     linhas = _linhas_por_ensaio(ajuste)
     maior = max([abs(r) for *_, r in linhas] + [1e-9])
     xb, xa = _limites([p for _, _, p, _ in linhas])
@@ -344,11 +324,10 @@ def opcoes_residuos_preditos(ajuste: AjusteResposta) -> Opcoes:
 
 
 def opcoes_qq(qq: PontosQQ) -> Opcoes:
-    """Resíduos ordenados contra os quantis da normal, com a reta pelos quartis."""
+    """Gráfico Q-Q normal dos resíduos."""
     xb, xa = _limites(qq.teoricos or [0.0])
     a, b = qq.reta_intercepto, qq.reta_inclinacao
-    # A faixa vertical tem de conter as pontas da reta: se uma ponta cai fora
-    # do eixo, o ECharts simplesmente não desenha a linha.
+    # A faixa vertical contém as pontas da reta.
     yb, ya = _limites([*qq.amostrais, a + b * xb, a + b * xa])
     opcoes = _base()
     opcoes["tooltip"].update(
@@ -406,6 +385,7 @@ def opcoes_qq(qq: PontosQQ) -> Opcoes:
 
 
 def _faixa_z(grade: GradeSuperficie) -> tuple[float, float]:
+    """Faixa de valores da superfície (evita escala nula)."""
     baixo, alto = grade.z_minimo, grade.z_maximo
     if math.isclose(baixo, alto, rel_tol=1e-12, abs_tol=1e-12):
         baixo, alto = baixo - 1.0, alto + 1.0  # superfície plana: evita escala nula
@@ -413,6 +393,7 @@ def _faixa_z(grade: GradeSuperficie) -> tuple[float, float]:
 
 
 def _rotulo_eixo(valor: float) -> str:
+    """Rótulo curto de eixo com vírgula."""
     texto = f"{valor:.3g}" if abs(valor) >= 1000 else f"{valor:.4g}"
     return texto.replace(".", ",")
 
@@ -420,11 +401,7 @@ def _rotulo_eixo(valor: float) -> str:
 def opcoes_contorno(
     grade: GradeSuperficie, *, destaque: tuple[float, float, str] | None = None
 ) -> Opcoes:
-    """Mapa de contorno preenchido: a resposta prevista em faixas de cor.
-
-    Faixas discretas (7, da rampa) leem como curvas de nível: cada mudança de
-    tom é uma isolinha. Quanto mais escuro, maior a resposta.
-    """
+    """Mapa de contorno da resposta prevista em faixas de cor."""
     baixo, alto = _faixa_z(grade)
     categorias_x = [_rotulo_eixo(v) for v in grade.valores_x]
     categorias_y = [_rotulo_eixo(v) for v in grade.valores_y]
@@ -498,10 +475,7 @@ def opcoes_contorno(
             },
             "series": [
                 {
-                    # Série "custom" em vez de "heatmap": cada célula é desenhada
-                    # um pouco maior que a faixa, sobrepondo a vizinha. No
-                    # heatmap, as bordas fracionárias deixam frestas claras de
-                    # serrilhado entre células — linhas finas que não são dado.
+                    # Série "custom" em vez de heatmap, para não ficar frestas.
                     "type": "custom",
                     "name": nome_legivel(grade.resposta),
                     "data": dados,
@@ -516,8 +490,7 @@ def opcoes_contorno(
     opcoes["visualMap"]["seriesIndex"] = 0  # a escala de cor é só do mapa
     if destaque is not None:
         opcoes["series"].append(_marcador(grade, destaque))
-    # Tela estreita (celular): a legenda sai da direita e vira uma fileira de
-    # amostras com "menor"/"maior" nas pontas, devolvendo a largura ao mapa.
+    # Tela estreita: legenda vira uma fileira abaixo.
     opcoes["media"] = [
         {
             "query": {"maxWidth": 480},
@@ -542,14 +515,11 @@ def opcoes_contorno(
 
 
 def _marcador(grade: GradeSuperficie, destaque: tuple[float, float, str]) -> Opcoes:
-    """Anel com rótulo sobre o contorno (ex.: o ponto estacionário).
-
-    Os eixos do contorno são categorias (uma por ponto da grade); a posição do
-    ponto vira um índice fracionário, interpolado entre as categorias vizinhas.
-    """
+    """Anel com rótulo sobre o contorno (ex.: ponto estacionário)."""
     x, y, rotulo = destaque
 
     def indice(valor: float, eixo: list[float]) -> float:
+        """Posição do valor como índice fracionário do eixo."""
         return (valor - eixo[0]) / (eixo[-1] - eixo[0]) * (len(eixo) - 1)
 
     ix = indice(x, grade.valores_x)
@@ -592,7 +562,7 @@ _CELULA_JS = (
 
 
 def opcoes_superficie_3d(grade: GradeSuperficie) -> Opcoes:
-    """Superfície 3D (echarts-gl), na mesma rampa do contorno, para girar e explorar."""
+    """Superfície 3D (echarts-gl) da resposta prevista."""
     baixo, alto = _faixa_z(grade)
     dados = [
         [grade.valores_x[j], grade.valores_y[i], grade.z[i][j]]
@@ -601,6 +571,7 @@ def opcoes_superficie_3d(grade: GradeSuperficie) -> Opcoes:
     ]
 
     def eixo(nome: str) -> Opcoes:
+        """Eixo de valores do gráfico 3D."""
         return {
             "type": "value",
             "name": nome,
@@ -625,8 +596,7 @@ def opcoes_superficie_3d(grade: GradeSuperficie) -> Opcoes:
         },
         "xAxis3D": eixo(nome_legivel(grade.eixo_x)),
         "yAxis3D": eixo(nome_legivel(grade.eixo_y)),
-        # Eixo z na faixa da resposta (não a partir de zero), senão a superfície
-        # vira uma lâmina achatada no topo da caixa.
+        # Eixo z na faixa da resposta, não a partir de zero.
         "zAxis3D": {**eixo(nome_legivel(grade.resposta)), "scale": True},
         "grid3D": {
             "top": -48,
@@ -663,7 +633,7 @@ def opcoes_superficie_3d(grade: GradeSuperficie) -> Opcoes:
 
 
 def _js(texto: str) -> str:
-    """Escapa texto para dentro de uma string JS entre aspas simples."""
+    """Escapa texto para uma string JavaScript."""
     return texto.replace("\\", "\\\\").replace("'", "\\'")
 
 
@@ -674,7 +644,7 @@ NIVEL_BAIXO, NIVEL_ALTO = "#7FB074", "#1A4E2D"
 
 
 def opcoes_residuos_ordem(ajuste: AjusteResposta) -> Opcoes:
-    """Resíduos na ordem de execução (D3): tendência no tempo denuncia deriva."""
+    """Resíduos na ordem de execução."""
     d = ajuste.diagnostico
     if d is None or d.ordem is None:
         return {}

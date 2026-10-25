@@ -1,16 +1,5 @@
-"""Fatos interpretativos verificados a partir de um ajuste.
-
-A camada de IA do EnsaIA é redatora, não analista (ADR 0001, spec seção 12): ela
-reescreve em prosa fatos que o núcleo já produziu e já são verdadeiros. Este
-módulo é quem produz esses fatos — frases curtas, cada uma ancorada num número
-do `AjusteResposta`, no padrão brasileiro (vírgula decimal).
-
-São determinísticas e puras: o mesmo ajuste gera sempre os mesmos fatos. É isso
-que permite, depois, checar a fidelidade do texto do LLM contra eles (§4.3(e)) —
-se o modelo escrever um número que não está aqui, a checagem acusa.
-
-Nada de cálculo estatístico novo acontece aqui: só leitura e redação do que já
-foi calculado.
+"""Fatos verificados do resultado: frases curtas ancoradas em números.
+São o texto sem IA (M0) e a única fonte que a IA recebe para escrever.
 """
 
 from __future__ import annotations
@@ -23,10 +12,7 @@ from ensaia.core.results import NOME_PLANEJAMENTO, AjusteResposta, AnalysisResul
 
 ALFA_PADRAO = 0.05
 
-# As seções do relatório que recebem fatos. A camada de IA faz uma chamada por
-# seção (spec §12.3), com contexto curto — só os fatos daquela seção. A
-# "conclusão" da spec NÃO está aqui de propósito: ela é síntese que o LLM
-# redige a partir das outras seções, não um fato determinístico novo.
+# Seções do relatório que recebem fatos (a IA faz uma chamada por seção).
 Secao = Literal["planejamento", "modelo", "anova", "diagnostico", "otimizacao"]
 
 SECOES: tuple[Secao, ...] = (
@@ -40,14 +26,7 @@ SECOES: tuple[Secao, ...] = (
 
 
 def fatos_do_ajuste(ajuste: AjusteResposta, *, alfa: float = ALFA_PADRAO) -> list[str]:
-    """Frases interpretativas sobre o ajuste de uma resposta.
-
-    Cobre significância dos termos, qualidade do modelo (R²) e o teste de falta
-    de ajuste. Cada frase é rastreável a um campo do `AjusteResposta`.
-
-    É a visão achatada (todos os fatos de uma resposta numa lista só). Para o
-    relatório por seção, use `fatos_por_secao`.
-    """
+    """Fatos de uma resposta: significância, R², regressão e falta de ajuste."""
     fatos: list[str] = []
     fatos.extend(_fatos_significancia(ajuste, alfa))
     fatos.append(_fato_r2(ajuste))
@@ -58,14 +37,7 @@ def fatos_do_ajuste(ajuste: AjusteResposta, *, alfa: float = ALFA_PADRAO) -> lis
 def fatos_por_secao(
     resultado: AnalysisResult, *, alfa: float = ALFA_PADRAO
 ) -> dict[Secao, list[str]]:
-    """Fatos verificados do resultado inteiro, agrupados por seção do relatório.
-
-    Cada seção recebe só os fatos que lhe cabem, para a camada de IA fazer uma
-    chamada curta por seção (spec §12.3). Seções sem fato (ex.: otimização sem
-    ponto ótimo) vêm com lista vazia — a presença da chave é estável, o conteúdo
-    é que varia. Com mais de uma resposta, os fatos por resposta (modelo,
-    diagnóstico) são rotulados com o nome dela.
-    """
+    """Fatos do resultado inteiro, agrupados por seção do relatório."""
     multi = len(resultado.ajustes) > 1
 
     modelo: list[str] = []
@@ -107,6 +79,7 @@ def fatos_por_secao(
 
 
 def _fatos_significancia(ajuste: AjusteResposta, alfa: float) -> list[str]:
+    """Quais termos são e quais não são significativos."""
     efeitos = [c for c in ajuste.coeficientes if c.termo != INTERCEPTO]
     significativos = [c for c in efeitos if c.significativo]
     nao = [c for c in efeitos if not c.significativo]
@@ -127,6 +100,7 @@ def _fatos_significancia(ajuste: AjusteResposta, alfa: float) -> list[str]:
 
 
 def _fato_r2(ajuste: AjusteResposta) -> str:
+    """Quanto da variação o modelo explica (R², ajustado e máximo)."""
     fato = (
         f"O modelo explica {_num(ajuste.r2 * 100, 1)}% da variação da resposta "
         f"{ajuste.resposta!r} (R² = {_num(ajuste.r2, 3)}; "
@@ -143,13 +117,14 @@ def _fato_r2(ajuste: AjusteResposta) -> str:
 
 
 def _fatos_termo_erro(ajuste: AjusteResposta) -> list[str]:
+    """Avisa quando os testes usaram o erro puro."""
     if ajuste.termo_erro != "erro_puro":
         return []
     return ["Os testes de significância usaram o erro puro como termo de erro."]
 
 
 def _fatos_regressao(ajuste: AjusteResposta, alfa: float) -> list[str]:
-    """F da regressão contra o F tabelado (critério da literatura brasileira)."""
+    """F da regressão contra o F tabelado e a regra das 10 vezes."""
     fatos: list[str] = []
     anova = ajuste.anova_regressao
     blocos = (
@@ -194,6 +169,7 @@ def _fatos_regressao(ajuste: AjusteResposta, alfa: float) -> list[str]:
 
 
 def _fatos_normalidade(ajuste: AjusteResposta, alfa: float) -> list[str]:
+    """Resultado do teste de Shapiro-Wilk dos resíduos."""
     d = ajuste.diagnostico
     if d is None or d.shapiro_p is None or d.shapiro_w is None:
         return []
@@ -210,6 +186,7 @@ def _fatos_normalidade(ajuste: AjusteResposta, alfa: float) -> list[str]:
 
 
 def _fatos_curvatura(ajuste: AjusteResposta, alfa: float) -> list[str]:
+    """Teste de curvatura dos pontos centrais (só em fatorial)."""
     ef = ajuste.efeitos_fatorial
     if ef is None or not ef.curvatura.aplicavel:
         return []
@@ -232,6 +209,7 @@ def _fatos_curvatura(ajuste: AjusteResposta, alfa: float) -> list[str]:
 
 
 def _fatos_influencia(ajuste: AjusteResposta) -> list[str]:
+    """Ensaios influentes e possíveis outliers."""
     d = ajuste.diagnostico
     if d is None or not d.alavancagem:
         return []
@@ -246,6 +224,7 @@ def _fatos_influencia(ajuste: AjusteResposta) -> list[str]:
 
 
 def _fato_falta_ajuste(ajuste: AjusteResposta, alfa: float) -> str:
+    """Resultado do teste de falta de ajuste, ou por que não foi feito."""
     falta = ajuste.falta_de_ajuste
     if not falta.aplicavel:
         motivo = falta.motivo_inaplicavel or "não há réplicas genuínas no delineamento"
@@ -264,6 +243,7 @@ def _fato_falta_ajuste(ajuste: AjusteResposta, alfa: float) -> str:
 
 
 def _fatos_planejamento(resultado: AnalysisResult) -> list[str]:
+    """Tipo de planejamento, fatores, respostas, ensaios e blocos."""
     tipo = NOME_PLANEJAMENTO.get(
         resultado.tipo_planejamento, resultado.tipo_planejamento
     )
@@ -284,6 +264,7 @@ def _fatos_planejamento(resultado: AnalysisResult) -> list[str]:
 
 
 def _fatos_otimizacao(resultado: AnalysisResult) -> list[str]:
+    """Ponto estacionário e condição ótima de cada resposta."""
     multi = len(resultado.ajustes) > 1
     fatos: list[str] = []
     for ajuste in resultado.ajustes:
@@ -314,6 +295,7 @@ def _fatos_otimizacao(resultado: AnalysisResult) -> list[str]:
 
 
 def _fatos_estacionario(ajuste: AjusteResposta) -> list[str]:
+    """Onde fica o ponto estacionário e se é máximo, mínimo ou sela."""
     ponto = ajuste.ponto_estacionario
     if ponto is None:
         return []
@@ -335,27 +317,19 @@ def _fatos_estacionario(ajuste: AjusteResposta) -> list[str]:
 
 
 def _rotular(fatos: list[str], resposta: str, *, multi: bool) -> list[str]:
-    """Prefixa cada fato com o nome da resposta quando há mais de uma.
-
-    Com uma resposta só, o relatório inteiro é sobre ela e o rótulo seria ruído.
-    Com várias, sem o rótulo não dá para saber a que resposta cada fato pertence.
-    """
+    """Põe o nome da resposta na frente dos fatos quando há várias."""
     if not multi:
         return fatos
     return [f"Para a resposta {resposta!r}: {fato}" for fato in fatos]
 
 
 def _num(valor: float, casas: int) -> str:
-    """Número no padrão brasileiro (vírgula decimal), com casas fixas."""
+    """Número com vírgula decimal e casas fixas."""
     return f"{valor:.{casas}f}".replace(".", ",")
 
 
 def _sig(p: float, alfa: float) -> str:
-    """Parêntese de significância: 'p < 0,0001' ou 'p = 0,0005 < 0,05'.
-
-    Abaixo de 0,0001 evita notação científica e dispensa repetir o α, já que a
-    desigualdade com o α fica óbvia.
-    """
+    """Texto do p-valor comparado a α (p = 0,0005 < 0,05)."""
     if p < 0.0001:
         return "p < 0,0001"
     return f"p = {_num(p, 4)} < {_num(alfa, 2)}"

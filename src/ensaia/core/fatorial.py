@@ -1,17 +1,5 @@
-"""Análise de fatoriais de 2 níveis: efeitos, Lenth, curvatura e médias (spec §9, B).
-
-Os fatoriais 2^k e 2^(k−p) são o planejamento de triagem: servem para descobrir
-quais fatores importam antes de investir num planejamento maior. Por isso a
-leitura é por **efeitos** (quanto a resposta muda de −1 a +1), e há ferramentas
-próprias para eles:
-
-- **Efeitos** (B1): 2 × coeficiente codificado, com o mesmo t e p.
-- **Lenth** (B3): sem réplicas não há erro puro; o método de Lenth (1989)
-  estima um pseudo erro-padrão a partir dos próprios efeitos, supondo que a
-  maioria é ruído. O gráfico meio-normal mostra os que destoam.
-- **Médias por nível** (B4): os gráficos de efeito principal e de interação.
-- **Curvatura** (B5): com pontos centrais, compara o centro com os vértices; se
-  diferem, a superfície curva e o modelo linear não basta.
+"""Análises de fatoriais de 2 níveis: efeitos, Lenth, curvatura e médias.
+Fora do escopo DCCR (ADR 0013/0015): fica no código, sem uso na tela nem no PDF.
 """
 
 from __future__ import annotations
@@ -49,13 +37,7 @@ def analisar_fatorial(
     gl_erro_puro: int,
     com_replicas: bool | None = None,
 ) -> EfeitosFatorial | None:
-    """Grupo B da spec para uma resposta; None se o planejamento não é 2^k.
-
-    `com_replicas` diz se alguma condição foi repetida (sem olhar blocos); por
-    padrão, se há erro puro. Com blocos os dois diferem: réplicas em blocos
-    diferentes não dão erro puro, mas continuam sendo réplicas — e com elas o
-    teste t do Pareto, e não o Lenth, é o instrumento certo.
-    """
+    """Análises do grupo B para uma resposta; None se não for fatorial."""
     if com_replicas is None:
         com_replicas = gl_erro_puro > 0
     if planejamento.tipo not in FATORIAIS:
@@ -73,8 +55,7 @@ def analisar_fatorial(
         for c in ajuste.coeficientes
         if c.termo != INTERCEPTO and _sem_quadratico(c.termo)
     ]
-    # Lenth só sem réplicas (spec §9, B3): com erro puro, o teste t do Pareto
-    # é o instrumento certo, e as duas leituras poderiam se contradizer.
+    # Lenth só sem réplicas; com erro puro vale o teste t.
     lenth = analise_lenth([e.efeito for e in efeitos]) if not com_replicas else None
     if lenth is not None:
         efeitos = [
@@ -117,15 +98,7 @@ def analisar_fatorial(
 
 
 def analise_lenth(efeitos: list[float]) -> AnaliseLenth | None:
-    """Pseudo erro-padrão de Lenth (1989) e as margens ME e SME.
-
-        s₀  = 1,5 · mediana(|e|)
-        PSE = 1,5 · mediana(|e| : |e| < 2,5·s₀)
-        ME  = t(0,975; m/3) · PSE
-        SME = t(γ; m/3) · PSE,  γ = (1 + 0,95^(1/m)) / 2
-
-    Precisa de ao menos 3 efeitos; devolve None com menos ou com todos nulos.
-    """
+    """Pseudo erro-padrão de Lenth e as margens ME e SME."""
     absolutos = np.abs(np.asarray(efeitos, dtype=float))
     m = absolutos.size
     if m < 3:
@@ -153,7 +126,7 @@ def teste_curvatura(
     qm_erro_puro: float | None,
     gl_erro_puro: int,
 ) -> TesteCurvatura:
-    """SQ_curv = n_F·n_C·(ȳ_F − ȳ_C)² / (n_F + n_C), testado contra o erro puro."""
+    """Compara a média do centro com a dos vértices (curvatura)."""
     centro = np.all(np.abs(codificada) < _TOL, axis=1)
     vertices = np.all(np.abs(np.abs(codificada) - 1.0) < _TOL, axis=1)
     n_c, n_f = int(centro.sum()), int(vertices.sum())
@@ -187,7 +160,7 @@ def teste_curvatura(
 
 @dataclass(frozen=True)
 class PontosMeioNormal:
-    """Gráfico meio-normal dos efeitos: |efeito| contra o quantil esperado."""
+    """Pontos do gráfico meio-normal dos efeitos."""
 
     termos: list[str]
     absolutos: list[float]
@@ -195,7 +168,7 @@ class PontosMeioNormal:
 
 
 def pontos_meio_normal(efeitos: list[Efeito]) -> PontosMeioNormal:
-    """Quantis meio-normais Φ⁻¹(0,5 + 0,5·(i − 0,5)/m) para os |efeitos| ordenados."""
+    """Calcula os quantis meio-normais dos |efeitos| ordenados."""
     ordenados = sorted(efeitos, key=lambda e: abs(e.efeito))
     m = len(ordenados)
     posicoes = 0.5 + 0.5 * (np.arange(1, m + 1) - 0.5) / m
@@ -207,10 +180,12 @@ def pontos_meio_normal(efeitos: list[Efeito]) -> PontosMeioNormal:
 
 
 def _sem_quadratico(termo: str) -> bool:
+    """Diz se um termo não tem potência acima de 1."""
     return all(potencia == 1 for _, potencia in interpretar_termo(termo))
 
 
 def _matriz_codificada(dados: Table, planejamento: Planejamento) -> NDArray[np.float64]:
+    """Matriz dos fatores na escala codificada."""
     return np.column_stack(
         [
             [f.codificar(float(v)) for v in dados.coluna(f.nome)]
@@ -222,6 +197,7 @@ def _matriz_codificada(dados: Table, planejamento: Planejamento) -> NDArray[np.f
 def _medias_nivel(
     fator: str, valores: NDArray[np.float64], y: NDArray[np.float64]
 ) -> MediasNivel:
+    """Média da resposta em cada nível de um fator."""
     niveis = sorted({float(v) for v in valores})
     return MediasNivel(
         fator=fator,
@@ -237,7 +213,7 @@ def _medias_interacao(
     valores_b: NDArray[np.float64],
     y: NDArray[np.float64],
 ) -> MediasInteracao | None:
-    """Médias por combinação; None se alguma combinação não foi ensaiada."""
+    """Médias por combinação de dois fatores; None se faltar alguma."""
     niveis_a = sorted({float(v) for v in valores_a})
     niveis_b = sorted({float(v) for v in valores_b})
     medias: list[list[float]] = []

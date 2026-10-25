@@ -1,13 +1,5 @@
-"""Montagem do relatório PDF a partir do resultado e do texto (spec §13).
-
-Recebe o `AnalysisResult` congelado (os números), o `RelatorioTextual` (a prosa
-do modo escolhido) e, quando a tela tem a planilha, a `MatrizEnsaios`. Monta a
-estrutura fixa da spec — capa, resumo, dados, descritiva, efeitos, modelo,
-ANOVA, diagnóstico, superfícies, otimização, texto e apêndice — e **só entram
-as seções das análises marcadas** (RF-11), lidas de `metadados.analises`.
-
-Nada se calcula aqui: tabelas e gráficos leem o que o núcleo já produziu (a
-grade da superfície e os pontos do Q-Q também vêm de funções do núcleo).
+"""Monta o relatório PDF a partir do resultado, do texto e da planilha.
+Capa, resumo, dados, modelo, ANOVA, diagnóstico, superfície, otimização e apêndice.
 """
 
 from __future__ import annotations
@@ -34,8 +26,7 @@ from ensaia.report import charts
 from ensaia.report.pdf import RelatorioPDF, numero_ptbr, numero_sig
 from ensaia.report.theme import TEMA, Tema
 
-# Pontos por eixo da grade do contorno: fino o bastante para as faixas não
-# saírem em degraus, leve o bastante para o PDF sair em segundos.
+# Pontos por eixo da grade do contorno.
 _PONTOS_CONTORNO = 41
 # Contorno e 3D cabem juntos numa página nesta largura (mm).
 _LARGURA_SUPERFICIE = 118
@@ -54,12 +45,7 @@ def gerar_pdf(
     tema: Tema = TEMA,
     dados: MatrizEnsaios | None = None,
 ) -> bytes:
-    """Monta o relatório PDF e devolve os bytes (e grava, se `destino` for dado).
-
-    `gerado_em` é a data/hora da capa, recebida de fora para o PDF continuar
-    reproduzível em teste (sem relógio interno). `dados` traz a matriz dos
-    ensaios (A3); sem ela, a seção mostra só a codificação dos fatores.
-    """
+    """Monta o relatório PDF e devolve os bytes (ou grava em destino)."""
     sel = frozenset(resultado.metadados.analises or IDS)
     pdf = RelatorioPDF(versao=resultado.metadados.versao_ensaia, tema=tema)
 
@@ -101,7 +87,7 @@ def gerar_pdf(
 
 
 def _nome_tipo(resultado: AnalysisResult) -> str:
-    """Nome do planejamento com inicial maiúscula (título e resumo do PDF)."""
+    """Nome do planejamento com inicial maiúscula."""
     nome = NOME_PLANEJAMENTO.get(
         resultado.tipo_planejamento, resultado.tipo_planejamento
     )
@@ -114,6 +100,7 @@ def _capa(
     gerado_em: str | None,
     dados: MatrizEnsaios | None,
 ) -> None:
+    """Página de capa."""
     pdf.add_page()
     tema = pdf.tema
     pdf.ln(28)
@@ -140,6 +127,7 @@ def _capa(
 
 
 def _resumo(pdf: RelatorioPDF, resultado: AnalysisResult) -> None:
+    """Seção de resumo com os principais números."""
     pdf.titulo_secao("Resumo")
     tema = pdf.tema
     n_ensaios = resultado.ajustes[0].n_observacoes if resultado.ajustes else 0
@@ -180,6 +168,7 @@ def _secao_dados(
     dados: MatrizEnsaios | None,
     sel: frozenset[str],
 ) -> None:
+    """Seção de dados e planejamento (A2, A3)."""
     pdf.titulo_secao("Dados e planejamento")
     info = resultado.planejamento
     if "A2" in sel and info is not None:
@@ -212,6 +201,7 @@ def _secao_dados(
 
 
 def _matriz(pdf: RelatorioPDF, dados: MatrizEnsaios) -> None:
+    """Tabela da matriz dos ensaios (real, codificado e respostas)."""
     pdf.subtitulo("Matriz dos ensaios: valor real (codificado) e respostas")
     fatores = list(dados.real)
     respostas = list(dados.respostas)
@@ -239,11 +229,13 @@ def _matriz(pdf: RelatorioPDF, dados: MatrizEnsaios) -> None:
 
 
 def _real_codificado(dados: MatrizEnsaios, fator: str, i: int) -> str:
+    """Valor real com o codificado entre parênteses."""
     real = numero_sig(dados.real[fator][i])
     return f"{real} ({numero_ptbr(dados.codificada[fator][i], 2)})"
 
 
 def _secao_descritiva(pdf: RelatorioPDF, resultado: AnalysisResult) -> None:
+    """Seção de estatística descritiva (A1)."""
     pdf.titulo_secao("Estatística descritiva")
     pdf.tabela(
         ["Resposta", "n", "Média", "Desvio-padrão", "Mín.", "Máx.", "CV (%)"],
@@ -271,7 +263,7 @@ def _secao_descritiva(pdf: RelatorioPDF, resultado: AnalysisResult) -> None:
 
 
 def _secao_efeitos(pdf: RelatorioPDF, ajuste: AjusteResposta) -> None:
-    """Pareto dos efeitos padronizados (|t| de cada termo), parte do ajuste (C1)."""
+    """Pareto dos efeitos padronizados de uma resposta (C1)."""
     pareto = charts.grafico_pareto(ajuste, tema=pdf.tema)
     primeiro = pdf.altura_png(pareto, 150) if pareto else 30.0
     pdf.titulo_secao(f"Efeitos — {nome_legivel(ajuste.resposta)}", reservar=primeiro)
@@ -288,6 +280,7 @@ def _secao_efeitos(pdf: RelatorioPDF, ajuste: AjusteResposta) -> None:
 def _secao_modelo(
     pdf: RelatorioPDF, ajuste: AjusteResposta, sel: frozenset[str]
 ) -> None:
+    """Coeficientes e equação de uma resposta (C1, C5)."""
     tema = pdf.tema
     pdf.titulo_secao(f"Modelo ajustado — {nome_legivel(ajuste.resposta)}")
     if "C1" in sel:
@@ -330,6 +323,7 @@ def _secao_modelo(
 def _secao_anova(
     pdf: RelatorioPDF, ajuste: AjusteResposta, sel: frozenset[str], alfa: float
 ) -> None:
+    """ANOVA, R² e falta de ajuste de uma resposta (C2–C4)."""
     tema = pdf.tema
     pdf.titulo_secao(f"ANOVA e qualidade do ajuste — {nome_legivel(ajuste.resposta)}")
     if "C3" in sel:
@@ -378,6 +372,7 @@ def _secao_anova(
 
 
 def _tabela_anova(pdf: RelatorioPDF, linhas: Sequence[LinhaAnova]) -> None:
+    """Tabela de ANOVA."""
     casas_p = pdf.tema.casas_p
     pdf.tabela(
         ["Fonte", "SQ", "gl", "QM", "F", "p"],
@@ -397,6 +392,7 @@ def _tabela_anova(pdf: RelatorioPDF, linhas: Sequence[LinhaAnova]) -> None:
 
 
 def _texto_falta(ajuste: AjusteResposta, casas_p: int) -> str:
+    """Frase com o resultado da falta de ajuste."""
     falta = ajuste.falta_de_ajuste
     if not falta.aplicavel or falta.valor_p is None:
         motivo = falta.motivo_inaplicavel or "não há réplicas genuínas no delineamento"
@@ -416,6 +412,7 @@ def _texto_falta(ajuste: AjusteResposta, casas_p: int) -> str:
 def _secao_diagnostico(
     pdf: RelatorioPDF, ajuste: AjusteResposta, sel: frozenset[str]
 ) -> None:
+    """Gráficos e textos de diagnóstico de uma resposta."""
     d = ajuste.diagnostico
     png = charts.grafico_diagnostico(ajuste, sorted(sel), tema=pdf.tema)
     pdf.titulo_secao(
@@ -439,6 +436,7 @@ def _secao_diagnostico(
 
 
 def _texto_normalidade(d: Diagnostico, casas_p: int) -> str:
+    """Frase com o resultado do Shapiro-Wilk."""
     if d.shapiro_w is None or d.shapiro_p is None:
         motivo = (d.motivo_sem_shapiro or "poucos ensaios").rstrip(".")
         return f"Teste de Shapiro-Wilk não aplicável ({motivo})."
@@ -454,6 +452,7 @@ def _texto_normalidade(d: Diagnostico, casas_p: int) -> str:
 
 
 def _texto_influencia(d: Diagnostico) -> str:
+    """Frase com os ensaios influentes e outliers."""
     partes = []
     if d.ensaios_influentes:
         lista = ", ".join(map(str, d.ensaios_influentes))
@@ -476,6 +475,7 @@ def _secao_superficie(
     ajuste: AjusteResposta,
     sel: frozenset[str],
 ) -> None:
+    """Contorno e superfície 3D de uma resposta (E1–E3)."""
     assert resultado.planejamento is not None
     fatores = fatores_do_contrato(resultado.planejamento)
     por_nome = {f.nome: f for f in fatores}
@@ -535,6 +535,7 @@ def _secao_superficie(
 
 
 def _rotulo_fator(nome: str, unidade: str) -> str:
+    """Nome do fator com a unidade."""
     return f"{nome_legivel(nome)} ({unidade})" if unidade else nome_legivel(nome)
 
 
@@ -542,6 +543,7 @@ def _rotulo_fator(nome: str, unidade: str) -> str:
 
 
 def _secao_otimizacao(pdf: RelatorioPDF, resultado: AnalysisResult) -> None:
+    """Melhor condição e desejabilidade (E4, E5)."""
     otimo = resultado.ponto_otimo
     assert otimo is not None
     pdf.titulo_secao("Otimização e desejabilidade")
@@ -590,6 +592,7 @@ def _secao_otimizacao(pdf: RelatorioPDF, resultado: AnalysisResult) -> None:
 
 
 def _secao_interpretacao(pdf: RelatorioPDF, relatorio: RelatorioTextual) -> None:
+    """Texto do relatório e a conferência dos números."""
     pdf.titulo_secao("Interpretação")
     pdf.paragrafo(f"Texto escrito por: {relatorio.origem}.", tamanho=9)
     fid = relatorio.fidelidade
@@ -616,6 +619,7 @@ def _apendice(
     relatorio: RelatorioTextual,
     sel: frozenset[str],
 ) -> None:
+    """Apêndice com opções, versões e rastreabilidade."""
     meta = resultado.metadados
     pdf.titulo_secao("Apêndice")
     if meta.tipo_modelo is not None:
@@ -643,11 +647,7 @@ def _apendice(
 
 
 def _versoes_bibliotecas(versao_ensaia: str) -> str:
-    """Versões das dependências, começando pela do próprio EnsaIA.
-
-    A do EnsaIA vem do metadado da execução (sempre disponível); as demais, de
-    `importlib.metadata`, que reflete o que está instalado no ambiente.
-    """
+    """Versões do EnsaIA e das dependências instaladas."""
     from importlib.metadata import PackageNotFoundError, version
 
     partes = [f"ensaia {versao_ensaia}"]
@@ -660,7 +660,7 @@ def _versoes_bibliotecas(versao_ensaia: str) -> str:
 
 
 def _fmt_p(valor: float, casas: int) -> str:
-    """p-valor em pt-BR; abaixo do menor representável, usa '< 0,0001'."""
+    """p-valor em pt-BR (< 0,0001 quando muito pequeno)."""
     limite = 10 ** (-casas)
     if 0 <= valor < limite:
         return "< " + numero_ptbr(limite, casas)
@@ -668,6 +668,7 @@ def _fmt_p(valor: float, casas: int) -> str:
 
 
 def _num_alfa(alfa: float) -> str:
+    """α com duas casas e vírgula."""
     return numero_ptbr(alfa, 2)
 
 

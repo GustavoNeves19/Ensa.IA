@@ -1,4 +1,6 @@
-"""Estado da tela de resultados que os blocos finais compartilham."""
+"""Estado compartilhado pelos blocos finais da tela de resultados.
+Guarda a análise atual, o texto e a matriz, e avisa quem depende deles.
+"""
 
 from __future__ import annotations
 
@@ -12,14 +14,7 @@ from ensaia.core.results import AnalysisResult
 
 @dataclass
 class Sessao:
-    """O que os botões finais usam: a análise atual e o último texto mostrado.
-
-    A análise pode ganhar o ponto ótimo depois (bloco "Melhor condição"); por
-    isso PDF, JSON e texto leem daqui no momento do clique, não de uma cópia
-    capturada quando a tela foi montada. Quem mostra algo derivado da análise
-    (o texto sem IA, o pedido para copiar) se inscreve em `ouvintes` para se
-    refazer quando ela muda.
-    """
+    """Análise atual, texto mostrado, matriz dos ensaios e ouvintes."""
 
     analise: AnalysisResult
     texto: RelatorioTextual | None = None
@@ -29,6 +24,7 @@ class Sessao:
     ouvintes: dict[str, Callable[[], None]] = field(default_factory=dict)
 
     def trocar_analise(self, analise: AnalysisResult) -> None:
+        """Troca a análise e avisa os blocos inscritos."""
         self.analise = analise
         for ouvinte in list(self.ouvintes.values()):
             ouvinte()

@@ -1,12 +1,5 @@
-"""Catálogo das análises e suas pré-condições (spec §9 e §4, passo 4).
-
-Cada análise tem um identificador (A1…E5), um grupo e uma pré-condição. A tela
-mostra as compatíveis já marcadas e as incompatíveis desabilitadas, com o
-motivo em português — "falta de ajuste exige réplicas", por exemplo — em vez de
-deixar o usuário marcar algo que não pode ser feito com os dados dele.
-
-O núcleo calcula tudo o que é barato de uma vez; a seleção decide o que aparece
-na tela, no PDF e no texto (RF-07, RF-11).
+"""Catálogo das análises do DCCR (A, C, D, E) e suas pré-condições.
+Diz quais análises cabem nos dados e, quando não cabem, o motivo em português.
 """
 
 from __future__ import annotations
@@ -19,17 +12,14 @@ from ensaia.core.identificacao import identificar_planejamento
 
 @dataclass(frozen=True)
 class Analise:
+    """Uma análise do catálogo: identificador, grupo e nome."""
+
     id: str
     grupo: str
     nome: str
 
 
-# O grupo B (fatoriais de triagem: efeitos, Lenth, gráficos de efeito e
-# curvatura) saiu do escopo com o DCCR (spec v0.6 §9.2, ADR 0013): os IDs B1–B5
-# ficam reservados para a versão geral. `core/fatorial.py` continua no código,
-# mas nenhuma tela nem o PDF o oferecem. No DCCR, a curvatura vem dos termos
-# quadráticos, e o Pareto dos efeitos padronizados acompanha os coeficientes
-# (C1).
+# Grupo B (fatoriais) fora do escopo DCCR; IDs B1–B5 reservados.
 GRUPOS: dict[str, str] = {
     "A": "Dados e planejamento",
     "C": "Modelo e ANOVA",
@@ -67,16 +57,7 @@ def disponibilidade(
     tem_ordem: bool,
     blocos: Sequence[str] | None = None,
 ) -> dict[str, str | None]:
-    """Para cada análise: None se dá para fazer, ou o motivo (pt-BR) se não dá.
-
-    `fatores` são as colunas mapeadas como fator, na ordem dos ensaios. A
-    identificação do planejamento roda aqui mesmo (é barata), para que a tela
-    possa atualizar as caixas a cada mudança no mapeamento.
-
-    `blocos` (o rótulo de bloco de cada ensaio) muda duas coisas: os graus de
-    liberdade gastos com os blocos contam para ver se o modelo cabe, e a falta
-    de ajuste só se aplica com réplicas **dentro** de um mesmo bloco.
-    """
+    """Para cada análise, None se dá para fazer ou o motivo de não dar."""
     motivos: dict[str, str | None] = dict.fromkeys(IDS)
     if not fatores:
         return dict.fromkeys(IDS, "escolha ao menos um fator")
@@ -126,5 +107,5 @@ def disponibilidade(
 
 
 def padrao(disponiveis: Mapping[str, str | None]) -> list[str]:
-    """Seleção inicial: todas as análises compatíveis (spec §4, passo 4)."""
+    """Seleção inicial: todas as análises disponíveis."""
     return [id_ for id_, motivo in disponiveis.items() if motivo is None]

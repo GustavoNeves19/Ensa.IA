@@ -1,8 +1,5 @@
-"""Planilha-modelo para baixar (US-02): o formato certo, com um guia curto.
-
-Gerada em memória com o openpyxl (já é dependência), em duas abas: "Dados",
-pronta para preencher, e "Como preencher", com as regras que evitam os erros
-mais comuns de quem está começando.
+"""Gera a planilha-modelo .xlsx de um DCCR de 3 fatores, para baixar.
+Tem uma aba para preencher e outra com o guia de preenchimento.
 """
 
 from __future__ import annotations
@@ -11,8 +8,7 @@ import itertools
 from io import BytesIO
 
 _CABECALHO = ["Ensaio", "Temperatura (°C)", "Tempo (min)", "pH", "Rendimento (%)"]
-# Um DCCR de 3 fatores — 8 pontos fatoriais + 6 axiais (α=1,682, rotacional) +
-# 6 centrais = 20 ensaios —, só nos níveis reais. (centro, passo) por fator.
+# DCCR de 3 fatores (8 + 6 axiais + 6 centrais); (centro, passo) por fator.
 _ALFA = 1.682
 _FATORES = {
     "Temperatura (°C)": (50, 10),
@@ -46,7 +42,7 @@ _GUIA = [
 
 
 def planilha_modelo_xlsx() -> bytes:
-    """O arquivo .xlsx da planilha-modelo, em bytes."""
+    """Arquivo .xlsx da planilha-modelo, em bytes."""
     from openpyxl import Workbook
     from openpyxl.styles import Font
 

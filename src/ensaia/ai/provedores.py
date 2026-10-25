@@ -1,13 +1,5 @@
-"""Provedores de modelo de linguagem que a tela oferece (spec §12.2).
-
-Todos falam a API compatível com OpenAI, então um provedor é só uma URL base,
-se precisa de chave e como escolher um bom modelo na lista que ele devolve. A
-lista vem do próprio provedor (`GET /models`): os nomes mudam a cada geração de
-modelos, e pedir que um químico adivinhe "gemini-x.y-flash" seria cruel.
-
-A chave do usuário (M3, BYOK) nunca passa por aqui: quem a guarda é a sessão da
-tela, só na memória. Este módulo só lê a chave do SERVIDOR, quando quem hospeda
-o EnsaIA decidiu oferecer uma IA pronta (variáveis de ambiente ou `.env`).
+"""Provedores de IA que a tela oferece (Gemini, Groq, OpenAI, Ollama).
+Também lê a IA oferecida pelo servidor no .env; a chave do usuário não passa aqui.
 """
 
 from __future__ import annotations
@@ -23,7 +15,7 @@ from ensaia.ai.client import ConfiguracaoModelo
 
 @dataclass(frozen=True)
 class Provedor:
-    """Um serviço compatível com OpenAI e o jeito de escolher modelo nele."""
+    """Serviço compatível com OpenAI e como escolher modelo nele."""
 
     id: str
     nome: str
@@ -98,12 +90,7 @@ def modelos_de_texto(provedor: Provedor, nomes: Iterable[str]) -> list[str]:
 
 
 def modelo_sugerido(provedor: Provedor, nomes: Iterable[str]) -> str | None:
-    """O modelo que a tela já deixa escolhido; o usuário pode trocar.
-
-    Segue a ordem de `preferidos`: o nome exato, se existir; senão a versão mais
-    nova que contém o trecho, preferindo as estáveis às de prévia e o nome mais
-    curto (o modelo "base", não a variante).
-    """
+    """Modelo que a tela já deixa escolhido."""
     candidatos = modelos_de_texto(provedor, nomes)
     for trecho in provedor.preferidos:
         if trecho in candidatos:
@@ -116,10 +103,12 @@ def modelo_sugerido(provedor: Provedor, nomes: Iterable[str]) -> str | None:
 
 
 def _e_previa(nome: str) -> bool:
+    """Diz se o nome é de um modelo em prévia."""
     return any(t in nome.lower() for t in ("preview", "exp", "beta"))
 
 
 def _ordem_versao(nome: str) -> tuple[tuple[int, ...], int]:
+    """Chave para ordenar modelos pela versão."""
     numeros = tuple(int(n) for n in re.findall(r"\d+", nome))
     return numeros, -len(nome)
 
@@ -128,13 +117,7 @@ def _ordem_versao(nome: str) -> tuple[tuple[int, ...], int]:
 
 
 def config_do_servidor(arquivo_env: Path | None = None) -> ConfiguracaoModelo | None:
-    """A IA que quem hospeda o EnsaIA oferece pronta, ou None se não houver.
-
-    Lê `ENSAIA_IA_CHAVE` (ou `OPENAI_API_KEY`), `ENSAIA_IA_URL` (padrão: OpenAI)
-    e `ENSAIA_IA_MODELO` (ou `ENSAIA_MODELO_OPENAI`; padrão: gpt-4o-mini). O
-    `.env` da raiz do projeto, quando existe, preenche o que o ambiente não
-    trouxe — nunca sobrescreve.
-    """
+    """IA oferecida por quem hospeda, ou None."""
     _carregar_env(arquivo_env or Path(__file__).resolve().parents[3] / ".env")
     chave = os.environ.get("ENSAIA_IA_CHAVE") or os.environ.get("OPENAI_API_KEY")
     if not chave:
@@ -152,11 +135,12 @@ def config_do_servidor(arquivo_env: Path | None = None) -> ConfiguracaoModelo | 
 
 
 def url_ollama() -> str | None:
-    """URL do Ollama configurada pelo servidor (`ENSAIA_OLLAMA_URL`), se houver."""
+    """URL do Ollama configurada no servidor, se houver."""
     return os.environ.get("ENSAIA_OLLAMA_URL") or None
 
 
 def _carregar_env(caminho: Path) -> None:
+    """Carrega variáveis de um arquivo .env sem sobrescrever."""
     if not caminho.exists():
         return
     for linha in caminho.read_text(encoding="utf-8").splitlines():

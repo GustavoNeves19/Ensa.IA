@@ -1,15 +1,5 @@
-"""Indicativos iniciais e próximos passos (US-06 e US-17): a primeira leitura.
-
-Antes de mergulhar em tabelas e gráficos, o usuário iniciante quer saber: o
-modelo explica a resposta? Dá para confiar nele? O que eu faço agora?
-
-Nada aqui cria limiar novo. Cada sinal de "atenção" é uma decisão que o núcleo
-já tomou ao nível α escolhido (regressão significativa, falta de ajuste,
-normalidade dos resíduos, ensaios influentes) ou um fato matemático (R² de
-predição negativo: o modelo prevê pior que a média). Os próximos passos seguem
-as regras da própria especificação (§11.4): deslocar a região quando o ótimo
-ou o ponto estacionário caem fora ou na borda, subir a ordem do modelo quando
-há falta de ajuste ou curvatura, e sempre confirmar com um ensaio.
+"""Indicativos iniciais e próximos passos: a primeira leitura do resultado.
+Sinais de atenção vêm de decisões que o núcleo já tomou; nenhum limiar novo.
 """
 
 from __future__ import annotations
@@ -28,7 +18,7 @@ _NA_BORDA = 0.02
 
 @dataclass(frozen=True)
 class Indicativo:
-    """Um sinal da primeira leitura: o que é, quanto deu e se pede atenção."""
+    """Um sinal da primeira leitura: nome, valor e se pede atenção."""
 
     chave: str  # identificador estável (ajuda contextual na tela)
     analise: str  # ID do catálogo que o produz (só aparece se marcado)
@@ -39,7 +29,7 @@ class Indicativo:
 
 
 def indicativos(ajuste: AjusteResposta, alfa: float) -> list[Indicativo]:
-    """Os indicadores principais de uma resposta, com o sinal de cada um."""
+    """Indicadores principais de uma resposta, com o sinal de cada um."""
     itens = [
         Indicativo(
             "r2",
@@ -140,7 +130,7 @@ def indicativos(ajuste: AjusteResposta, alfa: float) -> list[Indicativo]:
 def proximos_passos(
     resultado: AnalysisResult, *, limite_codificado: float = 1.0
 ) -> list[str]:
-    """Sugestões do que fazer a seguir, a partir do resultado (spec §11.4)."""
+    """Sugestões do que fazer a seguir, a partir do resultado."""
     passos: list[str] = []
     for ajuste in resultado.ajustes:
         passos.extend(_passos_do_ajuste(ajuste, len(resultado.ajustes) > 1))
@@ -173,6 +163,7 @@ def proximos_passos(
 
 
 def _passos_do_ajuste(ajuste: AjusteResposta, varias: bool) -> list[str]:
+    """Sugestões a partir do ajuste de uma resposta."""
     da = f" ({nome_legivel(ajuste.resposta)})" if varias else ""
     passos: list[str] = []
     reg = ajuste.anova_regressao
@@ -214,13 +205,16 @@ def _passos_do_ajuste(ajuste: AjusteResposta, varias: bool) -> list[str]:
 
 
 def _num(valor: float, casas: int) -> str:
+    """Número com vírgula decimal e casas fixas."""
     return f"{valor:.{casas}f}".replace(".", ",")
 
 
 def _p(valor: float) -> str:
+    """p-valor como texto (< 0,0001 quando muito pequeno)."""
     return "< 0,0001" if valor < 1e-4 else _num(valor, 4)
 
 
 def _num_curto(valor: float) -> str:
+    """Número com até 4 algarismos significativos."""
     texto = f"{valor:.4g}"
     return texto.replace(".", ",") if "e" not in texto else _num(valor, 4)

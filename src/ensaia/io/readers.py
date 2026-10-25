@@ -1,21 +1,5 @@
-"""Leitura de dados experimentais (CSV, TSV, TXT, XLSX, XLS, ODS), sem pandas.
-
-Devolve uma `Table` (colunas em numpy) — ver ADR 0008 e a seção 8.1 da
-especificação. CSV é lido com a biblioteca padrão; planilhas com o leitor de
-cada formato, sempre em modo somente leitura (fórmulas e macros nunca são
-executadas; vale o valor em cache):
-
-    .xlsx  openpyxl     .xls  xlrd (formato antigo)     .ods  odfpy (LibreOffice)
-
-Os leitores de planilha só são importados quando um arquivo daquele tipo chega
-(spec §16.2: memória ociosa baixa).
-
-A leitura funciona por dois caminhos que compartilham o mesmo parse:
-
-- `ler_dados(caminho)` — a partir de um arquivo em disco, usada pelo pipeline de
-  validação (`validation/runner`).
-- `ler_dados_de_bytes(conteudo, nome)` — a partir de bytes em memória, usada pela
-  interface web, que recebe o upload e **nunca o grava em disco** (princípio P1).
+"""Lê CSV, TSV, TXT, XLSX, XLS e ODS e devolve uma Table, sem pandas.
+Planilhas são abertas só para leitura; fórmulas e macros nunca rodam.
 """
 
 from __future__ import annotations
@@ -33,14 +17,13 @@ _EXTENSOES_PLANILHA = {".xlsx", ".xls", ".ods"}
 FORMATOS_ACEITOS = sorted(_EXTENSOES_CSV | _EXTENSOES_PLANILHA)
 SEPARADORES = {",": "vírgula", ";": "ponto e vírgula", "\t": "tabulação", "|": "barra"}
 
-# Spec §8.1: planejamentos reais têm de 8 a 100 ensaios; o teto evita abuso de
-# memória (e trava planilhas com milhões de linhas vazias "repetidas").
+# Teto de linhas para evitar abuso de memória.
 MAX_LINHAS = 10_000
 
 
 @dataclass(frozen=True)
 class FormatoCsv:
-    """O que foi detectado num arquivo de texto, para mostrar (e corrigir) na tela."""
+    """Separador, decimal e codificação detectados num arquivo de texto."""
 
     separador: str
     decimal: str
@@ -48,7 +31,7 @@ class FormatoCsv:
 
 
 def ler_dados(caminho: Path | str) -> Table:
-    """Carrega dados experimentais de um arquivo em disco como `Table`."""
+    """Carrega um arquivo em disco como Table."""
     arquivo = Path(caminho)
     if not arquivo.exists():
         raise FileNotFoundError(f"Arquivo de dados não encontrado: {arquivo}")
@@ -62,15 +45,7 @@ def ler_dados_de_bytes(
     aba: str | None = None,
     separador: str | None = None,
 ) -> Table:
-    """Carrega dados experimentais a partir de bytes em memória como `Table`.
-
-    `nome` é o nome do arquivo (ex.: ``"ensaios.csv"``); sua extensão decide o
-    leitor. Em planilhas, `aba` escolhe a aba (padrão: a primeira, ou a ativa no
-    .xlsx). Em texto, o separador é detectado (vírgula, ponto e vírgula,
-    tabulação ou barra) e pode ser forçado por `separador`. CSVs brasileiros com
-    `;` e vírgula decimal são aceitos sem pré-processamento. Linhas iniciadas
-    por `#` são comentários; os nomes das colunas são preservados.
-    """
+    """Carrega um arquivo recebido em memória como Table."""
     extensao = _extensao(nome)
     if extensao == ".xlsx":
         cabecalho, linhas = _ler_xlsx(conteudo, nome, aba)
@@ -100,7 +75,7 @@ def ler_dados_de_bytes(
 
 
 def listar_abas(conteudo: bytes, nome: str) -> list[str]:
-    """Nomes das abas de uma planilha (RF-03); lista vazia para arquivos de texto."""
+    """Nomes das abas de uma planilha; vazio para arquivos de texto."""
     extensao = _extensao(nome)
     try:
         if extensao == ".xlsx":
@@ -122,7 +97,7 @@ def listar_abas(conteudo: bytes, nome: str) -> list[str]:
 
 
 def formato_csv(conteudo: bytes, nome: str) -> FormatoCsv | None:
-    """Separador, decimal e codificação detectados; None para planilhas."""
+    """Separador, decimal e codificação de um arquivo de texto."""
     if _extensao(nome) not in _EXTENSOES_CSV:
         return None
     texto, codificacao = _decodificar(conteudo, nome)
@@ -145,6 +120,7 @@ def formato_csv(conteudo: bytes, nome: str) -> FormatoCsv | None:
 
 
 def _extensao(nome: str) -> str:
+    """Extensão do arquivo, se for um formato aceito."""
     extensao = Path(nome).suffix.lower()
     if extensao not in _EXTENSOES_CSV | _EXTENSOES_PLANILHA:
         raise ValueError(
@@ -155,7 +131,7 @@ def _extensao(nome: str) -> str:
 
 
 def _decodificar(conteudo: bytes, nome: str) -> tuple[str, str]:
-    """Decodifica os bytes tentando as codificações usuais, em ordem."""
+    """Decodifica os bytes tentando as codificações usuais."""
     ultimo_erro: UnicodeDecodeError | None = None
     for codificacao in ("utf-8-sig", "utf-8", "latin-1"):
         try:
@@ -169,10 +145,12 @@ def _decodificar(conteudo: bytes, nome: str) -> tuple[str, str]:
 
 
 def _linhas_sem_comentario(texto: str) -> list[str]:
+    """Linhas do texto, sem as que começam com #."""
     return [linha for linha in texto.splitlines() if not linha.lstrip().startswith("#")]
 
 
 def _detectar_separador(linhas: list[str]) -> str:
+    """Detecta o separador de colunas do CSV."""
     amostra = "\n".join(linhas[:20])
     try:
         return csv.Sniffer().sniff(amostra, delimiters=",;\t|").delimiter
@@ -181,6 +159,7 @@ def _detectar_separador(linhas: list[str]) -> str:
 
 
 def _parece_numero(texto: str) -> bool:
+    """Diz se o texto pode ser lido como número."""
     try:
         float(texto.strip())
     except ValueError:
@@ -189,6 +168,7 @@ def _parece_numero(texto: str) -> bool:
 
 
 def _validar_cabecalho(nome: str, cabecalho: list[str]) -> None:
+    """Confere se há cabeçalho e se toda coluna tem nome."""
     if not cabecalho:
         raise ValueError(f"O arquivo {nome!r} não tem cabeçalho.")
     if any(not str(coluna).strip() for coluna in cabecalho):
@@ -203,7 +183,7 @@ def _validar_cabecalho(nome: str, cabecalho: list[str]) -> None:
 def _ler_csv(
     conteudo: str, nome: str, separador: str | None = None
 ) -> tuple[list[str], list[Sequence[object]]]:
-    """Faz o parse de um CSV já decodificado, detectando o separador."""
+    """Lê um CSV já decodificado como Table."""
     linhas_texto = _linhas_sem_comentario(conteudo)
     if not "\n".join(linhas_texto[:20]).strip():
         raise ValueError(f"O CSV {nome!r} não contém dados além de comentários.")
@@ -222,7 +202,7 @@ def _ler_csv(
 def _separar(
     linhas: list[list[object]], nome: str
 ) -> tuple[list[str], list[Sequence[object]]]:
-    """Cabeçalho = primeira linha; células vazias viram ""."""
+    """Separa cabeçalho e linhas, com células vazias como texto vazio."""
     if not linhas:
         raise ValueError(f"O arquivo {nome!r} não contém ensaios.")
     cabecalho = [str(c).strip() if c is not None else "" for c in linhas[0]]
@@ -235,13 +215,14 @@ def _separar(
 
 
 def _aba_inexistente(nome: str, aba: str, abas: list[str]) -> ValueError:
+    """Erro para uma aba que não existe na planilha."""
     return ValueError(f"A aba {aba!r} não existe em {nome!r}. Abas: {abas}.")
 
 
 def _ler_xlsx(
     conteudo: bytes, nome: str, aba: str | None
 ) -> tuple[list[str], list[Sequence[object]]]:
-    """.xlsx em modo somente leitura, com valores em cache (sem fórmulas)."""
+    """Lê uma aba de .xlsx com os valores em cache."""
     from openpyxl import load_workbook
 
     planilha = load_workbook(BytesIO(conteudo), read_only=True, data_only=True)
@@ -267,7 +248,7 @@ def _ler_xlsx(
 def _ler_xls(
     conteudo: bytes, nome: str, aba: str | None
 ) -> tuple[list[str], list[Sequence[object]]]:
-    """.xls (Excel 97–2003) pelo xlrd."""
+    """Lê uma aba de .xls (Excel 97–2003)."""
     import xlrd
 
     try:
@@ -284,6 +265,7 @@ def _ler_xls(
 
 
 def _tabelas_ods(conteudo: bytes) -> list:  # type: ignore[type-arg]
+    """Abas de um arquivo .ods."""
     from odf.opendocument import load
     from odf.table import Table as TabelaOds
 
@@ -294,12 +276,7 @@ def _tabelas_ods(conteudo: bytes) -> list:  # type: ignore[type-arg]
 def _ler_ods(
     conteudo: bytes, nome: str, aba: str | None
 ) -> tuple[list[str], list[Sequence[object]]]:
-    """.ods (LibreOffice) pelo odfpy.
-
-    O ODS comprime células e linhas iguais em "repetidas N vezes" — inclusive
-    milhares de linhas vazias no fim da aba. A repetição é expandida com teto,
-    e linhas vazias no fim são descartadas.
-    """
+    """Lê uma aba de .ods, expandindo células repetidas com teto."""
     from odf import teletype
     from odf.table import TableRow
 
