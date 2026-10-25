@@ -1,7 +1,7 @@
 """Escolha das análises (spec §9, passo 4 do fluxo), em etapas e com explicação.
 
 Em vez de uma parede de caixas de seleção, as análises ficam em etapas que
-abrem e fecham — triagem, modelo, diagnóstico, otimização —, cada uma com a
+abrem e fecham — modelo, diagnóstico, otimização —, cada uma com a
 pergunta que ela responde. Cada análise é um cartão que diz o que ela mostra;
 a lâmpada traz como ler o resultado. Clicar no cartão inclui ou tira a análise
 do laudo.
@@ -54,11 +54,6 @@ class FonteMapeamento(Protocol):
 # Cada etapa: (rótulo curto do passo, pergunta que ela responde, para que serve).
 # O grupo A não entra aqui — ver docstring do módulo.
 ETAPAS: dict[str, tuple[str, str, str]] = {
-    "B": (
-        "Triagem",
-        "Quais fatores importam?",
-        "Para fatoriais de 2 níveis: separar os fatores fortes dos fracos.",
-    ),
     "C": (
         "Modelo",
         "O modelo explica a resposta?",
@@ -85,44 +80,22 @@ GUIA: dict[str, tuple[str, str]] = {
         "nela.",
     ),
     "A2": (
-        "Qual planejamento os dados formam: fatorial, Box-Behnken, composto central…",
-        "O EnsaIA reconhece o tipo pela posição dos pontos. É ele que decide "
-        "qual modelo faz sentido ajustar.",
+        "Confere se os dados formam um DCCR: parte fatorial, pontos axiais e "
+        "pontos centrais.",
+        "O EnsaIA reconhece o DCCR pela posição dos pontos e confere se o α "
+        "axial é o rotacional. Se não for um DCCR, diz o que falta.",
     ),
     "A3": (
         "Os níveis de cada ensaio em unidades reais e na escala −1, 0, +1.",
         "A escala codificada põe todos os fatores na mesma régua, para comparar "
         "o efeito do pH com o da dose, por exemplo, de igual para igual.",
     ),
-    "B1": (
-        "Quanto a resposta muda quando cada fator vai do nível baixo ao alto.",
-        "Efeito positivo: subir o fator aumenta a resposta. Interação: o efeito "
-        "de um fator depende do nível do outro.",
-    ),
-    "B2": (
-        "A força de cada termo em barras, da maior para a menor.",
-        "Barra que passa da linha tracejada é significativa. É o jeito mais "
-        "rápido de ver quais fatores importam.",
-    ),
-    "B3": (
-        "Separa efeitos reais de ruído quando não há réplicas.",
-        "Efeitos que são só ruído se alinham perto da origem; os que se afastam "
-        "da linha são ativos.",
-    ),
-    "B4": (
-        "A média da resposta em cada nível e as linhas de interação.",
-        "Linha inclinada: o fator importa. Linhas de interação que se abrem ou "
-        "se cruzam: os fatores agem juntos.",
-    ),
-    "B5": (
-        "Compara o ponto central com os vértices.",
-        "Se o centro foge do esperado, a resposta faz curva: o modelo linear não "
-        "basta e vale ampliar para um composto central.",
-    ),
     "C1": (
-        "Os coeficientes do modelo, com erro-padrão e p-valor.",
+        "Os coeficientes do modelo, com erro-padrão e p-valor, e o Pareto dos "
+        "efeitos padronizados.",
         "Cada coeficiente diz quanto o termo soma à resposta. p menor que α: o "
-        "termo é significativo.",
+        "termo é significativo. No Pareto, a barra que passa da linha "
+        "tracejada é significativa.",
     ),
     "C2": (
         "Testa se o modelo explica a resposta além do acaso.",
@@ -198,16 +171,9 @@ GUIA: dict[str, tuple[str, str]] = {
 # métrica que aparece nos resultados, a fórmula é a mesma da lâmpada de lá.
 FORMULA_ANALISE: dict[str, str] = {
     "A1": FORMULAS["descritiva"],
-    "A2": (
-        "Fatorial: níveis ±1;  centro: 0\nComposto central rotacional: α = (2ᵏ)^(1/4)"
-    ),
+    "A2": ("Parte fatorial: ±1;  axiais: ±α;  centro: 0\nRotacional: α = n_fat^(1/4)"),
     "A3": FORMULAS["matriz"],
-    "B1": FORMULAS["efeitos"],
-    "B2": FORMULAS["pareto"],
-    "B3": FORMULAS["meio_normal"],
-    "B4": FORMULAS["efeitos_principais"] + "\n" + FORMULAS["interacao"],
-    "B5": "SQcurv = n_F · n_C · (ȳ_F − ȳ_C)² / (n_F + n_C)\nF = vértices;  C = centro",
-    "C1": FORMULAS["coeficientes"],
+    "C1": FORMULAS["coeficientes"] + "\n" + FORMULAS["pareto"],
     "C2": FORMULAS["regressao"],
     "C3": "\n".join(
         FORMULAS[c] for c in ("r2", "r2_ajustado", "r2_predicao", "r2_maximo")

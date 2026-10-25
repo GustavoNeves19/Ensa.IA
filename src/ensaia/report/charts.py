@@ -7,7 +7,7 @@ camada de IA nunca o veem.
 
 Os gráficos são os mesmos da tela, com a mesma paleta validada (`report/theme`
 espelha `ui/tema`): o que o usuário explorou é o que vai para o papel. Tudo sai
-do contrato congelado ou de funções do núcleo (Q-Q, meio-normal, grade da
+do contrato congelado ou de funções do núcleo (Q-Q e grade da
 superfície); nenhum recálculo estatístico acontece aqui.
 """
 
@@ -27,8 +27,7 @@ from matplotlib.ticker import FuncFormatter
 
 from ensaia.core.design import INTERCEPTO, nome_legivel
 from ensaia.core.diagnostico import pontos_qq
-from ensaia.core.fatorial import pontos_meio_normal
-from ensaia.core.results import AjusteResposta, EfeitosFatorial
+from ensaia.core.results import AjusteResposta
 from ensaia.core.surface import GradeSuperficie
 from ensaia.report.theme import TEMA, Tema, cor_mpl
 
@@ -229,132 +228,6 @@ _DESENHOS = {
 }
 
 
-def grafico_meio_normal(ef: EfeitosFatorial, *, tema: Tema = TEMA) -> bytes | None:
-    """Meio-normal dos efeitos (B3), com a margem de erro de Lenth tracejada."""
-    if ef.lenth is None or not ef.efeitos:
-        return None
-    pontos = pontos_meio_normal(ef.efeitos)
-    ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
-    fig = Figure(figsize=(6.0, 3.6))
-    ax = fig.subplots()
-    cores = [
-        cor_mpl(tema.serie if t in ativos else tema.serie_apagada)
-        for t in pontos.termos
-    ]
-    ax.scatter(
-        pontos.absolutos,
-        pontos.quantis,
-        c=cores,
-        s=34,
-        edgecolors=cor_mpl(tema.branco),
-        linewidths=0.8,
-        zorder=3,
-    )
-    for termo, x, y in zip(
-        pontos.termos, pontos.absolutos, pontos.quantis, strict=True
-    ):
-        if termo in ativos:
-            ax.annotate(
-                nome_legivel(termo),
-                (x, y),
-                xytext=(-6, 0),
-                textcoords="offset points",
-                ha="right",
-                va="center",
-                fontsize=8,
-                color=cor_mpl(tema.tinta),
-            )
-    ax.axvline(ef.lenth.me, color=cor_mpl(tema.tinta), linewidth=1, linestyle="--")
-    ax.set_xlabel("|efeito|")
-    ax.set_ylabel("Quantil meio-normal")
-    _titulo(ax, f"Meio-normal (ME de Lenth = {numero_curto(ef.lenth.me)})", tema)
-    _limpar(ax, tema, grade_y=True)
-    return _png(fig)
-
-
-def grafico_efeitos_principais(
-    ef: EfeitosFatorial, resposta: str, *, tema: Tema = TEMA
-) -> bytes | None:
-    """Média da resposta em cada nível de cada fator (B4), lado a lado."""
-    medias = ef.medias_principais
-    if not medias:
-        return None
-    todas = [v for m in medias for v in m.medias]
-    baixo, alto = min(todas), max(todas)
-    folga = (alto - baixo) * 0.12 or 1.0
-    colunas = min(len(medias), 4)
-    linhas = math.ceil(len(medias) / colunas)
-    fig = Figure(figsize=(7.0, 2.3 * linhas))
-    eixos = fig.subplots(linhas, colunas, squeeze=False, sharey=True).ravel()
-    for ax, m in zip(eixos, medias, strict=False):
-        ax.plot(
-            m.niveis,
-            m.medias,
-            color=cor_mpl(tema.serie),
-            linewidth=1.6,
-            marker="o",
-            markersize=6,
-            markeredgecolor=cor_mpl(tema.branco),
-        )
-        ax.set_ylim(baixo - folga, alto + folga)
-        ax.set_xticks(m.niveis)
-        ax.set_xlabel(nome_legivel(m.fator), fontsize=9)
-        _limpar(ax, tema, grade_y=True)
-    for ax in eixos[len(medias) :]:
-        ax.axis("off")
-    eixos[0].set_ylabel(f"Média de {nome_legivel(resposta)}", fontsize=9)
-    fig.suptitle(
-        "Efeitos principais",
-        x=0.01,
-        ha="left",
-        fontsize=11,
-        fontweight="bold",
-        color=cor_mpl(tema.tinta),
-    )
-    fig.tight_layout()
-    return _png(fig)
-
-
-def grafico_interacoes(ef: EfeitosFatorial, *, tema: Tema = TEMA) -> bytes | None:
-    """Uma linha por nível do segundo fator (B4): linhas não paralelas = interação."""
-    pares = ef.medias_interacoes
-    if not pares:
-        return None
-    colunas = min(len(pares), 3)
-    linhas = math.ceil(len(pares) / colunas)
-    fig = Figure(figsize=(7.0, 2.6 * linhas))
-    eixos = fig.subplots(linhas, colunas, squeeze=False).ravel()
-    for ax, m in zip(eixos, pares, strict=False):
-        cores = _cores_niveis(len(m.niveis_b), tema)
-        for j, nivel in enumerate(m.niveis_b):
-            ax.plot(
-                m.niveis_a,
-                m.medias[j],
-                color=cores[j],
-                linewidth=1.6,
-                marker="o",
-                markersize=5,
-                markeredgecolor=cor_mpl(tema.branco),
-                label=f"{nome_legivel(m.fator_b)} = {numero_curto(nivel)}",
-            )
-        ax.set_xticks(m.niveis_a)
-        ax.set_xlabel(nome_legivel(m.fator_a), fontsize=9)
-        ax.legend(fontsize=7, frameon=False, loc="best")
-        _limpar(ax, tema, grade_y=True)
-    for ax in eixos[len(pares) :]:
-        ax.axis("off")
-    fig.suptitle(
-        "Interações",
-        x=0.01,
-        ha="left",
-        fontsize=11,
-        fontweight="bold",
-        color=cor_mpl(tema.tinta),
-    )
-    fig.tight_layout()
-    return _png(fig)
-
-
 def grafico_contorno(
     grade: GradeSuperficie,
     *,
@@ -467,18 +340,6 @@ def _pontos(ax: Axes, x: Sequence[float], y: Sequence[float], tema: Tema) -> Non
         linewidths=0.8,
         zorder=3,
     )
-
-
-def _cores_niveis(n: int, tema: Tema) -> list[tuple[float, float, float]]:
-    if n == 2:
-        return [cor_mpl(tema.nivel_baixo), cor_mpl(tema.nivel_alto)]
-    passos = [round(i * (len(tema.rampa) - 1) / max(n - 1, 1)) for i in range(n)]
-    return [_hex(tema.rampa[p]) for p in passos]
-
-
-def _hex(cor: str) -> tuple[float, float, float]:
-    h = cor.lstrip("#")
-    return cor_mpl((int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)))
 
 
 def _titulo(ax: Axes, texto: str, tema: Tema, *, tamanho: int = 11) -> None:

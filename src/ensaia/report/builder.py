@@ -26,7 +26,6 @@ from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
     Diagnostico,
-    EfeitosFatorial,
     LinhaAnova,
 )
 from ensaia.core.surface import grade_superficie, par_inicial
@@ -72,8 +71,8 @@ def gerar_pdf(
     if "A1" in sel and resultado.descritiva:
         _secao_descritiva(pdf, resultado)
     for ajuste in resultado.ajustes:
-        if sel & {"B1", "B2", "B3", "B4", "B5"}:
-            _secao_efeitos(pdf, ajuste, sel)
+        if "C1" in sel:
+            _secao_efeitos(pdf, ajuste)
     for ajuste in resultado.ajustes:
         if sel & {"C1", "C5"}:
             _secao_modelo(pdf, ajuste, sel)
@@ -271,81 +270,16 @@ def _secao_descritiva(pdf: RelatorioPDF, resultado: AnalysisResult) -> None:
 # --- 5. Efeitos ---------------------------------------------------------------
 
 
-def _secao_efeitos(
-    pdf: RelatorioPDF, ajuste: AjusteResposta, sel: frozenset[str]
-) -> None:
-    ef = ajuste.efeitos_fatorial
-    fatorial = ef is not None and bool(sel & {"B1", "B3", "B4", "B5"})
-    if not fatorial and "B2" not in sel:
-        return
-    pareto = charts.grafico_pareto(ajuste, tema=pdf.tema) if "B2" in sel else None
-    if ef is not None and "B1" in sel:
-        primeiro = 60.0
-    else:
-        primeiro = pdf.altura_png(pareto, 150) if pareto else 30.0
+def _secao_efeitos(pdf: RelatorioPDF, ajuste: AjusteResposta) -> None:
+    """Pareto dos efeitos padronizados (|t| de cada termo), parte do ajuste (C1)."""
+    pareto = charts.grafico_pareto(ajuste, tema=pdf.tema)
+    primeiro = pdf.altura_png(pareto, 150) if pareto else 30.0
     pdf.titulo_secao(f"Efeitos — {nome_legivel(ajuste.resposta)}", reservar=primeiro)
-    if ef is not None and "B1" in sel:
-        _tabela_efeitos(pdf, ef)
     if pareto is not None:
         pdf.imagem_png(pareto, largura=150)
         t = ajuste.t_critico
         limite = f" (t crítico = {numero_ptbr(t, 3)})" if t is not None else ""
         pdf.nota(f"Barra que passa da linha tracejada{limite} é efeito significativo.")
-    if ef is None:
-        return
-    if "B3" in sel:
-        png = charts.grafico_meio_normal(ef, tema=pdf.tema)
-        if png is not None and ef.lenth is not None:
-            pdf.imagem_png(png, largura=130)
-            pdf.nota(
-                f"Lenth: PSE = {numero_sig(ef.lenth.pse)}; ME = "
-                f"{numero_sig(ef.lenth.me)}; SME = {numero_sig(ef.lenth.sme)}. "
-                "Efeitos à direita da linha tracejada são ativos."
-            )
-    if "B4" in sel:
-        for png_b4 in (
-            charts.grafico_efeitos_principais(ef, ajuste.resposta, tema=pdf.tema),
-            charts.grafico_interacoes(ef, tema=pdf.tema),
-        ):
-            if png_b4 is not None:
-                pdf.imagem_png(png_b4, largura=160)
-    if "B5" in sel:
-        _curvatura(pdf, ef)
-
-
-def _tabela_efeitos(pdf: RelatorioPDF, ef: EfeitosFatorial) -> None:
-    pdf.subtitulo("Efeitos estimados")
-    pdf.tabela(
-        ["Termo", "Efeito", "Erro padrão", "t", "p", "Signif."],
-        [
-            [
-                nome_legivel(e.termo),
-                numero_sig(e.efeito),
-                numero_sig(e.erro_padrao),
-                numero_ptbr(e.valor_t, 2),
-                _fmt_p(e.valor_p, pdf.tema.casas_p),
-                "sim" if e.significativo else "não",
-            ]
-            for e in ef.efeitos
-        ],
-        larguras=[54, 24, 28, 20, 24, 24],
-    )
-
-
-def _curvatura(pdf: RelatorioPDF, ef: EfeitosFatorial) -> None:
-    c = ef.curvatura
-    if not c.aplicavel or c.valor_p is None:
-        motivo = (c.motivo_inaplicavel or "sem pontos centrais").rstrip(".")
-        pdf.paragrafo(f"Teste de curvatura: não aplicável ({motivo}).")
-        return
-    p = _fmt_p(c.valor_p, pdf.tema.casas_p)
-    if c.significativa:
-        pdf.paragrafo(
-            f"Há curvatura (p = {p}): a média dos pontos centrais difere da média "
-            "dos pontos fatoriais, e um modelo de segunda ordem pode ser necessário."
-        )
-    else:
-        pdf.paragrafo(f"Sem evidência de curvatura (p = {p}).")
 
 
 # --- 6. Modelo ----------------------------------------------------------------

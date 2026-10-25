@@ -16,8 +16,6 @@ from dataclasses import dataclass
 
 from ensaia.core.identificacao import identificar_planejamento
 
-FATORIAIS_2_NIVEIS = ("fatorial_completo", "fatorial_fracionado")
-
 
 @dataclass(frozen=True)
 class Analise:
@@ -26,9 +24,14 @@ class Analise:
     nome: str
 
 
+# O grupo B (fatoriais de triagem: efeitos, Lenth, gráficos de efeito e
+# curvatura) saiu do escopo com o DCCR (spec v0.6 §9.2, ADR 0013): os IDs B1–B5
+# ficam reservados para a versão geral. `core/fatorial.py` continua no código,
+# mas nenhuma tela nem o PDF o oferecem. No DCCR, a curvatura vem dos termos
+# quadráticos, e o Pareto dos efeitos padronizados acompanha os coeficientes
+# (C1).
 GRUPOS: dict[str, str] = {
     "A": "Dados e planejamento",
-    "B": "Fatoriais (triagem)",
     "C": "Modelo e ANOVA",
     "D": "Diagnóstico",
     "E": "Superfície e otimização",
@@ -36,14 +39,9 @@ GRUPOS: dict[str, str] = {
 
 CATALOGO: tuple[Analise, ...] = (
     Analise("A1", "A", "Estatística descritiva"),
-    Analise("A2", "A", "Identificação do planejamento"),
+    Analise("A2", "A", "Identificação do DCCR"),
     Analise("A3", "A", "Matriz real e codificada"),
-    Analise("B1", "B", "Efeitos principais e interações"),
-    Analise("B2", "B", "Pareto dos efeitos padronizados"),
-    Analise("B3", "B", "Gráfico meio-normal (Lenth)"),
-    Analise("B4", "B", "Gráficos de efeito e de interação"),
-    Analise("B5", "B", "Teste de curvatura"),
-    Analise("C1", "C", "Ajuste do modelo (coeficientes)"),
+    Analise("C1", "C", "Ajuste do modelo (coeficientes e Pareto)"),
     Analise("C2", "C", "ANOVA"),
     Analise("C3", "C", "R², R² ajustado e de predição"),
     Analise("C4", "C", "Falta de ajuste"),
@@ -99,25 +97,12 @@ def disponibilidade(
         if blocos is not None
         else tem_replicas
     )
-    fatorial = ident.tipo in FATORIAIS_2_NIVEIS
 
     if n <= k + 1 + (n_blocos - 1):
         sem_modelo = f"{n} ensaios não bastam nem para o modelo linear"
         for id_ in IDS:
-            if id_[0] in "CDE" or id_ in ("B1", "B2", "B3", "B4"):
+            if id_[0] in "CDE":
                 motivos[id_] = sem_modelo
-
-    if not fatorial:
-        for id_ in ("B1", "B3", "B4", "B5"):
-            motivos[id_] = "só para fatorial de 2 níveis"
-    else:
-        if tem_replicas:
-            motivos["B3"] = (
-                "com réplicas o erro é estimado direto (use o Pareto); Lenth é "
-                "para fatorial sem réplicas"
-            )
-        if ident.n_pontos_centrais < 2:
-            motivos["B5"] = "exige ao menos 2 ensaios no ponto central"
 
     if not tem_replicas_no_bloco:
         motivos["C4"] = (

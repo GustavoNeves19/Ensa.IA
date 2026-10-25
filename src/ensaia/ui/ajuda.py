@@ -80,27 +80,6 @@ EXPLICACOES: dict[str, tuple[str, str]] = {
         "passa da linha tracejada (t crítico) é efeito significativo. Clique numa "
         "barra para ver a superfície daquele termo.",
     ),
-    "efeitos": (
-        "Efeitos",
-        "Quanto a resposta muda, em média, quando o fator vai do nível baixo (−1) "
-        "ao alto (+1). Em fatoriais, é o dobro do coeficiente.",
-    ),
-    "meio_normal": (
-        "Gráfico meio-normal",
-        "Para fatoriais sem réplicas: efeitos que são só ruído se alinham perto da "
-        "origem; os que se afastam para a direita da margem de Lenth são ativos.",
-    ),
-    "efeitos_principais": (
-        "Efeitos principais",
-        "A média da resposta em cada nível de cada fator, na mesma escala. Quanto "
-        "mais inclinada a linha, maior o efeito daquele fator.",
-    ),
-    "interacao": (
-        "Interação",
-        "Uma linha por nível do segundo fator. Linhas paralelas: os fatores agem "
-        "cada um por si. Linhas que se abrem ou se cruzam: o efeito de um depende "
-        "do nível do outro.",
-    ),
     "equacao": (
         "Equação do modelo",
         "A fórmula que o modelo ajustou. Na forma codificada os coeficientes são "
@@ -160,7 +139,7 @@ EXPLICACOES: dict[str, tuple[str, str]] = {
     "matriz": (
         "Matriz do planejamento",
         "Os níveis de cada ensaio em unidades reais e, entre parênteses, na escala "
-        "codificada (−1, 0, +1) que o modelo usa.",
+        "codificada (−α, −1, 0, +1, +α) que o modelo usa.",
     ),
 }
 
@@ -187,13 +166,6 @@ FORMULAS: dict[str, str] = {
     ),
     "coeficientes": "b = (XᵀX)⁻¹ Xᵀ y\nt = bⱼ / EP(bⱼ)",
     "pareto": "tⱼ = |bⱼ| / EP(bⱼ)\nsignificativo se tⱼ > t(α/2; gl do resíduo)",
-    "efeitos": "Efeito = ȳ(+1) − ȳ(−1) = 2 · b",
-    "meio_normal": (
-        "s₀ = 1,5 · mediana |cⱼ|\nPSE = 1,5 · mediana { |cⱼ| : |cⱼ| < 2,5 · s₀ }\n"
-        "ME = t(0,975; m/3) · PSE"
-    ),
-    "efeitos_principais": "ȳ(nível) = média de y nos ensaios com o fator nesse nível",
-    "interacao": "Efeito AB = [ȳ(++) − ȳ(−+) − ȳ(+−) + ȳ(−−)] / 2",
     "equacao": (
         "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²\nxᵢ = (Xᵢ − centroᵢ) / meia-amplitudeᵢ"
     ),

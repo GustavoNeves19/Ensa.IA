@@ -239,7 +239,7 @@ def compute_effects(
         data_csv,
         factors,
         response,
-        ["B1", "B2", "B3", "B4", "B5"],
+        ["C1"],
         "auto",
         None,
         error_term,

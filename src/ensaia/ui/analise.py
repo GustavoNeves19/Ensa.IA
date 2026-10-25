@@ -46,7 +46,6 @@ from ensaia.core.design import (
 )
 from ensaia.core.desirability import metas_padrao, otimizar
 from ensaia.core.diagnostico import pontos_qq
-from ensaia.core.fatorial import pontos_meio_normal
 from ensaia.core.fluxo import (
     Papel,
     analisar_tabela,
@@ -60,12 +59,10 @@ from ensaia.core.results import (
     AjusteResposta,
     AnalysisResult,
     Diagnostico,
-    EfeitosFatorial,
     LinhaAnova,
     PontoOtimo,
     Sentido,
     TermoErro,
-    TesteCurvatura,
     TipoModelo,
     TipoPlanejamento,
 )
@@ -423,27 +420,26 @@ _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
         "Quais efeitos entram na equação.",
         {
             "auto": (
-                "Automático: o EnsaIA escolhe pelo planejamento. Quadrático para o "
-                "composto central (DCCR), que tem 3 ou mais níveis por fator. Se "
-                "faltarem ensaios para o modelo, ele simplifica e avisa.",
+                "Automático: o quadrático completo, o modelo padrão do DCCR. Se "
+                "faltarem ensaios para ele, o EnsaIA simplifica e avisa.",
                 "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²",
             ),
             "linear": (
                 "Linear: só o efeito de cada fator, como se cada um agisse sozinho "
-                "e em linha reta. Serve para triagem; não enxerga interação nem "
-                "curvatura.",
+                "e em linha reta. Não enxerga interação nem curvatura; serve para "
+                "comparar com o quadrático e ver o que os termos a mais acrescentam.",
                 "ŷ = b₀ + Σ bᵢxᵢ",
             ),
             "interacoes": (
                 "Com interações: soma o efeito combinado de cada par de fatores, "
-                "para quando o efeito de um depende do nível do outro. É o modelo "
-                "dos fatoriais de 2 níveis.",
+                "para quando o efeito de um depende do nível do outro. Sem os "
+                "termos quadráticos, não acha máximo nem mínimo dentro da região.",
                 "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ",
             ),
             "quadratico": (
                 "Quadrático: soma também a curvatura de cada fator, o que permite "
-                "achar um máximo ou um mínimo dentro da região estudada. Exige 3 "
-                "ou mais níveis por fator — é o modelo do composto central (DCCR).",
+                "achar um máximo ou um mínimo dentro da região estudada. É o modelo "
+                "completo do DCCR: (k + 1)(k + 2)/2 coeficientes para k fatores.",
                 "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²",
             ),
         },
@@ -476,9 +472,9 @@ _OPCOES_MODELO: dict[str, tuple[str, str, dict[Any, tuple[str, str]]]] = {
                 "significativo se p < 0,05\nt crítico = t(0,025; gl do erro)",
             ),
             0.10: (
-                "α = 0,10: mais tolerante, aceita até 10% de chance de acaso. Útil "
-                "em triagem com poucos ensaios, quando perder um fator importante "
-                "custa mais que incluir um a mais.",
+                "α = 0,10: mais tolerante, aceita até 10% de chance de acaso. "
+                "Aparece em parte dos artigos; para reproduzir um deles, use o "
+                "mesmo α que ele.",
                 "significativo se p < 0,10\nt crítico = t(0,05; gl do erro)",
             ),
         },
@@ -1333,7 +1329,7 @@ _ABA_SUPERFICIE = "Superfície"
 
 
 _POR_ABA = {
-    _ABA_EFEITOS: {"B1", "B2", "B3", "B4", "B5", "C1", "C5"},
+    _ABA_EFEITOS: {"C1", "C5"},
     _ABA_ANOVA: {"C2", "C4"},
     _ABA_DIAGNOSTICO: {"C6", "D1", "D2", "D3", "D4"},
     _ABA_SUPERFICIE: {"E1", "E2", "E3"},
@@ -1438,11 +1434,8 @@ def _aba_efeitos(
     ao_clicar: Callable[[str], None] | None,
     sel: frozenset[str] = frozenset(IDS),
 ) -> None:
-    if "B2" in sel:
-        _pareto(ajuste, alfa, ao_clicar)
-    if ajuste.efeitos_fatorial is not None:
-        _bloco_fatorial(ajuste, alfa, sel)
     if "C1" in sel:
+        _pareto(ajuste, alfa, ao_clicar)
         titulo_com_dica(
             "Coeficientes (escala codificada)", "coeficientes", "ea-tabela-rotulo"
         )
@@ -1484,131 +1477,6 @@ def _pareto(
         '<div class="ea-ler">Quanto maior a barra, mais o termo mexe na resposta. '
         f"{corte}{dica}</div>"
     )
-
-
-def _bloco_fatorial(
-    ajuste: AjusteResposta, alfa: float, sel: frozenset[str] = frozenset(IDS)
-) -> None:
-    """Efeitos (B1), meio-normal (B3), efeito e interação (B4) e curvatura (B5)."""
-    ef = ajuste.efeitos_fatorial
-    assert ef is not None
-    if "B1" in sel:
-        _tabela_efeitos(ef)
-    if ef.lenth is not None and "B3" in sel:
-        _meio_normal(ef)
-    if "B4" in sel:
-        _efeitos_principais(ef)
-        _interacao(ef)
-    if "B5" in sel:
-        ui.html(f'<div class="ea-ler">{_texto_curvatura(ef.curvatura, alfa)}</div>')
-
-
-def _tabela_efeitos(ef: EfeitosFatorial) -> None:
-    titulo_com_dica("Efeitos (de −1 a +1)", "efeitos", "ea-tabela-rotulo")
-    colunas = [
-        {"name": "termo", "label": "Termo", "field": "termo", "align": "left"},
-        {"name": "ef", "label": "Efeito", "field": "ef", "align": "right"},
-        {"name": "ep", "label": "Erro padrão", "field": "ep", "align": "right"},
-        {"name": "p", "label": "p-valor", "field": "p", "align": "right"},
-        {"name": "sig", "label": "Signif.", "field": "sig", "align": "center"},
-    ]
-    linhas = [
-        {
-            "termo": nome_legivel(e.termo),
-            "ef": _fmt(e.efeito, 4),
-            "ep": _fmt(e.erro_padrao, 4),
-            "p": _fmt_p_tabela(e.valor_p),
-            "sig": "sim" if e.significativo else "—",
-        }
-        for e in sorted(ef.efeitos, key=lambda e: abs(e.efeito), reverse=True)
-    ]
-    ui.table(columns=colunas, rows=linhas, row_key="termo").props(
-        "flat bordered dense hide-bottom"
-    ).classes("ensaia-previa w-full")
-
-
-def _meio_normal(ef: EfeitosFatorial) -> None:
-    assert ef.lenth is not None
-    ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
-    titulo_com_dica("Gráfico meio-normal dos efeitos", "meio_normal")
-    _grafico(
-        graficos.opcoes_meio_normal(
-            pontos_meio_normal(ef.efeitos), ef.lenth.me, ativos
-        ),
-        300,
-        "Gráfico meio-normal dos efeitos: "
-        + (
-            f"ativos pelo método de Lenth: {', '.join(map(nome_legivel, ativos))}."
-            if ativos
-            else "nenhum efeito ativo pelo método de Lenth."
-        ),
-    )
-    ui.html(
-        '<div class="ea-ler">Efeitos que são só ruído se alinham perto da origem; '
-        "os que se afastam para a direita da <b>linha tracejada</b> (margem de "
-        f"Lenth, ME = {_fmt(ef.lenth.me, 3)}) são ativos. Útil quando não há "
-        "réplicas para estimar o erro.</div>"
-    )
-
-
-def _efeitos_principais(ef: EfeitosFatorial) -> None:
-    if not ef.medias_principais:
-        return
-    todas = [v for m in ef.medias_principais for v in m.medias]
-    baixo, alto = min(todas), max(todas)
-    folga = (alto - baixo) * 0.12 or 1.0
-    titulo_com_dica("Efeitos principais", "efeitos_principais")
-    with ui.element("div").classes("ea-multiplos"):
-        for m in ef.medias_principais:
-            _grafico(
-                graficos.opcoes_medias(m, baixo - folga, alto + folga),
-                200,
-                f"Média da resposta em cada nível de {nome_legivel(m.fator)}.",
-            )
-    ui.html(
-        '<div class="ea-ler">Média da resposta em cada nível, na mesma escala: '
-        "quanto mais inclinada a linha, maior o efeito do fator.</div>"
-    )
-
-
-def _interacao(ef: EfeitosFatorial) -> None:
-    if not ef.medias_interacoes:
-        return
-    efeito_de = {e.termo: abs(e.efeito) for e in ef.efeitos}
-    mais_forte = max(
-        ef.medias_interacoes,
-        key=lambda m: efeito_de.get(f"{m.fator_a}:{m.fator_b}", 0.0),
-    )
-    titulo_com_dica(
-        f"Interação {nome_legivel(mais_forte.fator_a)} × "
-        f"{nome_legivel(mais_forte.fator_b)}",
-        "interacao",
-    )
-    _grafico(
-        graficos.opcoes_interacao(mais_forte),
-        280,
-        f"Interação entre {nome_legivel(mais_forte.fator_a)} e "
-        f"{nome_legivel(mais_forte.fator_b)}: uma linha por nível do segundo fator.",
-    )
-    ui.html(
-        '<div class="ea-ler">A interação mais forte do modelo. Linhas paralelas: '
-        "os fatores agem cada um por si; linhas que se abrem ou se cruzam: o "
-        "efeito de um depende do nível do outro.</div>"
-    )
-
-
-def _texto_curvatura(curvatura: TesteCurvatura, alfa: float) -> str:
-    if not curvatura.aplicavel:
-        motivo = curvatura.motivo_inaplicavel or "sem pontos centrais"
-        return f"Teste de curvatura não aplicável ({escape(motivo)})."
-    teste = f"p = {_fmt_p(curvatura.valor_p)}"
-    if curvatura.significativa:
-        return (
-            f"<b>Há curvatura</b> ({teste} &lt; {_fmt(alfa, 2)}): o centro difere dos "
-            "vértices e o modelo linear não basta. Vale ampliar para um composto "
-            "central e ajustar termos quadráticos."
-        )
-    return f"Sem evidência de curvatura ({teste}): o modelo linear descreve a região."
 
 
 _SUBSCRITO = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
