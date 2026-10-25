@@ -6,8 +6,8 @@ escolhe quem escreve:
 - **Sem IA (M0)** — o texto fiel montado dos fatos do núcleo; aparece na hora.
 - **Copiar para a sua IA (M1)** — o EnsaIA monta o pedido, o usuário cola no
   ChatGPT, Gemini ou outra IA e traz a resposta de volta para conferir.
-- **IA local (M2)** — Ollama no computador do usuário; só aparece quando o
-  EnsaIA roda ali (o servidor hospedado não enxerga o Ollama de ninguém).
+- **IA local (M2)** — Ollama no computador onde o EnsaIA está rodando; o
+  endereço pode ser trocado na tela.
 - **IA em nuvem (M3)** — com a chave do próprio usuário (BYOK) ou com a IA que
   o servidor oferece, quando quem hospeda configurou uma.
 
@@ -66,10 +66,12 @@ _DESTAQUE = "ea-destaque-fid"
 
 def construir_narracao(sessao: Sessao) -> None:
     """Bloco final da tela de resultados: escolher quem escreve e ver o texto."""
-    modos: dict[str, str] = {"m0": "Sem IA", "m1": "Copiar para a sua IA"}
-    if _ollama_disponivel():
-        modos["m2"] = "IA local"
-    modos["m3"] = "IA em nuvem"
+    modos = {
+        "m0": "Sem IA",
+        "m1": "Copiar para a sua IA",
+        "m2": "IA local",
+        "m3": "IA em nuvem",
+    }
 
     with ui.element("div").classes("ea-otimizacao ea-narrar"):
         ui.html('<div class="ea-secao-titulo">Relatório em texto</div>')
@@ -195,9 +197,9 @@ def _painel_m1(sessao: Sessao, saida: ui.column) -> None:
 
 def _painel_m2(sessao: Sessao, saida: ui.column) -> None:
     ui.html(
-        '<div class="ea-ler">Usa o <b>Ollama</b> aberto neste computador: nada sai '
-        "da sua máquina. Modelos de 4B a 8B (Qwen 3, Llama 3, Gemma 3) dão conta, "
-        "porque a IA só reescreve os resultados.</div>"
+        '<div class="ea-ler">Usa o <b>Ollama</b> aberto no computador onde o EnsaIA '
+        "está rodando: nada sai dessa máquina. Modelos de 4B a 8B (Qwen 3, Llama 3, "
+        "Gemma 3) dão conta, porque a IA só reescreve os resultados.</div>"
     )
     endereco = ui.input("Endereço do Ollama", value=url_ollama() or OLLAMA.url_base)
     endereco.props("dense outlined").classes("ea-campo-longo")
@@ -411,8 +413,8 @@ def _mensagem_erro(erro: ErroDeIA, provedor: Provedor) -> str:
         return f"O {provedor.nome} respondeu com erro ({erro.status})."
     if isinstance(erro, ErroDeConexao) and provedor is OLLAMA:
         return (
-            "Não encontrei o Ollama nesse endereço. Ele está aberto? Esse modo só "
-            "funciona com o EnsaIA rodando no seu computador."
+            "Não encontrei o Ollama nesse endereço. Ele está aberto no computador "
+            "onde o EnsaIA está rodando?"
         )
     return f"Não consegui falar com o {provedor.nome}. Verifique a conexão."
 
@@ -424,15 +426,6 @@ def _chave_recusada(erro: ErroDeIA) -> bool:
     return erro.status in (401, 403) or (
         erro.status == 400 and "key" in str(erro).lower()
     )
-
-
-def _ollama_disponivel() -> bool:
-    """IA local só faz sentido quando o navegador está na mesma máquina."""
-    if url_ollama():
-        return True
-    requisicao = getattr(ui.context.client, "request", None)
-    host = getattr(getattr(requisicao, "url", None), "hostname", None)
-    return host in {"localhost", "127.0.0.1", "::1"}
 
 
 # --- O texto na tela ---------------------------------------------------------
