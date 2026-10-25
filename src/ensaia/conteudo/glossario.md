@@ -1,36 +1,46 @@
-# Glossário de planejamento de experimentos (DOE)
+# Glossário do delineamento composto central rotacional (DCCR)
 
 **Fator**: o que você controla no experimento (temperatura, pH, tempo, dose).
 
-**Nível**: o valor de um fator num ensaio. Em fatoriais de dois níveis, o baixo e o alto.
+**Nível**: o valor de um fator num ensaio. No DCCR, cada fator tem cinco níveis: −α, −1, 0, +1 e +α.
 
 **Resposta**: o que você mede no fim de cada ensaio (rendimento, remoção, pureza).
 
-**Codificação**: reescrever cada fator na escala de −1 (nível baixo) a +1 (nível alto), com 0 no centro. Deixa os coeficientes comparáveis entre fatores de unidades diferentes.
+**Codificação**: reescrever cada fator como x = (X − centro) / meia-amplitude, com 0 no centro e ±1 nos níveis da parte fatorial. Deixa os coeficientes comparáveis entre fatores de unidades diferentes.
 
-**Ponto central**: ensaio com todos os fatores no nível 0. Repetido, estima o erro puro e testa curvatura.
+**DCCR (delineamento composto central rotacional)**: o planejamento que o EnsaIA analisa. Tem três partes: a parte fatorial, os pontos axiais e os pontos centrais. Com ele dá para ajustar um modelo quadrático e encontrar um máximo ou um mínimo.
 
-**Fatorial 2ᵏ**: todas as combinações de dois níveis de k fatores. Serve para triagem: descobrir quais fatores importam.
+**Parte fatorial (cúbica)**: os ensaios com todos os fatores em −1 ou +1, nas combinações de um fatorial.
 
-**Composto central (DCCR)**: fatorial + pontos axiais (±α) + pontos centrais. Permite ajustar um modelo quadrático. É o único tipo de planejamento que o EnsaIA analisa hoje (ver ADR 0013) — os termos abaixo são vocabulário geral de DOE, úteis para ler artigos, mas o EnsaIA não reconhece esses outros tipos.
+**Pontos axiais (estrela)**: os ensaios com um fator em −α ou +α e os demais no centro (0). São 2 por fator.
 
-**Box-Behnken**: planejamento de três níveis sem os vértices do cubo, também para modelo quadrático, com menos ensaios.
+**Ponto central**: ensaio com todos os fatores no nível 0. Repetido, mede o erro puro e estabiliza a qualidade da previsão perto do centro.
 
-**Efeito**: quanto a resposta muda, em média, quando o fator vai do nível baixo ao alto.
+**α axial**: a distância dos pontos axiais ao centro, na escala codificada. No DCCR ele é o rotacional: α = (número de ensaios da parte fatorial)^(1/4), ou seja, 1,414 para 2 fatores, 1,682 para 3 e 2 para 4.
+
+**Rotabilidade**: a propriedade de o modelo prever com a mesma precisão em todos os pontos à mesma distância do centro. É o que o α rotacional garante.
+
+**Efeito**: quanto a resposta muda quando o fator varia.
 
 **Interação**: quando o efeito de um fator depende do nível de outro.
+
+**Termo quadrático**: o termo x² de um fator. Representa a curvatura da resposta, e é o que permite haver um máximo ou um mínimo dentro da região.
 
 **Coeficiente**: o número que multiplica cada termo na equação do modelo (na escala codificada).
 
 **p-valor**: a chance de ver um efeito tão grande só por acaso. Abaixo de α (geralmente 0,05), o termo é chamado de significativo.
 
-**α (nível de significância)**: o limite para o p-valor; 0,05 quer dizer aceitar 5% de risco de declarar um efeito que não existe.
+**α (nível de significância)**: o limite para o p-valor; 0,05 quer dizer aceitar 5% de risco de declarar um efeito que não existe. Não confundir com o α axial.
 
 **ANOVA**: a tabela que divide a variação da resposta entre o que o modelo explica (regressão) e o que sobra (resíduo).
 
-**R²**: fração da variação explicada pelo modelo (de 0 a 1). **R² ajustado** desconta o número de termos; **R² de predição** mede quanto o modelo acerta ensaios que não viu; **R² máximo** é o teto que o R² pode alcançar quando há réplicas genuínas (nenhum modelo reproduz o erro puro) — com réplicas, compare o R² a esse teto, não a 100%.
+**Erro puro**: a variação entre repetições do mesmo ensaio (em geral, os pontos centrais). Não depende do modelo.
 
-**Falta de ajuste**: teste que compara o erro do modelo com o erro puro das réplicas. Significativo = o modelo não descreve bem a forma da resposta.
+**Falta de ajuste**: teste que compara o erro do modelo com o erro puro. Significativo quer dizer que o modelo não descreve bem a forma da resposta.
+
+**R²**: fração da variação explicada pelo modelo (de 0 a 1). **R² ajustado** desconta o número de termos; **R² de predição** mede quanto o modelo acerta ensaios que não viu; **R² máximo** é o teto que o R² pode alcançar com o erro puro que há nos dados. Com repetições, compare o R² a esse teto, não a 100%.
+
+**F calculado / F tabelado**: quantas vezes o F da regressão passa do valor de tabela. Acima de 1, a regressão é significativa; acima de cerca de 10, ela é útil para prever.
 
 **Resíduo**: observado menos previsto, ensaio por ensaio.
 
@@ -40,8 +50,10 @@
 
 **Superfície de resposta**: o modelo desenhado em função de dois fatores, com os demais fixos.
 
+**Curvas de nível**: linhas da superfície em que a resposta prevista é a mesma.
+
 **Ponto estacionário**: onde a superfície fica plana: máximo, mínimo ou ponto de sela.
 
 **Desejabilidade**: nota de 0 a 1 de quanto uma condição atende às metas; com várias respostas, combina todas numa só (D global).
 
-**Lenth (PSE, ME)**: método para julgar efeitos de fatoriais sem réplicas; efeitos acima da margem de erro (ME) são ativos.
+**Ensaio de confirmação**: repetir o experimento na condição ótima encontrada para conferir se o resultado previsto se confirma.

@@ -1,16 +1,5 @@
-"""Passos 1 e 2 do fluxo (spec §4): enviar o arquivo e conferir os dados.
-
-A planilha chega como bytes em memória (`ui.upload`) e é lida por
-`io.readers.ler_dados_de_bytes` — nunca gravada em disco (princípio P1). Erros de
-leitura viram avisos em português claro, não telas de exceção.
-
-Conferir (passo 2): a prévia mostra os dados 5 linhas por vez, com os números
-no padrão brasileiro, e embaixo dela o nome do arquivo e o tamanho; em planilha
-com várias abas, o usuário escolhe a aba (RF-03); em arquivo de texto, uma linha
-discreta diz o separador, o decimal e a codificação detectados, e o separador
-pode ser trocado. Quem não tem uma planilha à mão pode abrir um dos exemplos
-públicos (RF-18) ou baixar a planilha-modelo com o guia (US-02); essas opções
-saem da tela assim que uma planilha é lida.
+"""Envio e conferência da planilha: dropzone, exemplos, modelo e prévia.
+O arquivo é lido na memória e nunca gravado em disco.
 """
 
 from __future__ import annotations
@@ -43,12 +32,7 @@ _MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def construir_upload(
     ao_carregar: Callable[[Table | None, str], None] | None = None,
 ) -> None:
-    """Monta a dropzone, os exemplos, a planilha-modelo e a área de conferência.
-
-    `ao_carregar` recebe a `Table` e o nome do arquivo quando a leitura dá certo
-    — é o gancho para o passo seguinte (mapear colunas). Recebe `None` quando a
-    aba escolhida não tem dados, para o passo seguinte não ficar com a anterior.
-    """
+    """Monta o envio, os exemplos, a planilha-modelo e a prévia."""
 
     def carregar(
         conteudo: bytes,
@@ -57,6 +41,7 @@ def construir_upload(
         aba: str | None = None,
         separador: str | None = None,
     ) -> None:
+        """Lê o arquivo e mostra a prévia, ou o erro."""
         area_previa.clear()
         try:
             abas = listar_abas(conteudo, nome)
@@ -90,12 +75,13 @@ def construir_upload(
 
     async def tratar_upload(evento: events.UploadEventArguments) -> None:
         # Na NiceGUI 3.x o arquivo vem em `evento.file`, e `read()` é assíncrono.
+        """Recebe o arquivo enviado e libera um novo envio."""
         carregar(await evento.file.read(), evento.file.name)
-        # Com max_files=1 a fila cheia esconde o seletor: esvazia para aceitar
-        # outra planilha (o arquivo já foi lido para a memória).
+        # Esvazia a fila para aceitar outra planilha.
         envio.reset()
 
     def tratar_recusa(_: events.UiEventArguments) -> None:
+        """Avisa quando o arquivo é recusado."""
         ui.notify(
             "Arquivo recusado. Envie um CSV, TSV, TXT, XLSX, XLS ou ODS de até 5 MB.",
             type="warning",
@@ -116,9 +102,7 @@ def construir_upload(
         f"color:{CINZA};font-size:0.8rem"
     )
 
-    # Sem planilha à mão: um rótulo por linha e as ações ao lado, alinhadas.
-    # Cada ação leva um ícone e começa com um verbo — sem isso, o botão "flat"
-    # (sem caixa) lia como legenda, não como algo clicável (achado de IHC).
+    # Sem planilha: um rótulo por linha e as ações ao lado.
     with ui.element("div").classes("ea-alternativas") as alternativas:
         ui.label("Carregar um exemplo publicado").classes("ea-ler")
         with ui.element("div").classes("ea-acoes"):
@@ -153,12 +137,7 @@ def _ler(
     aba: str | None,
     separador: str | None,
 ) -> tuple[Table | None, str | None, str]:
-    """Lê a aba pedida; sem pedido, a primeira aba que tiver dados.
-
-    Planilhas costumam abrir com uma aba de instruções ou capa antes dos dados;
-    pular as abas vazias poupa o usuário de um erro logo no primeiro passo.
-    Devolve a tabela (ou `None`), a aba usada e a mensagem do primeiro erro.
-    """
+    """Lê a aba pedida ou a primeira que tiver dados."""
     candidatas: list[str | None] = [aba] if aba else (list(abas) or [None])
     primeiro_erro = ""
     for candidata in candidatas:
@@ -181,7 +160,7 @@ def _ler(
 def _escolher_aba(
     abas: list[str], aba: str | None, trocar_aba: Callable[[str], None]
 ) -> None:
-    """Passo 2 em planilha com várias abas: qual aba tem os dados (RF-03)."""
+    """Seletor de aba para planilhas com várias abas."""
     if len(abas) <= 1:
         return
     with ui.element("div").classes("ea-controles"):
@@ -201,7 +180,7 @@ def _escolher_aba(
 def _linha_formato(
     formato: FormatoCsv, separador: str, trocar_separador: Callable[[str], None]
 ) -> None:
-    """Como o arquivo de texto foi lido, numa linha discreta, e o "trocar"."""
+    """Linha com separador, decimal e codificação, e o trocar separador."""
     decimal = "vírgula" if formato.decimal == "," else "ponto"
     with ui.element("div").classes("ea-formato"):
         with (
@@ -222,7 +201,7 @@ def _linha_formato(
 
 
 def _mostrar_previa(tabela: Table, nome: str) -> None:
-    """A tabela, 5 linhas por página, e embaixo o arquivo e o tamanho."""
+    """Prévia da planilha, 5 linhas por página."""
     total = len(tabela)
     colunas = [
         {"name": c, "label": c, "field": c, "align": "left"} for c in tabela.colunas
@@ -254,14 +233,14 @@ def _mostrar_previa(tabela: Table, nome: str) -> None:
 
 
 def _celula(tabela: Table, coluna: str, i: int) -> str:
-    """Valor de uma célula para a prévia, numérico em padrão brasileiro."""
+    """Valor de uma célula para a prévia."""
     if tabela.e_numerica(coluna):
         return _numero_ptbr(float(tabela.coluna(coluna)[i]))
     return tabela.texto(coluna)[i]
 
 
 def _numero_ptbr(valor: float) -> str:
-    """Número enxuto com vírgula decimal: inteiro sem casas, resto sem zeros à toa."""
+    """Número com vírgula, sem zeros sobrando."""
     if valor == int(valor):
         return str(int(valor))
     return f"{valor:g}".replace(".", ",")

@@ -1,24 +1,5 @@
-"""Adaptador HTTP para modelos de linguagem compatíveis com OpenAI.
-
-Este é o único ponto do sistema que fala com um modelo de linguagem. Ele manda
-um prompt e recebe texto — nada de cadeia, agente ou RAG (ADR 0006). O formato
-é o `/v1/chat/completions` da OpenAI, que Ollama, LM Studio e a maioria dos
-provedores de nuvem também expõem; por isso o mesmo adaptador atende o modo M2
-(Ollama local) e o M3 (nuvem com chave do usuário), mudando só URL, modelo e
-chave.
-
-O que o adaptador faz, e que justifica existir em vez de uma chamada crua:
-
-- **Timeout** explícito (um servidor que "adormece" não pode travar a UI).
-- **Retry** com espera crescente para falhas transitórias (queda de conexão,
-  429 "muitas requisições", 5xx do provedor) — e só para essas; um 400 é erro
-  nosso de prompt e não adianta repetir.
-- **Erros tipados**, para a camada de cima distinguir "a rede caiu" de "o
-  provedor recusou" de "veio uma resposta sem texto" e decidir o fallback.
-
-Projetado para ser testável sem rede: o `transporte` e a função de espera são
-injetáveis, então os testes usam `httpx.MockTransport` e não dormem de verdade
-nem gastam chave de API.
+"""Cliente HTTP para modelos de linguagem compatíveis com OpenAI.
+Único ponto que fala com a IA: tempo limite, novas tentativas e erros tipados.
 """
 
 from __future__ import annotations
@@ -31,35 +12,32 @@ from types import TracebackType
 
 import httpx
 
-# Papéis da conversa no protocolo da OpenAI. São valores de fio (como um verbo
-# HTTP), por isso ficam em inglês mesmo num código em português — o servidor só
-# entende exatamente estas três palavras.
+# Papéis da conversa no protocolo da OpenAI (ficam em inglês).
 Papel = str
 
-# Status HTTP que vale a pena repetir: "muitas requisições" e falhas do lado do
-# servidor costumam ser passageiras. Um 4xx (exceto 429) é erro da requisição e
-# repetir só desperdiça tempo.
+# Status HTTP que vale repetir: 429 e falhas do servidor.
 _STATUS_REPETIVEIS = frozenset({429, 500, 502, 503, 504})
 
 
 class ErroDeIA(Exception):
-    """Base de todas as falhas da camada de IA."""
+    """Base das falhas da camada de IA."""
 
 
 class ErroDeConexao(ErroDeIA):
-    """A requisição não chegou a receber resposta (rede, DNS, timeout)."""
+    """A requisição não recebeu resposta (rede, DNS, tempo limite)."""
 
 
 class ErroDeResposta(ErroDeIA):
-    """O provedor respondeu com um status de erro (4xx/5xx)."""
+    """O provedor respondeu com status de erro."""
 
     def __init__(self, mensagem: str, *, status: int) -> None:
+        """Guarda a mensagem e o status HTTP."""
         super().__init__(mensagem)
         self.status = status
 
 
 class RespostaInvalida(ErroDeIA):
-    """A resposta veio com status de sucesso, mas sem texto utilizável."""
+    """Resposta com sucesso, mas sem texto utilizável."""
 
 
 @dataclass(frozen=True)
@@ -71,30 +49,27 @@ class Mensagem:
 
     @classmethod
     def sistema(cls, conteudo: str) -> Mensagem:
-        """Instrução de papel/regras (o "system prompt")."""
+        """Mensagem de instrução (system)."""
         return cls("system", conteudo)
 
     @classmethod
     def usuario(cls, conteudo: str) -> Mensagem:
-        """O pedido em si (os fatos a reescrever)."""
+        """Mensagem do usuário (o pedido)."""
         return cls("user", conteudo)
 
     @classmethod
     def assistente(cls, conteudo: str) -> Mensagem:
-        """Uma resposta de exemplo (usada em few-shot)."""
+        """Resposta de exemplo do assistente (few-shot)."""
         return cls("assistant", conteudo)
 
     def para_openai(self) -> dict[str, str]:
+        """Mensagem no formato da API da OpenAI."""
         return {"role": self.papel, "content": self.conteudo}
 
 
 @dataclass(frozen=True)
 class RespostaModelo:
-    """O que o modelo devolveu: o texto e, quando o provedor informa, o uso.
-
-    `tokens_prompt`/`tokens_resposta` alimentam a métrica de tempo/custo do TCC
-    (seção 14.1); vêm `None` quando o provedor não reporta uso (comum no Ollama).
-    """
+    """Texto devolvido pelo modelo e o uso de tokens, se informado."""
 
     texto: str
     modelo: str
@@ -104,18 +79,7 @@ class RespostaModelo:
 
 @dataclass(frozen=True)
 class ConfiguracaoModelo:
-    """Para onde chamar e como. Cobre M2 (Ollama) e M3 (nuvem) só mudando campos.
-
-    - `url_base`: a raiz da API compatível com OpenAI, incluindo `/v1`
-      (ex.: ``http://localhost:11434/v1`` no Ollama).
-    - `modelo`: o nome do modelo no provedor (ex.: ``qwen3:8b``).
-    - `chave_api`: o Bearer token; ``None`` para servidores locais sem chave.
-    - `timeout_s`: teto de espera por requisição.
-    - `max_tentativas`: total de tentativas (1 = sem retry).
-    - `espera_base_s`: primeira espera do backoff exponencial (0,5 → 1 → 2 …).
-    - `temperatura`: 0,0 por padrão — o relatório tem que ser reprodutível para
-      a métrica de fidelidade medir o sistema, não o acaso da amostragem.
-    """
+    """Para onde e como chamar o modelo (URL, modelo, chave, tentativas)."""
 
     url_base: str
     modelo: str
@@ -126,6 +90,7 @@ class ConfiguracaoModelo:
     temperatura: float = 0.0
 
     def __post_init__(self) -> None:
+        """Valida URL, modelo e parâmetros de tentativa."""
         if not self.url_base:
             raise ValueError("url_base é obrigatória.")
         if not self.modelo:
@@ -137,16 +102,12 @@ class ConfiguracaoModelo:
 
     @property
     def endpoint(self) -> str:
-        """URL final do chat/completions, sem ambiguidade de barra."""
+        """URL final de /chat/completions."""
         return f"{self.url_base.rstrip('/')}/chat/completions"
 
 
 class ClienteModelo:
-    """Cliente de uma conversa só: recebe mensagens, devolve texto.
-
-    Use como gerenciador de contexto (``with ClienteModelo(cfg) as c:``) para
-    fechar a conexão ao final; ou chame ``fechar()`` manualmente.
-    """
+    """Cliente de conversa: envia mensagens e devolve o texto."""
 
     def __init__(
         self,
@@ -155,6 +116,7 @@ class ClienteModelo:
         transporte: httpx.BaseTransport | None = None,
         dormir: Callable[[float], None] = sleep,
     ) -> None:
+        """Cria o cliente HTTP com cabeçalhos e tempo limite."""
         self.config = config
         self._dormir = dormir
         cabecalhos = {"Content-Type": "application/json"}
@@ -173,12 +135,7 @@ class ClienteModelo:
         temperatura: float | None = None,
         max_tokens: int | None = None,
     ) -> RespostaModelo:
-        """Envia a conversa e devolve a resposta do modelo.
-
-        Levanta `ErroDeConexao` se a requisição não obteve resposta,
-        `ErroDeResposta` num status de erro (depois de esgotar os retries, se o
-        status for repetível) e `RespostaInvalida` se o corpo veio sem texto.
-        """
+        """Envia a conversa e devolve a resposta do modelo."""
         payload: dict[str, object] = {
             "model": self.config.modelo,
             "messages": [m.para_openai() for m in mensagens],
@@ -194,12 +151,7 @@ class ClienteModelo:
         return self._extrair(resposta)
 
     def listar_modelos(self) -> list[str]:
-        """Nomes dos modelos que o provedor oferece (`GET /models`), em ordem.
-
-        Serve para a tela oferecer uma lista em vez de pedir que o usuário
-        adivinhe o nome exato — que muda a cada geração de modelos. É também o
-        teste de conexão: uma chave recusada aparece aqui, antes de narrar.
-        """
+        """Nomes dos modelos que o provedor oferece."""
         url = f"{self.config.url_base.rstrip('/')}/models"
         try:
             resposta = self._cliente.get(url)
@@ -229,9 +181,11 @@ class ClienteModelo:
         return sorted(nomes)
 
     def fechar(self) -> None:
+        """Fecha a conexão HTTP."""
         self._cliente.close()
 
     def __enter__(self) -> ClienteModelo:
+        """Abre o cliente num bloco with."""
         return self
 
     def __exit__(
@@ -240,12 +194,13 @@ class ClienteModelo:
         valor: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
+        """Fecha o cliente ao sair do bloco with."""
         self.fechar()
 
     # -- internos -----------------------------------------------------------
 
     def _postar_com_retry(self, payload: dict[str, object]) -> httpx.Response:
-        """Faz o POST, repetindo só falhas transitórias com espera crescente."""
+        """Faz o POST, repetindo só falhas passageiras."""
         for tentativa in range(1, self.config.max_tentativas + 1):
             ultima = tentativa == self.config.max_tentativas
             try:
@@ -280,9 +235,11 @@ class ClienteModelo:
         raise ErroDeConexao("Falha ao obter resposta do modelo.")
 
     def _esperar(self, tentativa: int) -> None:
+        """Espera antes da próxima tentativa (crescente)."""
         self._dormir(self.config.espera_base_s * (2 ** (tentativa - 1)))
 
     def _extrair(self, resposta: httpx.Response) -> RespostaModelo:
+        """Extrai o texto e o uso de tokens da resposta."""
         try:
             dados = resposta.json()
         except json.JSONDecodeError as exc:
@@ -305,6 +262,6 @@ class ClienteModelo:
 
 
 def _corpo_resumido(resposta: httpx.Response, *, limite: int = 200) -> str:
-    """Primeiros caracteres do corpo do erro, para a mensagem da exceção."""
+    """Início do corpo da resposta de erro, para a mensagem."""
     texto = resposta.text.strip().replace("\n", " ")
     return texto[:limite] + "…" if len(texto) > limite else texto

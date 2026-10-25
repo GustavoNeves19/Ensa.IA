@@ -1,26 +1,5 @@
-"""Escolha das análises (spec §9, passo 4 do fluxo), em etapas e com explicação.
-
-Em vez de uma parede de caixas de seleção, as análises ficam em etapas que
-abrem e fecham — triagem, modelo, diagnóstico, otimização —, cada uma com a
-pergunta que ela responde. Cada análise é um cartão que diz o que ela mostra;
-a lâmpada traz como ler o resultado. Clicar no cartão inclui ou tira a análise
-do laudo.
-
-A disponibilidade continua vindo de `core.catalogo.disponibilidade`: o que não
-se aplica aos dados fica apagado, com o motivo escrito no próprio cartão.
-
-O grupo A (estatística descritiva, identificação do planejamento, matriz real
-e codificada) não tem etapa aqui: percorrendo `disponibilidade`, nenhuma das
-três tem uma regra própria de desligar — só a genérica ("escolha um
-fator/resposta"), igual a tudo o resto. Não são uma escolha de verdade, são
-andaime que sempre roda por baixo (`core/pipeline.py` as calcula
-incondicionalmente, e o laudo sempre as leva); por isso ficam sempre em
-`_SEMPRE_INCLUIDAS`, fora da grade de cartões. O olho de mostrar/ocultar a
-coluna codificada mora no próprio card de resultados ("Dados do experimento",
-em `ui/analise.py`) — é uma troca só de tela, nunca de conta: a codificação
-não é opcional em nenhuma análise (ADR 0001), então um cartão aqui sugerindo
-"codificar ou não" seria enganoso. Forçar o tipo do delineamento (o que A2
-reconhece sozinha) é opção em "Opções do modelo" (`ui/analise.py`).
+"""Escolha das análises em etapas (modelo, diagnóstico, otimização).
+Cada análise é um cartão; as que não cabem nos dados ficam apagadas com o motivo.
 """
 
 from __future__ import annotations
@@ -36,8 +15,7 @@ from ensaia.core.fluxo import Papel
 from ensaia.core.table import Table
 from ensaia.ui.ajuda import FORMULAS, dica
 
-# Sempre calculadas e sempre no laudo (ver docstring do módulo): não aparecem
-# como cartão clicável porque nunca há motivo pra tirá-las.
+# Sempre calculadas e sempre no laudo: não viram cartão.
 _SEMPRE_INCLUIDAS = frozenset({"A1", "A2", "A3"})
 
 
@@ -51,14 +29,8 @@ class FonteMapeamento(Protocol):
     def tem_ordem(self) -> bool: ...
 
 
-# Cada etapa: (rótulo curto do passo, pergunta que ela responde, para que serve).
-# O grupo A não entra aqui — ver docstring do módulo.
+# Cada etapa: rótulo, pergunta que responde e para que serve.
 ETAPAS: dict[str, tuple[str, str, str]] = {
-    "B": (
-        "Triagem",
-        "Quais fatores importam?",
-        "Para fatoriais de 2 níveis: separar os fatores fortes dos fracos.",
-    ),
     "C": (
         "Modelo",
         "O modelo explica a resposta?",
@@ -85,44 +57,22 @@ GUIA: dict[str, tuple[str, str]] = {
         "nela.",
     ),
     "A2": (
-        "Qual planejamento os dados formam: fatorial, Box-Behnken, composto central…",
-        "O EnsaIA reconhece o tipo pela posição dos pontos. É ele que decide "
-        "qual modelo faz sentido ajustar.",
+        "Confere se os dados formam um DCCR: parte fatorial, pontos axiais e "
+        "pontos centrais.",
+        "O EnsaIA reconhece o DCCR pela posição dos pontos e confere se o α "
+        "axial é o rotacional. Se não for um DCCR, diz o que falta.",
     ),
     "A3": (
         "Os níveis de cada ensaio em unidades reais e na escala −1, 0, +1.",
         "A escala codificada põe todos os fatores na mesma régua, para comparar "
         "o efeito do pH com o da dose, por exemplo, de igual para igual.",
     ),
-    "B1": (
-        "Quanto a resposta muda quando cada fator vai do nível baixo ao alto.",
-        "Efeito positivo: subir o fator aumenta a resposta. Interação: o efeito "
-        "de um fator depende do nível do outro.",
-    ),
-    "B2": (
-        "A força de cada termo em barras, da maior para a menor.",
-        "Barra que passa da linha tracejada é significativa. É o jeito mais "
-        "rápido de ver quais fatores importam.",
-    ),
-    "B3": (
-        "Separa efeitos reais de ruído quando não há réplicas.",
-        "Efeitos que são só ruído se alinham perto da origem; os que se afastam "
-        "da linha são ativos.",
-    ),
-    "B4": (
-        "A média da resposta em cada nível e as linhas de interação.",
-        "Linha inclinada: o fator importa. Linhas de interação que se abrem ou "
-        "se cruzam: os fatores agem juntos.",
-    ),
-    "B5": (
-        "Compara o ponto central com os vértices.",
-        "Se o centro foge do esperado, a resposta faz curva: o modelo linear não "
-        "basta e vale ampliar para um composto central.",
-    ),
     "C1": (
-        "Os coeficientes do modelo, com erro-padrão e p-valor.",
+        "Os coeficientes do modelo, com erro-padrão e p-valor, e o Pareto dos "
+        "efeitos padronizados.",
         "Cada coeficiente diz quanto o termo soma à resposta. p menor que α: o "
-        "termo é significativo.",
+        "termo é significativo. No Pareto, a barra que passa da linha "
+        "tracejada é significativa.",
     ),
     "C2": (
         "Testa se o modelo explica a resposta além do acaso.",
@@ -194,20 +144,12 @@ GUIA: dict[str, tuple[str, str]] = {
 }
 
 
-# Cada análise → a fórmula do modo "Dicas em fórmula". Onde a análise é uma
-# métrica que aparece nos resultados, a fórmula é a mesma da lâmpada de lá.
+# Fórmula de cada análise para o modo de fórmulas.
 FORMULA_ANALISE: dict[str, str] = {
     "A1": FORMULAS["descritiva"],
-    "A2": (
-        "Fatorial: níveis ±1;  centro: 0\nComposto central rotacional: α = (2ᵏ)^(1/4)"
-    ),
+    "A2": ("Parte fatorial: ±1;  axiais: ±α;  centro: 0\nRotacional: α = n_fat^(1/4)"),
     "A3": FORMULAS["matriz"],
-    "B1": FORMULAS["efeitos"],
-    "B2": FORMULAS["pareto"],
-    "B3": FORMULAS["meio_normal"],
-    "B4": FORMULAS["efeitos_principais"] + "\n" + FORMULAS["interacao"],
-    "B5": "SQcurv = n_F · n_C · (ȳ_F − ȳ_C)² / (n_F + n_C)\nF = vértices;  C = centro",
-    "C1": FORMULAS["coeficientes"],
+    "C1": FORMULAS["coeficientes"] + "\n" + FORMULAS["pareto"],
     "C2": FORMULAS["regressao"],
     "C3": "\n".join(
         FORMULAS[c] for c in ("r2", "r2_ajustado", "r2_predicao", "r2_maximo")
@@ -228,9 +170,10 @@ FORMULA_ANALISE: dict[str, str] = {
 
 
 class _Cartao:
-    """Uma análise: clicar (ou Enter/Espaço) inclui ou tira do laudo."""
+    """Cartão de uma análise: clicar inclui ou tira do laudo."""
 
     def __init__(self, id_: str, nome: str, ao_mudar: Callable[[], None]) -> None:
+        """Cria o cartão com nome, texto, dica e motivo."""
         self.id = id_
         self.incluida = True
         self.motivo: str | None = None
@@ -240,9 +183,7 @@ class _Cartao:
         with self.el:
             with ui.element("div").classes("ea-analise-topo"):
                 ui.label(nome).classes("ea-analise-nome")
-                # A lâmpada fica no canto e não alterna o cartão: só abre a
-                # dica. Incluída ou não, quem diz é a cor do cartão (e o
-                # aria-checked).
+                # A lâmpada só abre a dica; não alterna o cartão.
                 dica(como_ler, FORMULA_ANALISE.get(id_)).on(
                     "click", js_handler="(e) => e.stopPropagation()"
                 )
@@ -253,6 +194,7 @@ class _Cartao:
         self.el.on("keydown.space.prevent", self.alternar)
 
     def alternar(self) -> None:
+        """Inclui ou tira a análise, se ela estiver disponível."""
         if self.motivo is not None:
             return
         self.incluida = not self.incluida
@@ -260,12 +202,13 @@ class _Cartao:
         self._ao_mudar()
 
     def definir(self, motivo: str | None) -> None:
-        """Novo mapeamento: compatível volta incluída; incompatível sai."""
+        """Atualiza o cartão com a disponibilidade nova."""
         self.motivo = motivo
         self.incluida = motivo is None
         self.desenhar()
 
     def desenhar(self) -> None:
+        """Aplica o visual de incluída, excluída ou indisponível."""
         aplica = self.motivo is None
         self.el.classes(
             add="ea-analise-on" if self.incluida else "ea-analise-off",
@@ -285,14 +228,10 @@ class _Cartao:
 
 
 class PainelAnalises:
-    """As análises em etapas, recalculadas a cada mudança no mapeamento.
-
-    Cada etapa é um dropdown: o cabeçalho diz a pergunta que ela responde e
-    quantas análises estão incluídas; aberto, mostra os cartões e um botão que
-    inclui todas as da etapa ou, se já estão todas, tira todas.
-    """
+    """Análises em etapas, recalculadas a cada mudança no mapeamento."""
 
     def __init__(self, mapa: FonteMapeamento) -> None:
+        """Cria as etapas e os cartões."""
         self.mapa = mapa
         self.cartoes: dict[str, _Cartao] = {}
         self.contagens: dict[str, ui.label] = {}
@@ -312,6 +251,7 @@ class PainelAnalises:
     def _etapa(
         self, grupo: str, numero: int, curto: str, pergunta: str, serve: str
     ) -> None:
+        """Cria uma etapa recolhível com seus cartões."""
         etapa = ui.expansion().classes("ea-etapa w-full").props("dense")
         with (
             etapa.add_slot("header"),
@@ -336,12 +276,13 @@ class PainelAnalises:
             )
 
     def _aplicaveis(self, grupo: str) -> list[_Cartao]:
+        """Cartões disponíveis de um grupo."""
         return [
             c for i, c in self.cartoes.items() if i[0] == grupo and c.motivo is None
         ]
 
     def _alternar_todas(self, grupo: str) -> None:
-        """Inclui todas as análises da etapa; se já estão todas, tira todas."""
+        """Inclui todas as análises da etapa, ou tira todas."""
         aplicaveis = self._aplicaveis(grupo)
         incluir = not all(c.incluida for c in aplicaveis)
         for cartao in aplicaveis:
@@ -350,6 +291,7 @@ class PainelAnalises:
         self._rotular()
 
     def atualizar(self) -> None:
+        """Recalcula a disponibilidade com o mapeamento atual."""
         tabela = self.mapa.tabela
         fatores = {
             c: [float(v) for v in tabela.coluna(c)] for c in self.mapa.colunas("fator")
@@ -366,7 +308,7 @@ class PainelAnalises:
         self._rotular()
 
     def _rotulos_bloco(self) -> list[str] | None:
-        """O bloco de cada ensaio, se a coluna de bloco for válida."""
+        """Bloco de cada ensaio, se a coluna for válida."""
         coluna = next(iter(self.mapa.colunas("bloco")), None)
         if coluna is None:
             return None
@@ -376,6 +318,7 @@ class PainelAnalises:
             return None
 
     def _rotular(self) -> None:
+        """Atualiza as contagens de cada etapa."""
         for grupo, contagem in self.contagens.items():
             aplicaveis = self._aplicaveis(grupo)
             dentro = sum(1 for c in aplicaveis if c.incluida)
@@ -390,7 +333,7 @@ class PainelAnalises:
             botao.set_enabled(bool(aplicaveis))
 
     def marcadas(self) -> list[str]:
-        """IDs no laudo: as sempre-incluídas (grupo A) mais o que foi marcado."""
+        """IDs das análises que vão para o laudo."""
         escolhidas = {
             id_ for id_, c in self.cartoes.items() if c.incluida and c.motivo is None
         }

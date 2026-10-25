@@ -1,13 +1,5 @@
-"""Diagnóstico dos resíduos: valores por ensaio, normalidade e pontos do Q-Q.
-
-Spec §9, grupos C e D: preditos × observados (C6), resíduos × preditos (D1) e
-normalidade dos resíduos com gráfico Q-Q e Shapiro-Wilk (D2). Tudo o que esses
-gráficos precisam sai daqui, pronto; a interface e o PDF só desenham.
-
-Por que olhar os resíduos: a ANOVA e os testes t supõem que os erros são
-independentes, de variância constante e aproximadamente normais. Um R² alto não
-garante nada disso. O padrão dos resíduos é o que mostra se dá para confiar nos
-valores-p do modelo.
+"""Diagnóstico dos resíduos: valores por ensaio, normalidade, Q-Q e influência.
+Diz se dá para confiar nos p-valores do modelo (C6, D1, D2, D4).
 """
 
 from __future__ import annotations
@@ -24,14 +16,7 @@ from ensaia.core.results import Diagnostico
 _MINIMO_SHAPIRO = 3
 
 
-# Regras para apontar ensaios suspeitos (Cook, 1977; Montgomery, cap. 4):
-# - influente: distância de Cook > 1 E alavancagem hᵢᵢ > 2p/n. Só Cook > 1 não
-#   serve em DOE: num fatorial todos os vértices têm alavancagem alta e a regra
-#   dispara em ensaios comuns. Exigir alavancagem acima de 2p/n (o dobro da
-#   média) separa o ponto que de fato puxa o ajuste.
-# - possível outlier: |R-student| > 3. O resíduo studentizado externo (o ensaio
-#   fica fora da estimativa do erro) detecta melhor que o interno quando a
-#   alavancagem é alta.
+# Influente: Cook > 1 e hᵢᵢ > 2p/n; outlier: |R-student| > 3.
 COOK_INFLUENTE = 1.0
 STUDENTIZADO_OUTLIER = 3.0
 
@@ -45,15 +30,7 @@ def diagnosticar(
     n_parametros: int | None = None,
     ordem: list[float] | None = None,
 ) -> Diagnostico:
-    """Monta o `Diagnostico` de uma resposta a partir de y e ŷ.
-
-    Resíduo é `observado − predito`, na ordem das linhas da planilha. O teste de
-    Shapiro-Wilk só roda quando faz sentido: com menos de 3 ensaios ele não
-    existe, e com resíduos todos iguais (ajuste exato, R² = 1) o scipy devolve
-    W = 1 com aviso — um "normal" que não significa nada. Nesses casos o campo
-    fica None e o motivo é registrado. Com o teste feito, normalidade é
-    rejeitada quando p < `alfa`.
-    """
+    """Monta o diagnóstico de uma resposta: resíduos, Shapiro-Wilk e influência."""
     y = np.asarray(observados, dtype=float)
     y_chapeu = np.asarray(preditos, dtype=float)
     if y.shape != y_chapeu.shape:
@@ -95,14 +72,7 @@ def _influencia(
     alavancagem: NDArray[np.float64] | None,
     n_parametros: int | None,
 ) -> dict[str, object]:
-    """Resíduo studentizado interno, distância de Cook e os ensaios marcados (D4).
-
-        rᵢ = eᵢ / √(QM_res·(1 − hᵢᵢ))      Dᵢ = rᵢ²·hᵢᵢ / (p·(1 − hᵢᵢ))
-
-    O resíduo studentizado põe todos os resíduos na mesma escala (um ponto de
-    alavancagem alta tem resíduo naturalmente menor). Cook mede quanto o ajuste
-    inteiro mudaria sem aquele ensaio.
-    """
+    """Resíduos studentizados, distância de Cook e ensaios a conferir."""
     if alavancagem is None or n_parametros is None:
         return {}
     n = residuos.size
@@ -146,14 +116,7 @@ def _influencia(
 
 @dataclass(frozen=True)
 class PontosQQ:
-    """Pontos do gráfico Q-Q normal e a reta de referência.
-
-    `teoricos[i]` é o quantil da normal padrão esperado para o i-ésimo menor
-    resíduo, e `amostrais[i]` é esse resíduo. `ensaios[i]` diz de qual linha
-    da planilha (contando de 1) ele veio, para a interface poder apontar o
-    ensaio ao passar o mouse. A reta passa pelos quartis (como o `qqline` do R):
-    pontos longe dela, sobretudo nas pontas, indicam desvio da normalidade.
-    """
+    """Pontos do gráfico Q-Q normal e a reta de referência."""
 
     teoricos: list[float]
     amostrais: list[float]
@@ -163,12 +126,7 @@ class PontosQQ:
 
 
 def pontos_qq(residuos: list[float]) -> PontosQQ:
-    """Calcula os pontos do Q-Q normal dos resíduos (posições de Blom).
-
-    Posição de plotagem de Blom, `(i − 3/8) / (n + 1/4)`, é a usada pelo
-    Minitab e a recomendada para a normal. Com resíduos todos iguais a reta fica
-    horizontal (inclinação 0), sem dividir por zero.
-    """
+    """Calcula os pontos do Q-Q normal dos resíduos (posições de Blom)."""
     r = np.asarray(residuos, dtype=float)
     n = r.size
     if n == 0:

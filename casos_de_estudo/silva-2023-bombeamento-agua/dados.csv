@@ -1,0 +1,25 @@
+# Um ensaio por linha, nos níveis CODIFICADOS (ver por que em fonte.md).
+# Fonte: Tabela 7 (matriz) e Tabela 13, coluna "Simulados" (consumo), de
+# Silva, Pereira e Almeida (2023), DOI 10.33448/rsd-v12i8.42839. DCCR 2^3 +
+# 6 axiais + 1 central = 15 ensaios simulados no Epanet, analisados no
+# Protimiza. α rotacional exato 8^(1/4) = 1,68179 (a tabela imprime 1,68).
+# O consumo vem da Tabela 13: a Tabela 10 repete no ensaio 3 o valor do
+# ensaio 2 e dá 6612,30 no centro (ver fonte.md).
+# Transcrito do texto extraído do PDF oficial em 2026-10-25 (pypdf) —
+# PENDENTE dupla conferência humana antes de virar evidência final.
+rendimento_cmb,vre,hg,consumo_kwh_mes
+-1,-1,-1,9002.7
+1,-1,-1,4501.2
+-1,1,-1,9995.1
+1,1,-1,4997.4
+-1,-1,1,11249.1
+1,-1,1,5624.7
+-1,1,1,12524.4
+1,1,1,6262.2
+-1.68179,0,0,14694.3
+1.68179,0,0,4407.9
+0,-1.68179,0,5396.4
+0,1.68179,0,6626.1
+0,0,-1.68179,6610.5
+0,0,1.68179,8764.2
+0,0,0,6212.3

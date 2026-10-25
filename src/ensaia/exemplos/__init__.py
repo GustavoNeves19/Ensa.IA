@@ -1,14 +1,5 @@
-"""Dados de exemplo (RF-18, US-04): experimentos públicos, já validados.
-
-São os mesmos dados dos casos de estudo da validação, publicados em acesso
-aberto e citados abaixo. Servem para o usuário explorar o EnsaIA antes de usar
-os próprios dados — e para o professor mostrar uma análise completa em aula.
-
-Os dois exemplos abaixo são DCCR de verdade (ver ADR 0013), com os dados
-transcritos em `casos_de_estudo/tylosin-photo-fenton` e
-`casos_de_estudo/igreja-2023-acai-hidrolise-acida` — ambos ainda com status
-`rascunho` lá (pendente dupla conferência humana), mas já confiáveis o
-bastante para servir de "experimente antes de usar seus dados".
+"""Exemplos públicos de DCCR para abrir na tela (Tylosin e açaí).
+Os mesmos dados dos casos de estudo, em acesso aberto e citados.
 """
 
 from __future__ import annotations
@@ -22,6 +13,8 @@ from ensaia.io.readers import ler_dados_de_bytes
 
 @dataclass(frozen=True)
 class Exemplo:
+    """Um exemplo: identificador, título, descrição, arquivo e citação."""
+
     id: str
     titulo: str
     descricao: str
@@ -64,14 +57,14 @@ EXEMPLOS: dict[str, Exemplo] = {
 
 
 def conteudo_exemplo(id_: str) -> bytes:
-    """Bytes do CSV de um exemplo (o mesmo formato de um upload)."""
+    """Bytes do CSV de um exemplo."""
     if id_ not in EXEMPLOS:
         raise KeyError(f"Exemplo {id_!r} não existe. Disponíveis: {sorted(EXEMPLOS)}.")
     return files(__package__).joinpath(EXEMPLOS[id_].arquivo).read_bytes()
 
 
 def carregar_exemplo(id_: str) -> tuple[Table, str]:
-    """`Table` do exemplo e o nome do arquivo, prontos para o fluxo da tela."""
+    """Table do exemplo e o nome do arquivo."""
     conteudo = conteudo_exemplo(id_)
     arquivo = EXEMPLOS[id_].arquivo
     return ler_dados_de_bytes(conteudo, arquivo), arquivo

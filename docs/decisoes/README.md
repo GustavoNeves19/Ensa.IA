@@ -26,3 +26,4 @@ Formato: contexto → decisão → consequências (inclusive as ruins).
 | [0012](0012-servidor-mcp-sob-demanda.md) | Servidor MCP com o SDK oficial v2, carregado sob demanda | Aceita |
 | [0013](0013-restricao-a-dccr.md) | Restringir o escopo a DCCR; generalização vira trabalho futuro | Aceita |
 | [0014](0014-reducao-de-modelo-reajusta.md) | Redução de modelo sempre reajusta (diverge do livro-texto num exemplo) | Aceita |
+| [0015](0015-sistema-so-dccr-de-ponta-a-ponta.md) | Sistema só DCCR de ponta a ponta: tela, PDF e verificação | Aceita |

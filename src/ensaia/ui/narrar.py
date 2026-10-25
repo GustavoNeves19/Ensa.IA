@@ -1,23 +1,5 @@
-"""Relatório em texto: quem escreve, e a conferência de cada número (spec §12).
-
-Os números vêm sempre da análise; a IA, quando existe, só escreve. O usuário
-escolhe quem escreve:
-
-- **Sem IA (M0)** — o texto fiel montado dos fatos do núcleo; aparece na hora.
-- **Copiar para a sua IA (M1)** — o EnsaIA monta o pedido, o usuário cola no
-  ChatGPT, Gemini ou outra IA e traz a resposta de volta para conferir.
-- **IA local (M2)** — Ollama no computador do usuário; só aparece quando o
-  EnsaIA roda ali (o servidor hospedado não enxerga o Ollama de ninguém).
-- **IA em nuvem (M3)** — com a chave do próprio usuário (BYOK) ou com a IA que
-  o servidor oferece, quando quem hospeda configurou uma.
-
-Em todos os modos com IA, cada número do texto é conferido contra o resultado
-(`ai.fidelity.verificar_texto`) e os que não batem ficam marcados em amarelo
-(§12.5) — é o que separa o EnsaIA de "jogar a planilha numa IA e confiar".
-
-A chave do usuário fica só na memória desta aba, no servidor: o campo é de
-senha e é esvaziado assim que a chave é lida, para ela não voltar ao navegador
-(§15). Nada é gravado em disco nem em log.
+"""Relatório em texto: sem IA, copiado para outra IA, IA local ou em nuvem.
+Com IA, cada número do texto é conferido e o que não bate fica destacado.
 """
 
 from __future__ import annotations
@@ -65,11 +47,13 @@ _DESTAQUE = "ea-destaque-fid"
 
 
 def construir_narracao(sessao: Sessao) -> None:
-    """Bloco final da tela de resultados: escolher quem escreve e ver o texto."""
-    modos: dict[str, str] = {"m0": "Sem IA", "m1": "Copiar para a sua IA"}
-    if _ollama_disponivel():
-        modos["m2"] = "IA local"
-    modos["m3"] = "IA em nuvem"
+    """Bloco para escolher quem escreve o texto e vê-lo."""
+    modos = {
+        "m0": "Sem IA",
+        "m1": "Copiar para a sua IA",
+        "m2": "IA local",
+        "m3": "IA em nuvem",
+    }
 
     with ui.element("div").classes("ea-otimizacao ea-narrar"):
         ui.html('<div class="ea-secao-titulo">Relatório em texto</div>')
@@ -90,6 +74,7 @@ def construir_narracao(sessao: Sessao) -> None:
     }
 
     def trocar(modo: str) -> None:
+        """Troca o painel pelo do modo escolhido."""
         sessao.ouvintes.pop("narracao", None)
         painel.clear()
         saida.clear()
@@ -104,7 +89,9 @@ def construir_narracao(sessao: Sessao) -> None:
 
 
 def _painel_m0(sessao: Sessao, saida: ui.column) -> None:
+    """Modo sem IA: o texto montado dos fatos."""
     def mostrar() -> None:
+        """Gera e mostra o texto sem IA."""
         relatorio = gerar_relatorio(sessao.analise, modo="m0")
         sessao.texto = relatorio
         saida.clear()
@@ -116,9 +103,7 @@ def _painel_m0(sessao: Sessao, saida: ui.column) -> None:
     mostrar()
 
 
-# A cópia roda no navegador, dentro do próprio clique: a API de área de
-# transferência exige o gesto do usuário (Safari, Firefox) e só existe em HTTPS
-# ou localhost; sem ela, o atalho antigo de copiar uma seleção resolve.
+# A cópia roda no navegador, no próprio clique (exigência dos navegadores).
 _JS_COPIAR = """async () => {
   const fonte = document.getElementById(%s);
   const texto = fonte ? fonte.textContent : '';
@@ -136,7 +121,9 @@ _JS_COPIAR = """async () => {
 
 
 def _painel_m1(sessao: Sessao, saida: ui.column) -> None:
+    """Modo copiar: o pedido para outra IA e a conferência da resposta."""
     def copiado(evento: GenericEventArguments) -> None:
+        """Avisa se o pedido foi copiado."""
         if evento.args:
             ui.notify("Pedido copiado. Cole na IA que você usa.", position="top")
         else:
@@ -149,6 +136,7 @@ def _painel_m1(sessao: Sessao, saida: ui.column) -> None:
             )
 
     def conferir() -> None:
+        """Confere o texto colado da IA."""
         try:
             relatorio = relatorio_colado(sessao.analise, str(colado.value or ""))
         except ValueError as erro:
@@ -174,6 +162,7 @@ def _painel_m1(sessao: Sessao, saida: ui.column) -> None:
         pedido = ui.html("").classes("ea-pedido")
 
     def atualizar() -> None:
+        """Atualiza o pedido quando a análise muda."""
         texto = escape(montar_prompt_completo(sessao.analise))
         fonte.set_content(texto)
         pedido.set_content(texto)
@@ -194,21 +183,24 @@ def _painel_m1(sessao: Sessao, saida: ui.column) -> None:
 
 
 def _painel_m2(sessao: Sessao, saida: ui.column) -> None:
+    """Modo IA local: Ollama no computador onde o EnsaIA roda."""
     ui.html(
-        '<div class="ea-ler">Usa o <b>Ollama</b> aberto neste computador: nada sai '
-        "da sua máquina. Modelos de 4B a 8B (Qwen 3, Llama 3, Gemma 3) dão conta, "
-        "porque a IA só reescreve os resultados.</div>"
+        '<div class="ea-ler">Usa o <b>Ollama</b> aberto no computador onde o EnsaIA '
+        "está rodando: nada sai dessa máquina. Modelos de 4B a 8B (Qwen 3, Llama 3, "
+        "Gemma 3) dão conta, porque a IA só reescreve os resultados.</div>"
     )
     endereco = ui.input("Endereço do Ollama", value=url_ollama() or OLLAMA.url_base)
     endereco.props("dense outlined").classes("ea-campo-longo")
 
     def config(modelo: str) -> ConfiguracaoModelo:
+        """Configuração do Ollama com o modelo escolhido."""
         return ConfiguracaoModelo(url_base=str(endereco.value), modelo=modelo)
 
     _conectar_e_narrar(sessao, saida, OLLAMA, config, modo="m2")
 
 
 def _painel_m3(sessao: Sessao, saida: ui.column) -> None:
+    """Modo IA em nuvem: escolha do provedor."""
     servidor = config_do_servidor()
     opcoes = {p.id: p.nome for p in PROVEDORES.values()}
     if servidor is not None:
@@ -218,6 +210,7 @@ def _painel_m3(sessao: Sessao, saida: ui.column) -> None:
     detalhe = ui.column().classes("w-full gap-2")
 
     def montar(id_: str) -> None:
+        """Monta o painel do provedor escolhido."""
         detalhe.clear()
         saida.clear()
         with detalhe:
@@ -233,6 +226,7 @@ def _painel_m3(sessao: Sessao, saida: ui.column) -> None:
 def _painel_servidor(
     sessao: Sessao, saida: ui.column, config: ConfiguracaoModelo
 ) -> None:
+    """Painel da IA oferecida pelo servidor."""
     ui.html(
         '<div class="ea-ler">Quem hospeda este EnsaIA oferece uma IA pronta '
         f"(modelo <b>{escape(config.modelo)}</b>). Só os resultados verificados "
@@ -243,6 +237,7 @@ def _painel_servidor(
 
 
 def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
+    """Painel de provedor com a chave do usuário."""
     estado: dict[str, str] = {}
     ui.html(
         '<div class="ea-ler">A chave fica só na memória desta aba: não é gravada '
@@ -265,11 +260,13 @@ def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
             )
 
     def config(modelo: str) -> ConfiguracaoModelo:
+        """Configuração do provedor com a chave guardada."""
         return ConfiguracaoModelo(
             url_base=provedor.url_base, modelo=modelo, chave_api=estado.get("chave")
         )
 
     def guardar_chave() -> bool:
+        """Guarda a chave na memória e limpa o campo."""
         chave = str(campo.value or "").strip()
         if chave:
             estado["chave"] = chave
@@ -280,6 +277,7 @@ def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
         return True
 
     def esquecer() -> None:
+        """Esquece a chave guardada."""
         estado.clear()
 
     _conectar_e_narrar(
@@ -306,10 +304,11 @@ def _conectar_e_narrar(
     antes: Callable[[], bool] = lambda: True,
     ao_recusar: Callable[[], None] = lambda: None,
 ) -> None:
-    """Botão "Conectar": lista os modelos do provedor e libera o "Escrever"."""
+    """Botão Conectar, lista de modelos e botão Escrever."""
     escolha = ui.column().classes("w-full gap-2")
 
     async def conectar() -> None:
+        """Lista os modelos do provedor e libera o Escrever."""
         if not antes():
             return
         botao.props("loading")
@@ -362,6 +361,7 @@ def _conectar_e_narrar(
 
 
 def _listar(config: ConfiguracaoModelo) -> list[str]:
+    """Lista os modelos do provedor."""
     with ClienteModelo(config) as cliente:
         return cliente.listar_modelos()
 
@@ -373,6 +373,7 @@ async def _narrar(
     modo: Modo,
     botao: ui.button,
 ) -> None:
+    """Gera o texto com a IA e mostra o resultado."""
     analise = sessao.analise
     saida.clear()
     with saida:
@@ -383,6 +384,7 @@ async def _narrar(
         )
 
     def trabalho() -> RelatorioTextual:
+        """Gera o relatório com o cliente da IA."""
         with ClienteModelo(config) as cliente:
             return gerar_relatorio(analise, modo=modo, cliente=cliente)
 
@@ -400,7 +402,7 @@ async def _narrar(
 
 
 def _mensagem_erro(erro: ErroDeIA, provedor: Provedor) -> str:
-    """O que deu errado, em português de laboratório, não de servidor."""
+    """Mensagem de erro da IA em português claro."""
     if isinstance(erro, ErroDeResposta):
         if _chave_recusada(erro):
             return (
@@ -411,14 +413,14 @@ def _mensagem_erro(erro: ErroDeIA, provedor: Provedor) -> str:
         return f"O {provedor.nome} respondeu com erro ({erro.status})."
     if isinstance(erro, ErroDeConexao) and provedor is OLLAMA:
         return (
-            "Não encontrei o Ollama nesse endereço. Ele está aberto? Esse modo só "
-            "funciona com o EnsaIA rodando no seu computador."
+            "Não encontrei o Ollama nesse endereço. Ele está aberto no computador "
+            "onde o EnsaIA está rodando?"
         )
     return f"Não consegui falar com o {provedor.nome}. Verifique a conexão."
 
 
 def _chave_recusada(erro: ErroDeIA) -> bool:
-    """401/403 é o padrão; o Gemini responde 400 citando a chave inválida."""
+    """Diz se o erro foi de chave recusada."""
     if not isinstance(erro, ErroDeResposta):
         return False
     return erro.status in (401, 403) or (
@@ -426,20 +428,11 @@ def _chave_recusada(erro: ErroDeIA) -> bool:
     )
 
 
-def _ollama_disponivel() -> bool:
-    """IA local só faz sentido quando o navegador está na mesma máquina."""
-    if url_ollama():
-        return True
-    requisicao = getattr(ui.context.client, "request", None)
-    host = getattr(getattr(requisicao, "url", None), "hostname", None)
-    return host in {"localhost", "127.0.0.1", "::1"}
-
-
 # --- O texto na tela ---------------------------------------------------------
 
 
 def mostrar_relatorio(relatorio: RelatorioTextual, analise: AnalysisResult) -> None:
-    """O texto, quem o escreveu e a conferência dos números, com destaques."""
+    """Mostra o texto, quem o escreveu e a conferência dos números."""
     valores = valores_do_resultado(analise)
     with ui.element("div").classes("ea-relatorio"):
         ui.html(
@@ -463,6 +456,7 @@ def mostrar_relatorio(relatorio: RelatorioTextual, analise: AnalysisResult) -> N
 
 
 def _conferencia(relatorio: RelatorioTextual) -> None:
+    """Resumo da conferência e os números que não batem."""
     fid = relatorio.fidelidade
     if fid is None:
         return

@@ -1,8 +1,5 @@
-"""Tabela de ANOVA, seleção de termos e teste de falta de ajuste.
-
-Critério de significância: alfa = 0,05, conforme §4.3(b) do pré-projeto
-assinado. O protótipo original usava p <= 0,10; a mudança é deliberada e está
-registrada em docs/decisoes/0003-criterio-de-significancia.md.
+"""ANOVA da regressão, erro puro e teste de falta de ajuste do modelo.
+Também separa termos por significância (α = 0,05, ADR 0003).
 """
 
 from __future__ import annotations
@@ -18,10 +15,7 @@ from ensaia.core.table import Table
 
 ALFA_PADRAO = 0.05
 
-# Regra prática de Box e Wetz (1973) apud BARROS NETO; SCARMINIO; BRUNS
-# (2010, p. 238): uma regressão só é útil para previsão quando F_calc/F_tab é
-# de uma ordem de grandeza maior que 1 — "pelo menos cerca de 10 vezes". É um
-# critério mais exigente que a significância (razão > 1) e distinto dela.
+# Box e Wetz (1973): regressão útil para prever quando F/Ftab ≥ ~10.
 RAZAO_UTIL_PREVISAO = 10.0
 
 # Fontes da ANOVA da regressão (a linha do resíduo usa RESIDUO, de model.py).
@@ -35,30 +29,7 @@ TOTAL = "Total"
 def anova_regressao(
     ajuste: AjusteOLS, falta: FaltaDeAjuste, *, alfa: float = ALFA_PADRAO
 ) -> AnovaRegressao:
-    """ANOVA da regressão no formato da literatura de DOE (spec §9, C2).
-
-        Regressão   gl = p − 1     SQ_R = SQ_T − SQ_res   F = QM_R / QM_res
-        Resíduo     gl = n − p     SQ_res
-          Falta de ajuste / Erro puro (quando há réplicas genuínas)
-        Total       gl = n − 1     SQ_T
-
-    Além do p-valor, devolve o F tabelado F(1 − α; gl_R, gl_res) e a razão
-    F calculado / F tabelado (razão maior que 1 é regressão significativa —
-    é o mesmo teste F, só reexpresso). Também devolve `util_para_previsao`:
-    regra de Box e Wetz (1973) apud Barros Neto, Scarminio e Bruns (2010,
-    p. 238), mais exigente que a significância — só com razão ≳10×.
-
-    Com blocos (colunas fixas do ajuste), a variação entre blocos sai numa
-    linha própria, antes da regressão, e a regressão mede o que os fatores
-    explicam **depois** dos blocos:
-
-        Blocos      gl = b − 1     SQ_B = SQ_T − SQ_res(só blocos)
-        Regressão   gl = p − b     SQ_R = SQ_res(só blocos) − SQ_res
-
-    O bloco não recebe teste F: ele é uma restrição de como os ensaios foram
-    feitos, não um fator em estudo; a linha mostra quanto da variação ele tirou
-    do erro.
-    """
+    """Monta a ANOVA da regressão (blocos, regressão, resíduo, total) e o F/Ftab."""
     fixos = ajuste.termos_fixos
     gl_res = ajuste.gl_residuo
     sq_t = ajuste.soma_quadrados_total
@@ -162,16 +133,7 @@ def erro_puro(
     fatores: list[str],
     blocos: Sequence[str] | None = None,
 ) -> tuple[float, int]:
-    """(SQ, gl) do erro puro: a variação entre réplicas da mesma condição.
-
-    Depende só dos dados (não do modelo): agrupa os ensaios com os mesmos níveis
-    de todos os fatores e soma a dispersão dentro de cada grupo. gl = n − nº de
-    condições distintas; 0 quando nenhuma condição foi repetida.
-
-    Com `blocos` (o rótulo de bloco de cada ensaio), só conta como réplica a
-    mesma condição **no mesmo bloco**: duas réplicas em blocos diferentes
-    diferem também pelo bloco, e essa diferença não é erro puro.
-    """
+    """Soma de quadrados e g.l. do erro puro: a variação entre réplicas."""
     y = dados.coluna(resposta)
     colunas = [dados.coluna(f) for f in fatores]
     grupos: dict[tuple[object, ...], list[int]] = {}
@@ -195,19 +157,7 @@ def selecionar_termos(
     alfa: float = ALFA_PADRAO,
     manter_hierarquia: bool = True,
 ) -> tuple[list[str], list[str]]:
-    """Separa os termos em (mantidos, descartados) por significância.
-
-    `manter_hierarquia=True` preserva o princípio hierárquico: se x1:x2 ou x1^2
-    é significativo, o termo linear x1 fica no modelo mesmo que individualmente
-    não seja. Modelo não hierárquico deixa de ser invariante à mudança de escala
-    dos fatores — os coeficientes passam a depender de onde você pôs o zero, o
-    que é indefensável em quimiometria.
-
-    Entra a tabela de ANOVA Tipo II (uma `LinhaAnova` por termo, mais a linha de
-    resíduo, que é ignorada). O Intercepto não aparece na tabela e é sempre
-    mantido pelo chamador — o modelo reduzido é `["Intercepto"] + mantidos`.
-    Devolve `(mantidos, descartados)` na ordem original dos termos.
-    """
+    """Separa os termos em mantidos e descartados pelo p, com hierarquia."""
     termos = [linha.fonte for linha in anova if linha.fonte != RESIDUO]
     significativos = {
         linha.fonte
@@ -221,8 +171,7 @@ def selecionar_termos(
     if manter_hierarquia:
         for termo in significativos:
             for fator, _potencia in interpretar_termo(termo):
-                # O termo linear de um fator usado num termo de ordem superior
-                # fica no modelo. O nome do termo linear é o próprio nome do fator.
+                # O termo linear de um fator usado num termo superior fica no modelo.
                 if fator in termos:
                     manter.add(fator)
 
@@ -240,25 +189,7 @@ def teste_falta_ajuste(
     alfa: float = ALFA_PADRAO,
     blocos: Sequence[str] | None = None,
 ) -> FaltaDeAjuste:
-    """Decompõe o resíduo em falta de ajuste + erro puro.
-
-    Só é possível com repetições genuínas de uma mesma condição experimental
-    (na prática, os pontos centrais). Sem elas, devolve
-    `FaltaDeAjuste(aplicavel=False, motivo_inaplicavel=...)` — nunca inventa um
-    teste. A camada narrativa depende dessa distinção para não escrever "não
-    houve falta de ajuste" quando na verdade o teste não pôde ser feito.
-
-    O erro puro vem da variação da resposta DENTRO de cada combinação de níveis
-    repetida; a falta de ajuste é o que sobra do resíduo depois de tirar o erro
-    puro. Um F alto (falta de ajuste significativa) diz que o desvio do modelo é
-    grande comparado à dispersão entre réplicas — ou seja, o modelo não descreve
-    bem os dados, e não é só ruído experimental.
-
-        gl_erro_puro = n − (nº de combinações distintas de níveis)
-        SQ_erro_puro = Σ_grupos Σ (y − média do grupo)²
-        SQ_falta = SQ_residuo − SQ_erro_puro ;  gl_falta = gl_residuo − gl_erro_puro
-        F = (SQ_falta/gl_falta) / (SQ_erro_puro/gl_erro_puro)
-    """
+    """Divide o resíduo em falta de ajuste e erro puro e testa com F."""
     sq_erro_puro, gl_erro_puro = erro_puro(dados, resposta, fatores, blocos)
     if gl_erro_puro <= 0:
         return FaltaDeAjuste(
@@ -284,8 +215,7 @@ def teste_falta_ajuste(
     qm_falta = sq_falta / gl_falta
 
     if qm_erro_puro == 0.0:
-        # Réplicas idênticas (erro puro nulo): F é infinito; reportar como
-        # significativa sem armazenar inf (que não é JSON válido).
+        # Réplicas idênticas: F infinito; marca significativa sem guardar inf.
         return FaltaDeAjuste(
             aplicavel=True,
             soma_quadrados_falta=sq_falta,

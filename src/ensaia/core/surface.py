@@ -1,14 +1,5 @@
-"""Superfície de resposta: avaliar o modelo ajustado numa grade de dois fatores.
-
-Spec §9, grupo E: superfície 3D (E1) e curvas de contorno (E2). Os dois gráficos
-mostram a MESMA coisa — a resposta prevista pelo modelo quando dois fatores
-variam e os demais ficam parados num valor escolhido (por padrão, o centro).
-
-A conta é só substituir valores na equação do modelo: para cada ponto da grade,
-ŷ = Σ coeficiente × (produto dos fatores codificados de cada termo). Ela mora no
-núcleo, e não na tela, pela regra de sempre: a interface desenha, não calcula.
-A grade padrão é 25 × 25 (spec §7.3) — suficiente para o olho e barata para o
-servidor de 512 MB.
+"""Superfície de resposta, previsão e ponto estacionário do modelo.
+Avalia a equação numa grade de dois fatores para os gráficos E1 e E2.
 """
 
 from __future__ import annotations
@@ -28,12 +19,7 @@ PONTOS_PADRAO = 25
 
 @dataclass(frozen=True)
 class GradeSuperficie:
-    """Resposta prevista numa grade regular de dois fatores (unidades reais).
-
-    `z[i][j]` é a previsão em `x = valores_x[j]` e `y = valores_y[i]` — linha
-    por valor de y, coluna por valor de x, como uma tabela lida de cima para
-    baixo. `fixos` guarda, em unidades reais, onde os outros fatores ficaram.
-    """
+    """Resposta prevista numa grade de dois fatores, em unidades reais."""
 
     resposta: str
     eixo_x: str
@@ -45,23 +31,19 @@ class GradeSuperficie:
 
     @property
     def z_minimo(self) -> float:
+        """Menor valor previsto na grade."""
         return min(min(linha) for linha in self.z)
 
     @property
     def z_maximo(self) -> float:
+        """Maior valor previsto na grade."""
         return max(max(linha) for linha in self.z)
 
 
 def prever(
     ajuste: AjusteResposta, codificados: dict[str, NDArray[np.float64]]
 ) -> NDArray[np.float64]:
-    """Resposta prevista pelo modelo em pontos dados na escala codificada.
-
-    `codificados` mapeia cada fator para um array (todos do mesmo formato). Os
-    termos são lidos por `interpretar_termo`, a mesma regra usada para montar a
-    matriz do modelo — assim a previsão e o ajuste nunca discordam sobre o que
-    "x1:x2" ou "x1^2" significam.
-    """
+    """Resposta prevista em pontos dados na escala codificada."""
     if not codificados:
         raise ValueError("Informe ao menos um fator para prever.")
     formato = next(iter(codificados.values())).shape
@@ -86,12 +68,7 @@ def prever_condicao(
     *,
     limite_codificado: float = 1.0,
 ) -> tuple[dict[str, float], bool]:
-    """Resposta prevista numa condição escolhida pelo usuário (US-15, "e se?").
-
-    Devolve as previsões por resposta e se a condição sai da região estudada
-    (algum fator além de ±limite na escala codificada). Fora da região o modelo
-    está extrapolando: a tela avisa, porque ali a previsão pode não valer.
-    """
+    """Previsão numa condição real e se ela sai da região estudada."""
     faltam = sorted({f.nome for f in fatores} - set(valores_reais))
     if faltam:
         raise ValueError(f"Informe o valor de: {', '.join(faltam)}.")
@@ -110,17 +87,7 @@ def ponto_estacionario(
     *,
     limite_codificado: float = 1.0,
 ) -> PontoEstacionario | None:
-    """Ponto estacionário e análise canônica do modelo quadrático (spec §9, E3).
-
-    Escrevendo o modelo como ŷ = b₀ + xᵀb + xᵀBx (B com os quadráticos na
-    diagonal e metade de cada interação fora dela), o gradiente zera em
-    x_s = −½·B⁻¹·b, onde ŷ_s = b₀ + ½·x_sᵀb. Os autovalores de B classificam
-    o ponto. Só faz sentido com o termo quadrático de todos os fatores; sem ele
-    (ou com B singular) devolve None.
-
-    `limite_codificado` é a borda da região experimental na escala codificada
-    (1 no fatorial e no Box-Behnken; α no composto central).
-    """
+    """Ponto estacionário e análise canônica (máximo, mínimo, sela)."""
     nomes = [f.nome for f in fatores]
     k = len(nomes)
     estimativa = {c.termo: c.estimativa for c in ajuste.coeficientes}
@@ -172,13 +139,7 @@ def grade_superficie(
     pontos: int = PONTOS_PADRAO,
     limites_codificados: tuple[float, float] = (-1.0, 1.0),
 ) -> GradeSuperficie:
-    """Avalia o modelo numa grade `pontos × pontos` dos fatores `eixo_x` e `eixo_y`.
-
-    A grade cobre `limites_codificados` na escala codificada (padrão [−1, +1],
-    a região do experimento) e é devolvida em unidades reais, que é o que o
-    usuário entende. Os demais fatores ficam em `fixos` (unidades reais) ou, se
-    omitidos, no centro da faixa.
-    """
+    """Avalia o modelo numa grade de dois fatores."""
     por_nome = {f.nome: f for f in fatores}
     for nome in (eixo_x, eixo_y):
         if nome not in por_nome:
@@ -222,7 +183,7 @@ def grade_superficie(
 
 
 def ordem_por_forca(ajuste: AjusteResposta, nomes: list[str]) -> list[str]:
-    """Fatores do mais ao menos influente, pelo maior |t| entre os termos de cada um."""
+    """Fatores do mais ao menos influente, pelo maior |t|."""
     forca = dict.fromkeys(nomes, 0.0)
     for c in ajuste.coeficientes:
         if c.termo == INTERCEPTO:
@@ -234,11 +195,7 @@ def ordem_por_forca(ajuste: AjusteResposta, nomes: list[str]) -> list[str]:
 
 
 def par_inicial(ajuste: AjusteResposta, nomes: list[str]) -> tuple[str, str]:
-    """Par de eixos de abertura: a interação mais forte ou os 2 fatores mais fortes.
-
-    É o par que a tela abre e o que o PDF desenha: onde a forma da superfície
-    mais tem a dizer.
-    """
+    """Par de fatores que a superfície mostra primeiro."""
     interacoes = [
         c for c in ajuste.coeficientes
         if len({n for n, _ in interpretar_termo(c.termo)}) == 2

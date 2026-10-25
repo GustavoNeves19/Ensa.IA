@@ -23,40 +23,36 @@ def _dcc(k: int, alfa: float, centrais: int) -> list[tuple[float, ...]]:
 
 
 def test_catalogo_cobre_a_spec() -> None:
+    # Spec v0.6 §9: só os grupos A, C, D e E. B1–B5 (fatoriais de triagem)
+    # ficam reservados para a versão geral e não aparecem no catálogo.
     assert IDS == (
-        "A1", "A2", "A3", "B1", "B2", "B3", "B4", "B5", "C1", "C2", "C3", "C4",
-        "C5", "C6", "D1", "D2", "D3", "D4", "E1", "E2", "E3", "E4", "E5",
+        "A1", "A2", "A3", "C1", "C2", "C3", "C4", "C5", "C6",
+        "D1", "D2", "D3", "D4", "E1", "E2", "E3", "E4", "E5",
     )
+    assert set(GRUPOS) == {"A", "C", "D", "E"}
     assert {a.grupo for a in CATALOGO} == set(GRUPOS)
 
 
-def test_dccr_nao_tem_grupo_b_de_triagem() -> None:
-    # Só DCCR é reconhecido (ADR 0013): B1/B3/B4/B5, do fatorial de 2 níveis
-    # para triagem, ficam permanentemente indisponíveis. B2 (Pareto dos
-    # efeitos padronizados) não depende do tipo fatorial e continua disponível.
+def test_dccr_tem_todas_as_analises_de_uma_resposta() -> None:
     disp = disponibilidade(
         _colunas(_dcc(3, 1.682, centrais=3)), n_respostas=1, tem_ordem=False
     )
-    for id_ in ("B1", "B3", "B4", "B5"):
-        assert disp[id_] == "só para fatorial de 2 níveis"
-    assert disp["B2"] is None
+    assert disp["C1"] is None  # coeficientes e Pareto
     assert disp["C4"] is None  # 3 pontos centrais = réplicas
     assert disp["E3"] is None  # modelo quadrático estimável
     assert disp["E5"] is not None  # uma resposta só
-    assert "E3" in padrao(disp) and "B1" not in padrao(disp)
+    assert disp["D3"] is not None  # sem coluna de ordem
+    assert "E3" in padrao(disp)
 
 
-def test_fatorial_puro_tambem_fica_sem_grupo_b() -> None:
-    # Um fatorial 2^k puro não é mais um tipo reconhecido (vira
-    # "desconhecido"), então o Grupo B de triagem — feito justamente para
-    # esse caso — também não se aplica mais. Isto documenta a consequência da
-    # restrição a DCCR (ADR 0013), não um comportamento desejado do fatorial.
+def test_fatorial_puro_nao_e_dccr() -> None:
+    # Um fatorial 2^k puro não é DCCR (ADR 0013): sem estrela axial não há
+    # modelo quadrático nem ponto estacionário.
     vertices = list(itertools.product([-1, 1], repeat=3))
     disp = disponibilidade(
         _colunas(vertices + [(0, 0, 0)] * 3), n_respostas=2, tem_ordem=True
     )
-    assert disp["B1"] is not None and disp["B4"] is not None and disp["B5"] is not None
-    assert disp["E3"] is not None  # sem estrela axial: não há modelo quadrático
+    assert disp["E3"] is not None
 
 
 def test_sem_fator_ou_sem_resposta() -> None:

@@ -1,9 +1,5 @@
-"""Estatística descritiva e matriz codificada (spec §9, grupo A).
-
-A1 resume cada resposta antes de qualquer modelo: quanto ela variou entre os
-ensaios. Um coeficiente de variação muito baixo, por exemplo, já avisa que os
-fatores mexeram pouco na resposta. A3 mostra, lado a lado, os níveis reais e os
-codificados que o modelo de fato usa.
+"""Estatística descritiva das respostas (A1) e matriz real × codificada (A3).
+O primeiro resumo dos dados, antes de qualquer modelo.
 """
 
 from __future__ import annotations
@@ -21,11 +17,7 @@ from ensaia.core.table import Table
 def estatistica_descritiva(
     tabela: Table, respostas: Sequence[str]
 ) -> list[EstatisticaDescritiva]:
-    """n, média, desvio-padrão amostral, mínimo, máximo e CV de cada resposta.
-
-    O CV (desvio / média × 100) fica None quando a média é zero, onde ele não
-    tem sentido.
-    """
+    """n, média, desvio, mínimo, máximo e CV de cada resposta."""
     resumo: list[EstatisticaDescritiva] = []
     for resposta in respostas:
         y = np.asarray(tabela.coluna(resposta), dtype=float)
@@ -51,7 +43,7 @@ def estatistica_descritiva(
 def matriz_codificada(
     tabela: Table, planejamento: Planejamento
 ) -> dict[str, list[float]]:
-    """Coluna codificada de cada fator, na ordem dos ensaios (A3)."""
+    """Coluna codificada de cada fator, na ordem dos ensaios."""
     return {
         f.nome: [f.codificar(float(v)) for v in tabela.coluna(f.nome)]
         for f in planejamento.fatores
@@ -60,11 +52,7 @@ def matriz_codificada(
 
 @dataclass(frozen=True)
 class MatrizEnsaios:
-    """A planilha do experimento como o PDF a mostra (A3): real, codificada e y.
-
-    O contrato `AnalysisResult` não carrega as células (só os resultados); quem
-    tem a planilha na mão (a tela) monta isto e entrega ao relatório.
-    """
+    """A planilha como o PDF a mostra: valores reais, codificados e respostas."""
 
     nome_arquivo: str | None
     real: dict[str, list[float]]
@@ -73,6 +61,7 @@ class MatrizEnsaios:
 
     @property
     def n_ensaios(self) -> int:
+        """Quantos ensaios a matriz tem."""
         return len(next(iter(self.real.values()), []))
 
 
@@ -82,7 +71,7 @@ def matriz_ensaios(
     respostas: Sequence[str],
     nome_arquivo: str | None = None,
 ) -> MatrizEnsaios:
-    """Fatores (reais e codificados) e respostas, na ordem dos ensaios."""
+    """Monta a MatrizEnsaios a partir da tabela e do planejamento."""
     return MatrizEnsaios(
         nome_arquivo=nome_arquivo,
         real={

@@ -1,13 +1,5 @@
-"""Tabela de dados leve, sem pandas.
-
-A especificação do EnsaIA (seção 8.1) pede que o núcleo não dependa de pandas:
-os planejamentos de DOE têm dezenas de linhas, e uma estrutura própria de
-colunas em numpy resolve com uma fração da memória. `Table` é essa estrutura —
-nomes de coluna mais colunas numéricas (`numpy`) ou de texto (`tuple[str, ...]`).
-
-É deliberadamente mínima: só o que a leitura de dados, a montagem da matriz do
-modelo e a validação precisam. Nada de índice, de alinhamento automático nem de
-operação vetorizada mágica — é um contêiner, não um DataFrame.
+"""Table: contêiner leve de colunas numéricas ou de texto, sem pandas.
+É o formato em que a planilha circula pelo sistema.
 """
 
 from __future__ import annotations
@@ -29,6 +21,7 @@ class Table:
     valores: dict[str, Coluna]
 
     def __post_init__(self) -> None:
+        """Confere que colunas e valores combinam e têm o mesmo tamanho."""
         faltando = [c for c in self.colunas if c not in self.valores]
         if faltando:
             raise ValueError(f"Colunas sem dados: {faltando}.")
@@ -40,23 +33,21 @@ class Table:
             raise ValueError(f"Colunas com números de linhas diferentes: {tamanhos}.")
 
     def __len__(self) -> int:
+        """Número de linhas."""
         if not self.colunas:
             return 0
         return len(self.valores[self.colunas[0]])
 
     def tem(self, nome: str) -> bool:
+        """Diz se a coluna existe."""
         return nome in self.valores
 
     def e_numerica(self, nome: str) -> bool:
+        """Diz se a coluna é numérica."""
         return isinstance(self.valores[nome], np.ndarray)
 
     def coluna(self, nome: str) -> NDArray[np.float64]:
-        """Coluna numérica como array de float.
-
-        Falha alto se a coluna não existe ou não é numérica — é o caminho por
-        onde um fator ou resposta com texto no meio é pego cedo, com mensagem
-        clara, em vez de virar `NaN` silencioso lá na frente.
-        """
+        """Coluna numérica como array (falha se não existir ou for texto)."""
         if nome not in self.valores:
             raise KeyError(
                 f"Coluna {nome!r} não existe. Colunas: {list(self.colunas)}."
@@ -69,7 +60,7 @@ class Table:
         return valor
 
     def texto(self, nome: str) -> tuple[str, ...]:
-        """Coluna como texto, seja ela numérica ou não (para rótulos, ordem)."""
+        """Coluna como texto, numérica ou não."""
         valor = self.valores[nome]
         if isinstance(valor, np.ndarray):
             return tuple(_formatar(v) for v in valor)
@@ -77,12 +68,7 @@ class Table:
 
     @classmethod
     def de_colunas(cls, dados: Mapping[str, Sequence[object]]) -> Table:
-        """Monta uma `Table` a partir de um dicionário de colunas.
-
-        Cada coluna vira array de float quando TODOS os valores são numéricos
-        (aceitando vírgula decimal e célula vazia como `NaN`); caso contrário,
-        vira coluna de texto. É assim que o leitor decide o tipo de cada coluna.
-        """
+        """Monta uma Table a partir de um dicionário de colunas."""
         colunas = tuple(dados.keys())
         valores: dict[str, Coluna] = {}
         for nome in colunas:
@@ -95,12 +81,7 @@ class Table:
 
 
 def _tentar_numerica(valores: list[object]) -> NDArray[np.float64] | None:
-    """Converte a coluna inteira para float, ou devolve None se algo não for número.
-
-    Célula vazia vira `NaN` (ausência é informação, não erro, nesta camada); a
-    verificação de ausência fica para quem monta a matriz do modelo. Vírgula é
-    aceita como separador decimal (planilha brasileira).
-    """
+    """Converte a coluna para float, ou None se houver texto."""
     saida = np.empty(len(valores), dtype=np.float64)
     for i, valor in enumerate(valores):
         if isinstance(valor, bool):
@@ -120,6 +101,7 @@ def _tentar_numerica(valores: list[object]) -> NDArray[np.float64] | None:
 
 
 def _formatar(valor: float) -> str:
+    """Número como texto curto (2 em vez de 2.0)."""
     numero = float(valor)
     if np.isnan(numero):
         return ""

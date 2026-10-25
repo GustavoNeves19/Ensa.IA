@@ -1,0 +1,78 @@
+# Valores PUBLICADOS em Silva, Pereira e Almeida (2023), Research, Society
+# and Development 12(8), e3512842839. Procedência de cada número: fonte.md.
+
+caso: silva-2023-bombeamento-agua
+status: rascunho   # reproduz a Tabela 11 até a última casa; falta a dupla
+                   # conferência humana
+tipo_planejamento: composto_central
+termo_erro: residuo   # 1 ponto central: não há erro puro
+
+fatores:
+  # Valores codificados. Níveis reais (Tabelas 6 e 7), −1 / 0 / +1:
+  # rendimento do conjunto motor-bomba 40 / 60 / 80 %; volume do
+  # reservatório elevado 3706 / 11118 / 18530 m³; altura geométrica
+  # 18 / 28 / 38 m.
+  rendimento_cmb:
+    minimo: -1.0
+    maximo: 1.0
+    unidade: "codificado"
+  vre:
+    minimo: -1.0
+    maximo: 1.0
+    unidade: "codificado"
+  hg:
+    minimo: -1.0
+    maximo: 1.0
+    unidade: "codificado"
+
+escala_coeficientes: codificada
+# A Tabela 11 chama a coluna de "Efeito", mas são coeficientes: os lineares
+# são os mesmos da Equação 18.
+grandeza_reportada: coeficiente
+
+respostas:
+  consumo_kwh_mes:
+    # Tabela 11: modelo quadrático completo, coeficientes codificados.
+    coeficientes:
+      Intercepto: 6178.45
+      rendimento_cmb: -2832.67
+      rendimento_cmb^2: 1227.29
+      vre: 400.49
+      vre^2: -24.24
+      hg: 789.79
+      hg^2: 568.35
+      rendimento_cmb:vre: -141.75
+      rendimento_cmb:hg: -298.42
+      vre:hg: 53.03
+    significancia:
+      Intercepto: true   # p = 0.0
+      rendimento_cmb: true   # p = 0.0
+      rendimento_cmb^2: true   # p = 0.0007
+      vre: true   # p = 0.0147
+      vre^2: false   # p = 0.8886
+      hg: true   # p = 0.0008
+      hg^2: true   # p = 0.0182
+      rendimento_cmb:vre: false   # p = 0.3675
+      rendimento_cmb:hg: false   # p = 0.0915
+      vre:hg: false   # p = 0.7262
+    r2: null            # o 99,27% publicado é do modelo reduzido (Tabela 12)
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+
+# Condição ótima escolhida pelos autores olhando as superfícies (Tabela 14),
+# com o consumo previsto pela Equação 18 (Tabela 15).
+condicao_otima:
+  objetivos:
+    consumo_kwh_mes: minimizar
+  coordenadas:
+    rendimento_cmb: 1.15
+    vre: -1.32
+    hg: -0.58
+  resposta_prevista:
+    consumo_kwh_mes: 3922.97
+
+observacoes: |
+  Ver fonte.md. Resumo: matriz codificada com α exato; consumo da Tabela 13
+  (a Tabela 10 tem dois erros de digitação); termo de erro = resíduo. O
+  modelo reduzido da Equação 18 (reajustado pelos autores) e a ANOVA da
+  Tabela 12 são conferidos em tests/unit/test_artigos_referencia.py.

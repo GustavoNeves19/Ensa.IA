@@ -1,13 +1,5 @@
-"""Representação e detecção de planejamentos experimentais.
-
-O pré-projeto assinado compromete o EnsaIA com três famílias de planejamento
-(§4.2, critério 2): fatorial completo 2^k, delineamento composto central e
-Box-Behnken. O protótipo atual trabalha com exatamente 3 fatores fixos —
-generalizar para k fatores é a refatoração central da fase de implementação.
-Ver docs/decisoes/0002-generalizacao-para-k-fatores.md.
-
-Nada aqui depende de qual biblioteca faz a regressão: este módulo só descreve
-a geometria do experimento e monta a matriz de termos do modelo.
+"""Fatores, planejamento e termos do modelo em notação canônica.
+Descreve a geometria do experimento; não faz nenhuma regressão.
 """
 
 from __future__ import annotations
@@ -22,19 +14,7 @@ INTERCEPTO = "Intercepto"
 
 @dataclass(frozen=True)
 class Fator:
-    """Um fator independente e sua faixa experimental.
-
-    `minimo`/`maximo` são os níveis reais (unidades do experimento) que
-    correspondem a -1 e +1 na escala codificada. Em composto central, são os
-    níveis do fatorial, NÃO os pontos axiais: os axiais caem em ±α (ex.: ±1,68)
-    e é nessa escala que os artigos publicam os coeficientes. Passar os níveis
-    axiais aqui encolhe a escala e distorce todos os coeficientes por um fator
-    α, sem nenhum erro aparente.
-
-    A codificação para [-1, +1] é derivada, nunca informada pelo usuário: pedir
-    ao usuário que codifique à mão é uma das barreiras que o TCC se propõe a
-    remover.
-    """
+    """Fator do experimento e os níveis reais que viram −1 e +1."""
 
     nome: str
     minimo: float
@@ -43,14 +23,16 @@ class Fator:
 
     @property
     def centro(self) -> float:
+        """Nível real do ponto central (0 codificado)."""
         return (self.minimo + self.maximo) / 2.0
 
     @property
     def amplitude(self) -> float:
+        """Distância real entre os níveis −1 e +1."""
         return self.maximo - self.minimo
 
     def codificar(self, valor: float) -> float:
-        """Converte nível real para a escala codificada [-1, +1]."""
+        """Converte um nível real para a escala codificada."""
         if self.amplitude == 0:
             raise ValueError(
                 f"Fator {self.nome!r} tem amplitude zero "
@@ -59,13 +41,13 @@ class Fator:
         return (valor - self.centro) / (self.amplitude / 2.0)
 
     def decodificar(self, codificado: float) -> float:
-        """Converte da escala codificada de volta para o nível real."""
+        """Converte um valor codificado de volta para o nível real."""
         return codificado * (self.amplitude / 2.0) + self.centro
 
 
 @dataclass(frozen=True)
 class Planejamento:
-    """Descrição completa do delineamento de um caso de estudo."""
+    """Tipo do delineamento, fatores, pontos centrais e α axial."""
 
     tipo: TipoPlanejamento
     fatores: list[Fator]
@@ -74,13 +56,16 @@ class Planejamento:
 
     @property
     def k(self) -> int:
+        """Número de fatores."""
         return len(self.fatores)
 
     @property
     def nomes_fatores(self) -> list[str]:
+        """Nomes dos fatores, na ordem do planejamento."""
         return [f.nome for f in self.fatores]
 
     def fator(self, nome: str) -> Fator:
+        """Busca um fator pelo nome."""
         for f in self.fatores:
             if f.nome == nome:
                 return f
@@ -93,20 +78,7 @@ def termos_do_modelo(
     incluir_quadraticos: bool = True,
     grau_interacao: int = 2,
 ) -> list[str]:
-    """Gera os termos do modelo polinomial em notação canônica.
-
-    Para ["temp", "ph"] com quadráticos e interação de 2ª ordem devolve:
-        ["Intercepto", "temp", "ph", "temp^2", "ph^2", "temp:ph"]
-
-    A ordem é estável e a notação é a mesma usada em `Coeficiente.termo`, para
-    que a comparação com os valores de referência dos casos de estudo seja
-    feita por chave e não por posição — comparar por posição é como bugs de
-    validação silenciosos nascem.
-
-    `incluir_quadraticos=False` é o caso do fatorial 2^k puro, que não tem
-    graus de liberdade para estimar curvatura: sem pontos além dos vértices,
-    um termo quadrático é inestimável, e pedi-lo produz matriz singular.
-    """
+    """Gera os termos do modelo (lineares, quadráticos, interações)."""
     if grau_interacao < 1:
         raise ValueError("grau_interacao deve ser >= 1")
 
@@ -124,27 +96,13 @@ def termos_do_modelo(
 
 
 def nome_legivel(termo: str) -> str:
-    """Termo canônico em leitura humana: "a:b" → "a × b", "a^2" → "a²", "_" → " ".
-
-    A tela, o PDF e o texto falam do mesmo jeito; por isso mora aqui, junto da
-    notação canônica que ele traduz.
-    """
+    """Escreve um termo para leitura humana (a × b, a²)."""
     texto = termo.replace("^2", "²").replace("^3", "³").replace(":", " × ")
     return texto.replace("_", " ")
 
 
 def interpretar_termo(termo: str) -> list[tuple[str, int]]:
-    """Decompõe um termo canônico em pares (fator, potência).
-
-        "Intercepto" -> []
-        "x1"         -> [("x1", 1)]
-        "x1^2"       -> [("x1", 2)]
-        "x1:x2"      -> [("x1", 1), ("x2", 1)]
-
-    É o inverso de `termos_do_modelo`: a notação é definida nos dois lugares
-    e só aqui é lida, para que a regra de "quem contém quem" (hierarquia do
-    modelo) não dependa de cada módulo reinterpretar a string do seu jeito.
-    """
+    """Decompõe um termo em pares (fator, potência)."""
     if termo == INTERCEPTO:
         return []
 

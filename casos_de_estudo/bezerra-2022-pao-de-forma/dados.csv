@@ -1,0 +1,27 @@
+# Um ensaio por linha, nos níveis CODIFICADOS (ver por que em fonte.md).
+# Fonte: Tabela 1 (matriz) e Tabelas 3 e 4 (médias das respostas) de
+# Bezerra et al. (2022), DOI 10.33448/rsd-v11i11.33569. DCCR 2^3 + 6 axiais
+# + 3 centrais = 17 ensaios, gerado e analisado no Statistica 10.
+# A tabela imprime ±1,68; aqui vai o α rotacional exato 8^(1/4) = 1,68179,
+# que é o que reproduz os efeitos publicados (ver fonte.md).
+# Transcrito do texto extraído do PDF oficial em 2026-10-25 (pypdf), com
+# conferência numérica contra as Tabelas 5-8 — PENDENTE dupla conferência
+# humana antes de virar evidência final.
+extrato,fermento,gordura,volume_especifico,cor_crosta,caract_interna_crosta,cor_miolo,estrutura_celulas_miolo,textura,aroma,sabor
+-1,-1,-1,3.79,6.5,2.43,8.36,4.75,4.07,7,7
+-1,-1,1,3.56,5.14,4.42,6.73,3.42,2.43,6,9.62
+-1,1,-1,5.43,7,3,8.58,6.13,6.55,7.58,11.46
+-1,1,1,5.97,6.4,4,8.89,7.67,8.92,8.56,10.31
+1,-1,-1,4.24,1.5,1.5,3,0.43,1.57,1.5,1.5
+1,-1,1,3.84,5.92,3.33,5.33,5.44,2.5,7.22,9.5
+1,1,-1,6.59,8.18,3.77,8.89,6.43,8.29,8.29,10.9
+1,1,1,4.46,8,3.5,6.62,7.38,7.45,7.08,10.5
+-1.68179,0,0,4.77,4.89,3.75,8.67,7,7.44,7.63,8.5
+1.68179,0,0,5.91,8.92,4.63,7.82,7.38,8.44,8.38,9.3
+0,-1.68179,0,3.59,6.73,3.82,2.57,2.5,3.69,5.2,6.67
+0,1.68179,0,6.69,8.9,4.42,8.67,9,8.75,8.92,12
+0,0,-1.68179,6.61,8.43,4.3,8.42,7.08,8.8,7.75,10.13
+0,0,1.68179,4.37,8,4.5,6.7,7,6.73,7.5,9.5
+0,0,0,5.91,8.2,4.45,8.38,8.25,8.5,8.75,11.25
+0,0,0,6.23,7.36,4.45,7.92,7.82,8.08,8.64,11.25
+0,0,0,5.89,7.55,3.64,8.1,8.13,8.55,8.6,12.1

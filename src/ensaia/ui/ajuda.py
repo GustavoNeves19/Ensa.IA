@@ -1,13 +1,5 @@
-"""Ajuda dentro da tela (US-16 e US-18): as lâmpadas de dica e o glossário.
-
-Ao lado de cada indicador, tabela e gráfico, uma lâmpada abre, ao passar o
-mouse, uma explicação curta: o que é, como ler e por que importa (ou a fórmula,
-no modo de fórmulas). Para quem está aprendendo
-planejamento de experimentos enquanto analisa os próprios dados, a resposta
-precisa estar ali, sem sair da página.
-
-O glossário e o guia de leitura são os mesmos textos que o servidor MCP serve
-como recursos (`ensaia/conteudo/`): a tela e o assistente de IA ensinam igual.
+"""Ajuda na tela: lâmpadas de dica, seletor de dicas e glossário.
+Cada indicador, tabela e gráfico tem explicação ou fórmula ao passar o mouse.
 """
 
 from __future__ import annotations
@@ -80,27 +72,6 @@ EXPLICACOES: dict[str, tuple[str, str]] = {
         "passa da linha tracejada (t crítico) é efeito significativo. Clique numa "
         "barra para ver a superfície daquele termo.",
     ),
-    "efeitos": (
-        "Efeitos",
-        "Quanto a resposta muda, em média, quando o fator vai do nível baixo (−1) "
-        "ao alto (+1). Em fatoriais, é o dobro do coeficiente.",
-    ),
-    "meio_normal": (
-        "Gráfico meio-normal",
-        "Para fatoriais sem réplicas: efeitos que são só ruído se alinham perto da "
-        "origem; os que se afastam para a direita da margem de Lenth são ativos.",
-    ),
-    "efeitos_principais": (
-        "Efeitos principais",
-        "A média da resposta em cada nível de cada fator, na mesma escala. Quanto "
-        "mais inclinada a linha, maior o efeito daquele fator.",
-    ),
-    "interacao": (
-        "Interação",
-        "Uma linha por nível do segundo fator. Linhas paralelas: os fatores agem "
-        "cada um por si. Linhas que se abrem ou se cruzam: o efeito de um depende "
-        "do nível do outro.",
-    ),
     "equacao": (
         "Equação do modelo",
         "A fórmula que o modelo ajustou. Na forma codificada os coeficientes são "
@@ -160,13 +131,12 @@ EXPLICACOES: dict[str, tuple[str, str]] = {
     "matriz": (
         "Matriz do planejamento",
         "Os níveis de cada ensaio em unidades reais e, entre parênteses, na escala "
-        "codificada (−1, 0, +1) que o modelo usa.",
+        "codificada (−α, −1, 0, +1, +α) que o modelo usa.",
     ),
 }
 
 
-# chave → fórmula, para o modo "Dicas em fórmula". Mesma notação em todas:
-# n = ensaios, p = parâmetros do modelo (com o intercepto), e = resíduo.
+# Fórmula de cada dica (n = ensaios, p = parâmetros, e = resíduo).
 FORMULAS: dict[str, str] = {
     "r2": "R² = 1 − SQres / SQtotal",
     "r2_ajustado": "R²aj = 1 − (1 − R²) · (n − 1) / (n − p)",
@@ -187,13 +157,6 @@ FORMULAS: dict[str, str] = {
     ),
     "coeficientes": "b = (XᵀX)⁻¹ Xᵀ y\nt = bⱼ / EP(bⱼ)",
     "pareto": "tⱼ = |bⱼ| / EP(bⱼ)\nsignificativo se tⱼ > t(α/2; gl do resíduo)",
-    "efeitos": "Efeito = ȳ(+1) − ȳ(−1) = 2 · b",
-    "meio_normal": (
-        "s₀ = 1,5 · mediana |cⱼ|\nPSE = 1,5 · mediana { |cⱼ| : |cⱼ| < 2,5 · s₀ }\n"
-        "ME = t(0,975; m/3) · PSE"
-    ),
-    "efeitos_principais": "ȳ(nível) = média de y nos ensaios com o fator nesse nível",
-    "interacao": "Efeito AB = [ȳ(++) − ȳ(−+) − ȳ(+−) + ȳ(−−)] / 2",
     "equacao": (
         "ŷ = b₀ + Σ bᵢxᵢ + Σ bᵢⱼxᵢxⱼ + Σ bᵢᵢxᵢ²\nxᵢ = (Xᵢ − centroᵢ) / meia-amplitudeᵢ"
     ),
@@ -218,13 +181,10 @@ MODOS_DICA: tuple[tuple[str, str], ...] = (
 
 
 class Dica:
-    """Lâmpada discreta: a explicação aparece ao passar o mouse (ou no foco).
-
-    `trocar` muda o texto e a fórmula depois de criada, para a dica acompanhar
-    uma escolha que o usuário faz ao lado dela.
-    """
+    """Lâmpada de dica: a explicação aparece ao passar o mouse ou no foco."""
 
     def __init__(self, texto: str, formula: str | None = None) -> None:
+        """Cria a lâmpada com o balão de texto e de fórmula."""
         with (
             ui.icon("lightbulb")
             .classes("ea-dica")
@@ -241,6 +201,7 @@ class Dica:
         self.trocar(texto, formula)
 
     def trocar(self, texto: str, formula: str | None = None) -> None:
+        """Troca o texto e a fórmula da dica."""
         self.texto.set_text(texto)
         self.formula.set_text(formula or "")
         self.balao.classes(**{"add" if formula else "remove": "ea-dica-com-formula"})
@@ -248,21 +209,17 @@ class Dica:
 
 
 def dica(texto: str, formula: str | None = None) -> ui.icon:
-    """Lâmpada de dica fixa (ver `Dica`); devolve o ícone."""
+    """Lâmpada de dica fixa; devolve o ícone."""
     return Dica(texto, formula).icone
 
 
 def seletor_dicas() -> None:
-    """Controle em degraus que escolhe como as dicas aparecem na página.
-
-    O modo vira uma classe no <body> (ea-dicas-nenhuma, -texto ou -formula) e o
-    CSS mostra ou esconde as lâmpadas e o texto ou a fórmula de
-    cada dica. Vale só para esta aba do navegador; começa em "Dicas em Texto".
-    """
+    """Controle que escolhe como as dicas aparecem (nenhuma, texto, fórmula)."""
     classes = [f"ea-dicas-{modo}" for modo, _ in MODOS_DICA]
     rotulos = [rotulo for _, rotulo in MODOS_DICA]
 
     def aplicar(indice: int) -> None:
+        """Aplica o modo de dica escolhido na página."""
         ui.query("body").classes(remove=" ".join(classes), add=classes[indice])
 
     with ui.element("div").classes("ea-seletor-dicas"):
@@ -283,15 +240,14 @@ def seletor_dicas() -> None:
 
 
 def titulo_com_dica(texto: str, chave: str, classe: str = "ea-grafico-titulo") -> None:
-    """Título de tabela ou gráfico com a lâmpada ao lado: a explicação (ou a
-    fórmula, no modo de fórmulas), aberta ao passar o mouse."""
+    """Título de tabela ou gráfico com a lâmpada ao lado."""
     with ui.element("div").classes("ea-titulo-linha ea-titulo-dica"):
         ui.label(texto).classes(classe)
         dica(EXPLICACOES[chave][1], FORMULAS.get(chave))
 
 
 def botao_glossario() -> None:
-    """Abre o glossário e o guia de leitura numa janela, sem sair da página."""
+    """Botão que abre o glossário e o guia de leitura numa janela."""
     with ui.dialog() as janela, ui.card().classes("ea-glossario"):
         with ui.tabs().props("no-caps").classes("ea-abas") as abas:
             aba_glossario = ui.tab("Glossário")
@@ -312,4 +268,5 @@ def botao_glossario() -> None:
 
 
 def _texto(nome: str) -> str:
+    """Lê um texto da pasta de conteúdo."""
     return (_CONTEUDO / nome).read_text(encoding="utf-8")

@@ -1,0 +1,174 @@
+# Valores PUBLICADOS em Bezerra et al. (2022), Research, Society and
+# Development 11(11), e297111133569. Procedência de cada número: fonte.md.
+# Coeficientes = efeito publicado / 2 (o Statistica publica efeitos).
+
+caso: bezerra-2022-pao-de-forma
+status: rascunho   # números conferidos contra o pipeline (§4.3 a e b passam
+                   # nas 8 respostas), mas falta a dupla conferência humana
+tipo_planejamento: composto_central
+termo_erro: erro_puro   # o Statistica testou os efeitos com o erro puro (3 centrais)
+
+fatores:
+  # A planilha está em valores codificados: -1 e +1 aqui são os próprios
+  # códigos. Níveis reais (Tabela 1): extrato 2 / 8,5 / 15 %,
+  # fermento 1 / 3,5 / 6 %, gordura 3 / 5,5 / 8 % (−1 / 0 / +1).
+  extrato:
+    minimo: -1.0
+    maximo: 1.0
+    unidade: "codificado"
+  fermento:
+    minimo: -1.0
+    maximo: 1.0
+    unidade: "codificado"
+  gordura:
+    minimo: -1.0
+    maximo: 1.0
+    unidade: "codificado"
+
+escala_coeficientes: codificada
+grandeza_reportada: coeficiente
+
+respostas:
+  volume_especifico:
+    # Tabela 8: efeito estimado e p (95% de confiança). O intercepto
+    # não é publicado.
+    coeficientes:
+      extrato: 0.168212
+      extrato^2: -0.3582465
+      fermento: 0.8957815
+      fermento^2: -0.428957
+      gordura: -0.4384035
+      gordura^2: -0.3052135
+      extrato:fermento: -0.135
+      extrato:gordura: -0.355
+      fermento:gordura: -0.12
+    significancia:
+      extrato: false   # p = 0.084828
+      extrato^2: true   # p = 0.024938
+      fermento: true   # p = 0.003402
+      fermento^2: true   # p = 0.017592
+      gordura: true   # p = 0.01398
+      gordura^2: true   # p = 0.033884
+      extrato:fermento: false   # p = 0.187314
+      extrato:gordura: true   # p = 0.035221
+      fermento:gordura: false   # p = 0.221656
+    r2: null            # só publicado para o modelo reduzido
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+  cor_crosta:
+    # Tabela 5: efeito estimado e p (95% de confiança). O intercepto
+    # não é publicado.
+    coeficientes:
+      extrato: 0.390245
+      extrato^2: -0.629215
+      fermento: 1.03804
+      fermento^2: -0.307175
+      gordura: 0.114005
+      gordura^2: -0.165525
+      extrato:fermento: 0.876
+      extrato:gordura: 0.774
+      fermento:gordura: -0.48017
+    significancia:
+      extrato: false   # p = 0.081785
+      extrato^2: true   # p = 0.040724
+      fermento: true   # p = 0.012895
+      fermento^2: false   # p = 0.143706
+      gordura: false   # p = 0.439254
+      gordura^2: false   # p = 0.333765
+      extrato:fermento: true   # p = 0.030103
+      extrato:gordura: true   # p = 0.038083
+      fermento:gordura: false   # p = 0.090839
+    r2: null            # só publicado para o modelo reduzido
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+  cor_miolo:
+    # Tabela 6: efeito estimado e p (95% de confiança). O intercepto
+    # não é publicado.
+    coeficientes:
+      extrato: -0.7434
+      extrato^2: 0.03113
+      fermento: 1.450055
+      fermento^2: -0.896375
+      gordura: -0.304465
+      gordura^2: -0.210735
+      extrato:fermento: 0.598705
+      extrato:gordura: 0.17383
+      fermento:gordura: -0.333115
+    significancia:
+      extrato: true   # p = 0.007108
+      extrato^2: false   # p = 0.697473
+      fermento: true   # p = 0.001883
+      fermento^2: true   # p = 0.005933
+      gordura: true   # p = 0.04026
+      gordura^2: false   # p = 0.093382
+      extrato:fermento: true   # p = 0.018388
+      extrato:gordura: false   # p = 0.169144
+      fermento:gordura: false   # p = 0.055997
+    r2: null            # só publicado para o modelo reduzido
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+  estrutura_celulas_miolo:
+    # Tabela 6: efeito estimado e p (95% de confiança). O intercepto
+    # não é publicado.
+    coeficientes:
+      extrato: -0.120895
+      extrato^2: -0.615155
+      fermento: 1.793035
+      fermento^2: -1.123385
+      gordura: 0.44157
+      gordura^2: -0.666715
+      extrato:fermento: 0.288195
+      extrato:gordura: 0.719245
+      fermento:gordura: -0.149305
+    significancia:
+      extrato: false   # p = 0.183496
+      extrato^2: true   # p = 0.011496
+      fermento: true   # p = 0.001135
+      fermento^2: true   # p = 0.003489
+      gordura: true   # p = 0.018228
+      gordura^2: true   # p = 0.009812
+      extrato:fermento: false   # p = 0.067576
+      extrato:gordura: true   # p = 0.011844
+      fermento:gordura: false   # p = 0.199259
+    r2: null            # só publicado para o modelo reduzido
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+  sabor:
+    # Tabela 7: efeito estimado e p (95% de confiança). O intercepto
+    # não é publicado.
+    coeficientes:
+      extrato: -0.339695
+      extrato^2: -1.012725
+      fermento: 1.795685
+      fermento^2: -0.859515
+      gordura: 0.58655
+      gordura^2: -0.690105
+      extrato:fermento: 0.65577
+      extrato:gordura: 0.76731
+      fermento:gordura: -1.521155
+    significancia:
+      extrato: false   # p = 0.124839
+      extrato^2: true   # p = 0.020201
+      fermento: true   # p = 0.005425
+      fermento^2: true   # p = 0.02772
+      gordura: true   # p = 0.047625
+      gordura^2: true   # p = 0.042048
+      extrato:fermento: false   # p = 0.063418
+      extrato:gordura: true   # p = 0.047517
+      fermento:gordura: true   # p = 0.012762
+    r2: null            # só publicado para o modelo reduzido
+    r2_ajustado: null
+    alfa_usado_no_artigo: 0.05
+
+# A formulação escolhida (ensaio 12) saiu do escore total, não de uma
+# otimização do modelo.
+condicao_otima: null
+
+observacoes: |
+  O EnsaIA analisa até 5 respostas por vez (RNF-12): o caso usa 5 das 8
+  respostas com efeitos publicados; textura, aroma e característica interna
+  da crosta estão em dados.csv e são conferidas no teste unitário.
+  Ver fonte.md. Resumo: matriz codificada com α exato; termo de erro = erro
+  puro; o escore total (Tabelas 8 e 9) ficou de fora por inconsistência do
+  próprio artigo; os modelos reduzidos (R² e ANOVAs do texto) não são
+  comparados porque o artigo não diz quais termos ficaram em cada um.

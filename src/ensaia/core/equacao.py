@@ -1,12 +1,5 @@
-"""Equação do modelo ajustado, codificada e em unidades reais (spec §9, C5).
-
-Os artigos publicam a equação na escala codificada (X1, X2…), em que os
-coeficientes são comparáveis entre si. Para usar o modelo no laboratório, porém,
-é preciso a mesma superfície escrita nas unidades reais — basta substituir cada
-`Xj = (xj − centro_j) / passo_j` e expandir os produtos. As duas formas preveem
-exatamente o mesmo valor; muda só a escala dos números.
-
-Formatação (spec §13): vírgula decimal e 4 algarismos significativos.
+"""Equação do modelo ajustado, na escala codificada e em unidades reais.
+Formatada em pt-BR, com 4 algarismos significativos (C5).
 """
 
 from __future__ import annotations
@@ -26,7 +19,7 @@ Monomio = tuple[int, ...]
 def montar_equacao(
     coeficientes: Sequence[Coeficiente], fatores: Sequence[Fator]
 ) -> Equacao:
-    """Equação codificada, só com os significativos, e em unidades reais."""
+    """Monta a equação codificada, só com significativos e em unidades reais."""
     nomes = [f.nome for f in fatores]
     variaveis = {f"X{i + 1}": nome for i, nome in enumerate(nomes)}
     simbolo = {nome: f"X{i + 1}" for i, nome in enumerate(nomes)}
@@ -54,6 +47,7 @@ def montar_equacao(
 
 
 def _monomio(termo: str, nomes: list[str]) -> Monomio:
+    """Vetor de potências de um termo, na ordem dos fatores."""
     potencias = [0] * len(nomes)
     for nome, potencia in interpretar_termo(termo):
         potencias[nomes.index(nome)] += potencia
@@ -63,7 +57,7 @@ def _monomio(termo: str, nomes: list[str]) -> Monomio:
 def _para_unidades_reais(
     codificado: dict[Monomio, float], fatores: Sequence[Fator]
 ) -> dict[Monomio, float]:
-    """Expande Σ β·Π((x − c)/s)^p num polinômio em x reais."""
+    """Reescreve o polinômio codificado em unidades reais."""
     k = len(fatores)
     real: dict[Monomio, float] = {}
     for monomio, beta in codificado.items():
@@ -90,13 +84,14 @@ def _para_unidades_reais(
 
 
 def _ordem(monomio: Monomio) -> tuple[int, int, tuple[int, ...]]:
-    """Ordem de leitura: constante, lineares, quadráticos, interações."""
+    """Chave de ordenação: constante, lineares, quadráticos, interações."""
     grau = sum(monomio)
     distintos = sum(1 for p in monomio if p)
     return (grau, distintos, tuple(-p for p in monomio))
 
 
 def _texto(termos: dict[Monomio, float], simbolos: Sequence[str]) -> str:
+    """Escreve o polinômio como texto (ŷ = b₀ + ...)."""
     partes: list[str] = []
     for monomio in sorted(termos, key=_ordem):
         valor = termos[monomio]
@@ -111,6 +106,7 @@ def _texto(termos: dict[Monomio, float], simbolos: Sequence[str]) -> str:
 
 
 def _nome_legivel(monomio: Monomio, simbolos: Sequence[str]) -> str:
+    """Nome de um monômio com os símbolos dados (X₁·X₂, X₁²)."""
     sobrescrito = {2: "²", 3: "³"}
     return "·".join(
         simbolos[j] + sobrescrito.get(p, f"^{p}" if p > 1 else "")
@@ -120,6 +116,7 @@ def _nome_legivel(monomio: Monomio, simbolos: Sequence[str]) -> str:
 
 
 def _nome_canonico(monomio: Monomio, nomes: Sequence[str]) -> str:
+    """Nome canônico de um monômio (x1:x2, x1^2)."""
     if not any(monomio):
         return INTERCEPTO
     return ":".join(
@@ -128,7 +125,7 @@ def _nome_canonico(monomio: Monomio, nomes: Sequence[str]) -> str:
 
 
 def _sig4(valor: float) -> str:
-    """4 algarismos significativos, vírgula decimal, sem notação científica."""
+    """Número com 4 algarismos significativos e vírgula decimal."""
     if valor == 0:
         return "0"
     casas = max(0, 3 - floor(log10(valor)))

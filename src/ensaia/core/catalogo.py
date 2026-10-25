@@ -1,12 +1,5 @@
-"""Catálogo das análises e suas pré-condições (spec §9 e §4, passo 4).
-
-Cada análise tem um identificador (A1…E5), um grupo e uma pré-condição. A tela
-mostra as compatíveis já marcadas e as incompatíveis desabilitadas, com o
-motivo em português — "falta de ajuste exige réplicas", por exemplo — em vez de
-deixar o usuário marcar algo que não pode ser feito com os dados dele.
-
-O núcleo calcula tudo o que é barato de uma vez; a seleção decide o que aparece
-na tela, no PDF e no texto (RF-07, RF-11).
+"""Catálogo das análises do DCCR (A, C, D, E) e suas pré-condições.
+Diz quais análises cabem nos dados e, quando não cabem, o motivo em português.
 """
 
 from __future__ import annotations
@@ -16,19 +9,19 @@ from dataclasses import dataclass
 
 from ensaia.core.identificacao import identificar_planejamento
 
-FATORIAIS_2_NIVEIS = ("fatorial_completo", "fatorial_fracionado")
-
 
 @dataclass(frozen=True)
 class Analise:
+    """Uma análise do catálogo: identificador, grupo e nome."""
+
     id: str
     grupo: str
     nome: str
 
 
+# Grupo B (fatoriais) fora do escopo DCCR; IDs B1–B5 reservados.
 GRUPOS: dict[str, str] = {
     "A": "Dados e planejamento",
-    "B": "Fatoriais (triagem)",
     "C": "Modelo e ANOVA",
     "D": "Diagnóstico",
     "E": "Superfície e otimização",
@@ -36,14 +29,9 @@ GRUPOS: dict[str, str] = {
 
 CATALOGO: tuple[Analise, ...] = (
     Analise("A1", "A", "Estatística descritiva"),
-    Analise("A2", "A", "Identificação do planejamento"),
+    Analise("A2", "A", "Identificação do DCCR"),
     Analise("A3", "A", "Matriz real e codificada"),
-    Analise("B1", "B", "Efeitos principais e interações"),
-    Analise("B2", "B", "Pareto dos efeitos padronizados"),
-    Analise("B3", "B", "Gráfico meio-normal (Lenth)"),
-    Analise("B4", "B", "Gráficos de efeito e de interação"),
-    Analise("B5", "B", "Teste de curvatura"),
-    Analise("C1", "C", "Ajuste do modelo (coeficientes)"),
+    Analise("C1", "C", "Ajuste do modelo (coeficientes e Pareto)"),
     Analise("C2", "C", "ANOVA"),
     Analise("C3", "C", "R², R² ajustado e de predição"),
     Analise("C4", "C", "Falta de ajuste"),
@@ -69,16 +57,7 @@ def disponibilidade(
     tem_ordem: bool,
     blocos: Sequence[str] | None = None,
 ) -> dict[str, str | None]:
-    """Para cada análise: None se dá para fazer, ou o motivo (pt-BR) se não dá.
-
-    `fatores` são as colunas mapeadas como fator, na ordem dos ensaios. A
-    identificação do planejamento roda aqui mesmo (é barata), para que a tela
-    possa atualizar as caixas a cada mudança no mapeamento.
-
-    `blocos` (o rótulo de bloco de cada ensaio) muda duas coisas: os graus de
-    liberdade gastos com os blocos contam para ver se o modelo cabe, e a falta
-    de ajuste só se aplica com réplicas **dentro** de um mesmo bloco.
-    """
+    """Para cada análise, None se dá para fazer ou o motivo de não dar."""
     motivos: dict[str, str | None] = dict.fromkeys(IDS)
     if not fatores:
         return dict.fromkeys(IDS, "escolha ao menos um fator")
@@ -99,25 +78,12 @@ def disponibilidade(
         if blocos is not None
         else tem_replicas
     )
-    fatorial = ident.tipo in FATORIAIS_2_NIVEIS
 
     if n <= k + 1 + (n_blocos - 1):
         sem_modelo = f"{n} ensaios não bastam nem para o modelo linear"
         for id_ in IDS:
-            if id_[0] in "CDE" or id_ in ("B1", "B2", "B3", "B4"):
+            if id_[0] in "CDE":
                 motivos[id_] = sem_modelo
-
-    if not fatorial:
-        for id_ in ("B1", "B3", "B4", "B5"):
-            motivos[id_] = "só para fatorial de 2 níveis"
-    else:
-        if tem_replicas:
-            motivos["B3"] = (
-                "com réplicas o erro é estimado direto (use o Pareto); Lenth é "
-                "para fatorial sem réplicas"
-            )
-        if ident.n_pontos_centrais < 2:
-            motivos["B5"] = "exige ao menos 2 ensaios no ponto central"
 
     if not tem_replicas_no_bloco:
         motivos["C4"] = (
@@ -141,5 +107,5 @@ def disponibilidade(
 
 
 def padrao(disponiveis: Mapping[str, str | None]) -> list[str]:
-    """Seleção inicial: todas as análises compatíveis (spec §4, passo 4)."""
+    """Seleção inicial: todas as análises disponíveis."""
     return [id_ for id_, motivo in disponiveis.items() if motivo is None]

@@ -1,17 +1,5 @@
-"""Construção da matriz de modelo e ajuste por mínimos quadrados (OLS).
-
-Segundo objetivo específico do pré-projeto: "Apresentar um pipeline
-estatístico determinístico que reproduza as etapas fundamentais de uma análise
-de DOE, tais como: regressão OLS, ANOVA, cálculo de efeitos e otimização por
-função de desejabilidade, utilizando programas em Python."
-
-Tudo aqui é numpy puro: a matriz de modelo é uma `Table`, o ajuste usa
-`numpy.linalg`, e as distribuições t e F vêm do `scipy.stats`. Não há pandas nem
-statsmodels no núcleo. Ver ADR 0007 (numpy, sem statsmodels) e 0008 (Table, sem
-pandas).
-
-Este módulo NÃO decide quais termos ficam no modelo final — isso é seleção por
-significância e vive em `anova.py`, porque depende da tabela de ANOVA.
+"""Matriz do modelo e ajuste por mínimos quadrados (OLS), em numpy puro.
+Inclui erros-padrão, testes t, R², PRESS e ANOVA Tipo II.
 """
 
 from __future__ import annotations
@@ -36,24 +24,7 @@ def matriz_modelo(
     *,
     codificar: bool = True,
 ) -> Table:
-    """Monta a matriz X do modelo a partir dos termos em notação canônica.
-
-    Trabalhar em variáveis codificadas [-1, +1] não é preciosismo: em unidades
-    reais, os termos quadráticos e de interação ficam fortemente
-    correlacionados com os lineares, o que infla os erros-padrão e faz
-    coeficientes verdadeiros parecerem não significativos. Praticamente toda a
-    literatura de DOE reporta coeficientes codificados — e é contra esses
-    valores que a validação do §4.3(a) vai comparar.
-
-    Com `codificar=False`, `dados` já está na escala codificada (caso de
-    planilhas que trazem a matriz codificada) e os valores entram como estão.
-
-    Devolve uma `Table` com uma coluna por termo, na ordem recebida:
-        "Intercepto"  -> coluna de 1s
-        "x"           -> coluna codificada do fator x
-        "x^2"         -> quadrado da coluna codificada
-        "x:y"         -> produto das colunas codificadas
-    """
+    """Monta a matriz X do modelo a partir dos termos."""
     nomes = planejamento.nomes_fatores
     for nome in nomes:
         if ":" in nome or "^" in nome:
@@ -106,37 +77,17 @@ def matriz_modelo(
 def ajustar_ols(
     X: Table, y: NDArray[np.float64], *, fixos: Sequence[str] = ()
 ) -> AjusteOLS:
-    """Ajusta y = Xβ + ε por mínimos quadrados ordinários.
-
-    Guarda o objeto de resultado inteiro — a ANOVA e o teste de falta de ajuste
-    precisam dos resíduos e da matriz de covariância, não só dos coeficientes.
-
-    Antes de ajustar, verifica o posto de X: se X for posto-deficiente, o
-    ajuste "funciona" e devolve coeficientes sem sentido. Falhar alto aqui
-    com mensagem clara é melhor que produzir um relatório bonito e errado —
-    e um relatório bonito e errado é exatamente o risco que este TCC precisa
-    demonstrar que sabe evitar.
-
-    `fixos` são colunas que ficam sempre no modelo mas não são termos do estudo
-    (as de bloco): entram no ajuste e no erro, ficam fora dos coeficientes
-    publicados, da ANOVA Tipo II e da contagem dos termos. Ver `core/blocos.py`.
-    """
+    """Ajusta o modelo por mínimos quadrados e devolve o AjusteOLS."""
     return AjusteOLS(X, y, fixos=fixos)
 
 
 class AjusteOLS:
-    """Ajuste OLS em numpy puro, com a ANOVA Tipo II calculada à mão.
-
-    Entra uma `Table` (matriz de modelo, uma coluna por termo em notação
-    canônica) e um vetor-resposta numpy; saem coeficientes, erros, ANOVA e
-    diagnósticos como `dict`/`numpy`, sem pandas. Os nomes de termo saem
-    exatamente como entraram — a validação do §4.3(a) compara por nome, então
-    não pode haver tradução no caminho. Ver ADR 0007 e 0008.
-    """
+    """Ajuste OLS com coeficientes, erros, ANOVA Tipo II e diagnósticos."""
 
     def __init__(
         self, X: Table, y: NDArray[np.float64], *, fixos: Sequence[str] = ()
     ) -> None:
+        """Valida a entrada e calcula coeficientes, resíduos e erros."""
         self._y: NDArray[np.float64] = np.asarray(y, dtype=float)
         self._termos: list[str] = list(X.colunas)
         desconhecidos = sorted(set(fixos) - set(self._termos))
@@ -159,8 +110,7 @@ class AjusteOLS:
         centrado = self._y - self._y.mean()
         self._sst = float(centrado @ centrado)
 
-        # Var(β) = σ²·(XᵀX)⁻¹. O posto cheio já foi exigido em _validar_entrada,
-        # então a inversa existe; é a mesma fórmula fechada que a literatura usa.
+        # Var(β) = σ²·(XᵀX)⁻¹; o posto cheio já foi conferido.
         self._cov_nao_escalada = np.linalg.inv(self._X.T @ self._X)
         self._erros = np.sqrt(np.diag(self._sigma2 * self._cov_nao_escalada))
 
@@ -170,43 +120,48 @@ class AjusteOLS:
 
     @property
     def termos(self) -> list[str]:
-        """Todas as colunas da matriz, inclusive as fixas (blocos)."""
+        """Todas as colunas da matriz, inclusive as de bloco."""
         return list(self._termos)
 
     @property
     def termos_modelo(self) -> list[str]:
-        """Os termos do estudo (intercepto e fatores), sem as colunas fixas."""
+        """Termos do estudo, sem as colunas de bloco."""
         return [t for t in self._termos if t not in self._fixos]
 
     @property
     def termos_fixos(self) -> list[str]:
-        """As colunas fixas (blocos), na ordem da matriz."""
+        """Colunas fixas (blocos), na ordem da matriz."""
         return list(self._fixos)
 
     def _mapa(self, valores: NDArray[np.float64]) -> dict[str, float]:
+        """Associa cada termo ao valor correspondente."""
         return {t: float(v) for t, v in zip(self._termos, valores, strict=True)}
 
     @property
     def coeficientes(self) -> dict[str, float]:
+        """Coeficientes estimados por termo."""
         return self._mapa(self._beta)
 
     @property
     def erros_padrao(self) -> dict[str, float]:
+        """Erros-padrão dos coeficientes (resíduo)."""
         return self._mapa(self._erros)
 
     @property
     def valores_t(self) -> dict[str, float]:
+        """Estatística t de cada coeficiente (resíduo)."""
         return self._mapa(self._beta / self._erros)
 
     @property
     def valores_p(self) -> dict[str, float]:
+        """p-valor de cada coeficiente (resíduo)."""
         t = self._beta / self._erros
         return self._mapa(2.0 * stats.t.sf(np.abs(t), df=self._gl_residuo))
 
     def _erro(
         self, qm_erro: float | None, gl_erro: int | None
     ) -> tuple[NDArray[np.float64], int]:
-        """Erros-padrão e gl para o termo de erro escolhido (resíduo por padrão)."""
+        """Erros-padrão e g.l. para o termo de erro escolhido."""
         if qm_erro is None or gl_erro is None:
             return self._erros, self._gl_residuo
         return np.sqrt(np.diag(qm_erro * self._cov_nao_escalada)), gl_erro
@@ -214,13 +169,7 @@ class AjusteOLS:
     def estatisticas_t(
         self, qm_erro: float | None = None, gl_erro: int | None = None
     ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
-        """(erros-padrão, t, p) de cada coeficiente com o termo de erro dado.
-
-        Sem argumentos usa o quadrado médio do resíduo (comportamento tipo
-        Minitab). Com `qm_erro`/`gl_erro` do erro puro, reproduz a opção comum no
-        Statistica e em artigos brasileiros (spec §9, grupo C). A estimativa dos
-        coeficientes não muda; mudam o erro-padrão, o t e o p.
-        """
+        """Erros, t e p com o resíduo ou com o erro puro."""
         erros, gl = self._erro(qm_erro, gl_erro)
         t = self._beta / erros
         p = 2.0 * stats.t.sf(np.abs(t), df=gl)
@@ -232,7 +181,7 @@ class AjusteOLS:
         qm_erro: float | None = None,
         gl_erro: int | None = None,
     ) -> dict[str, tuple[float, float]]:
-        """IC de (1 − alfa) por coeficiente: termo -> (inferior, superior)."""
+        """Intervalo de confiança de cada coeficiente."""
         erros, gl = self._erro(qm_erro, gl_erro)
         t_critico = float(stats.t.ppf(1.0 - alfa / 2.0, df=gl))
         margem = t_critico * erros
@@ -245,7 +194,7 @@ class AjusteOLS:
 
     @property
     def alavancagem(self) -> NDArray[np.float64]:
-        """hᵢᵢ: diagonal da matriz chapéu X(XᵀX)⁻¹Xᵀ (o peso de cada ensaio)."""
+        """Alavancagem hᵢᵢ de cada ensaio (diagonal da matriz chapéu)."""
         h: NDArray[np.float64] = np.einsum(
             "ij,jk,ik->i", self._X, self._cov_nao_escalada, self._X
         )
@@ -253,14 +202,7 @@ class AjusteOLS:
 
     @property
     def r2_predicao(self) -> float | None:
-        """R² de predição: 1 − PRESS / SQ_total (spec §9, C3).
-
-        PRESS soma o erro de prever cada ensaio com o modelo ajustado SEM ele,
-        `(eᵢ / (1 − hᵢᵢ))²`. Mede o poder de prever pontos novos, que um R² alto
-        com termos demais não garante. Quando algum ensaio tem hᵢᵢ = 1 (o modelo
-        passa obrigatoriamente por ele), a previsão sem ele não existe e o valor
-        fica indefinido (None).
-        """
+        """R² de predição: 1 − PRESS / SQ total."""
         folga = 1.0 - self.alavancagem
         if np.any(folga < 1e-10):
             return None
@@ -268,58 +210,58 @@ class AjusteOLS:
         return 1.0 - press / self._sst
 
     def soma_quadrados_residual_de(self, termos: Sequence[str]) -> float:
-        """SQ residual de um submodelo só com estes termos (da mesma matriz)."""
+        """SQ residual de um submodelo com estes termos."""
         return self._rss(list(termos))
 
     @property
     def r2(self) -> float:
+        """Coeficiente de determinação R²."""
         return 1.0 - self._ssr / self._sst
 
     @property
     def r2_ajustado(self) -> float:
+        """R² ajustado pelo número de termos."""
         return float(1.0 - (self._ssr / self._gl_residuo) / (self._sst / (self._n - 1)))
 
     @property
     def soma_quadrados_residual(self) -> float:
+        """Soma de quadrados do resíduo."""
         return self._ssr
 
     @property
     def soma_quadrados_total(self) -> float:
+        """Soma de quadrados total."""
         return self._sst
 
     @property
     def gl_residuo(self) -> int:
+        """Graus de liberdade do resíduo."""
         return int(self._gl_residuo)
 
     @property
     def n_observacoes(self) -> int:
+        """Número de ensaios."""
         return int(self._n)
 
     @property
     def n_parametros(self) -> int:
+        """Número de parâmetros do modelo."""
         return int(self._p)
 
     @property
     def residuos(self) -> NDArray[np.float64]:
+        """Resíduos (observado − previsto)."""
         return self._residuos
 
     @property
     def valores_ajustados(self) -> NDArray[np.float64]:
+        """Valores previstos pelo modelo."""
         return self._ajustados
 
     def tabela_tipo2(
         self, qm_erro: float | None = None, gl_erro: int | None = None
     ) -> list[LinhaAnova]:
-        """ANOVA Tipo II como lista de `LinhaAnova`, com a linha "Resíduo" no fim.
-
-        O F de cada termo divide a soma de quadrados dele pelo quadrado médio do
-        termo de erro: o do resíduo por padrão, ou o do erro puro quando
-        `qm_erro`/`gl_erro` são dados (a linha "Resíduo" continua a mesma).
-
-        Só existe para modelos hierárquicos (todo fator com termo linear); num
-        modelo sem o termo linear de algum fator, a soma de quadrados Tipo II
-        perde o sentido e isto falha alto em vez de inventar a tabela.
-        """
+        """ANOVA Tipo II por termo, com a linha do resíduo no fim."""
         if self._sq_tipo2 is None:
             raise ValueError(self._motivo_sem_tipo2)
         qm = self._sigma2 if qm_erro is None else qm_erro
@@ -336,13 +278,7 @@ class AjusteOLS:
         return linhas
 
     def _linha_tipo2(self, termo: str, sq: float, qm: float, gl: int) -> LinhaAnova:
-        """Uma linha da Tipo II; com termo de erro nulo, F não existe.
-
-        Erro nulo acontece num ajuste exato (o modelo passa por todos os pontos)
-        ou com réplicas idênticas. Aí F seria infinito: o termo fica com F
-        ausente e p = 0 se explica alguma variação (p = 1 se não explica), como
-        no teste de falta de ajuste. Nada de `inf`, que não é JSON válido.
-        """
+        """Uma linha da ANOVA Tipo II (sem F quando o erro é nulo)."""
         if qm <= 0.0:
             explica = sq > 1e-12 * max(self._sst, 1.0)
             return LinhaAnova(
@@ -364,7 +300,7 @@ class AjusteOLS:
         )
 
     def _rss(self, termos: list[str]) -> float:
-        """Soma de quadrados residual de um submodelo só com estes termos."""
+        """SQ residual de um submodelo, com cache."""
         colunas = [self._termos.index(t) for t in termos]
         sub = self._X[:, colunas]
         beta, _, _, _ = np.linalg.lstsq(sub, self._y, rcond=None)
@@ -373,11 +309,10 @@ class AjusteOLS:
 
     def _construir_tipo2(self) -> None:
         # As colunas fixas (blocos) ficam em todos os submodelos e fora da tabela.
+        """Calcula a SQ Tipo II de cada termo (regra de contenção)."""
         termos = [t for t in self._termos if t != INTERCEPTO and t not in self._fixos]
 
-        # Hierarquia: um fator que aparece num termo de ordem superior (x^2, x:y)
-        # sem o próprio termo linear torna a Tipo II sem sentido. É uma recusa
-        # deliberada, não limitação de ferramenta (ADR 0007, herdada da 0005).
+        # Hierarquia: termo superior sem o linear torna a Tipo II sem sentido.
         lineares = {
             partes[0][0]
             for partes in (interpretar_termo(t) for t in termos)
@@ -393,10 +328,7 @@ class AjusteOLS:
             )
             return
 
-        # Tipo II: para cada termo t, SQ(t) = SQ_res(modelo sem t e sem os termos
-        # que CONTÊM t) − SQ_res(o mesmo modelo com t de volta). "Conter" usa a
-        # mesma noção de fatores atômicos do patsy: x1:x2 contém x1, mas x1^2 NÃO
-        # contém x1 (é fator atômico distinto). Reproduz o anova_lm(typ=2).
+        # Tipo II: SQ do termo descontados os termos que não o contêm.
         assinatura = {t: _assinatura_fatores(t) for t in termos}
         somas: list[tuple[str, float]] = []
         for t in termos:
@@ -408,15 +340,7 @@ class AjusteOLS:
 
 
 def _assinatura_fatores(termo: str) -> frozenset[str]:
-    """Conjunto de fatores atômicos de um termo, para a regra de contenção.
-
-    Reproduz a noção de "fator" do patsy, que é o que a Tipo II usa:
-        "x1"     -> {"x1"}
-        "x1^2"   -> {"x1^2"}   (átomo próprio — NÃO contém "x1")
-        "x1:x2"  -> {"x1", "x2"}
-
-    Assim `{x1} ⊂ {x1, x2}` (x1:x2 contém x1), mas `{x1} ⊄ {x1^2}`.
-    """
+    """Fatores atômicos de um termo, para a regra de contenção."""
     partes = interpretar_termo(termo)
     if len(partes) == 1 and partes[0][1] > 1:
         return frozenset({termo})
@@ -424,6 +348,7 @@ def _assinatura_fatores(termo: str) -> frozenset[str]:
 
 
 def _validar_entrada(X: Table, y: NDArray[np.float64]) -> None:
+    """Confere tamanhos, intercepto, valores e posto da matriz."""
     if len(X) != len(y):
         raise ValueError(
             f"X tem {len(X)} linhas e y tem {len(y)}: os ensaios não se alinham."
@@ -464,7 +389,7 @@ def _validar_entrada(X: Table, y: NDArray[np.float64]) -> None:
 
 
 def termos_redundantes(X: Table) -> list[str]:
-    """Colunas da matriz que são combinação linear das anteriores (na ordem)."""
+    """Colunas que são combinação linear das anteriores."""
     redundantes: list[str] = []
     posto_atual = 0
     acumulado: list[NDArray[np.float64]] = []

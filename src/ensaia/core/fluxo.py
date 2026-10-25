@@ -1,10 +1,5 @@
-"""O caminho de uma planilha até o `AnalysisResult`, igual para todos.
-
-A tela (`ui/analise.py`) e o servidor MCP (`mcp_server/`) fazem a mesma coisa:
-sugerem o papel de cada coluna, reconhecem o planejamento pelos próprios dados,
-escolhem os termos do modelo e rodam o pipeline. Morar aqui garante que um
-assistente de IA, pelo MCP, obtém exatamente os números que o químico vê na
-tela — o que é a premissa de "a IA não calcula".
+"""Caminho comum de uma planilha até o resultado, para a tela e o MCP.
+Sugere o papel das colunas, reconhece o DCCR, escolhe os termos e roda o núcleo.
 """
 
 from __future__ import annotations
@@ -40,9 +35,7 @@ _NOME_ORDEM = re.compile(
 _NOME_BLOCO = re.compile(
     r"^(bloco|blocos|block|blocks|blk|lote|lotes|batch|batelada|dia)\b", re.IGNORECASE
 )
-# Colunas de índice que planilhas e programas (R, pandas) acrescentam: numeram
-# as linhas, mas não são fator, resposta nem a ordem em que os ensaios foram
-# feitos.
+# Colunas de índice que planilhas e programas acrescentam.
 _NOME_INDICE = re.compile(
     r"^(rownames|row\.?names|unnamed:?\s*0|index|indice|índice|id|linha|row)$",
     re.IGNORECASE,
@@ -50,7 +43,7 @@ _NOME_INDICE = re.compile(
 
 
 def parece_bloco(coluna: str, tabela: Table) -> bool:
-    """Coluna com nome de bloco e de 2 a n − 1 valores distintos."""
+    """Diz se a coluna parece de blocos (nome e 2 a n − 1 valores)."""
     if not _NOME_BLOCO.match(coluna.strip()):
         return False
     valores = (
@@ -62,7 +55,7 @@ def parece_bloco(coluna: str, tabela: Table) -> bool:
 
 
 def parece_indice(coluna: str, tabela: Table) -> bool:
-    """Coluna de índice (rownames, id, index…) numérica e sem repetição."""
+    """Diz se a coluna é numeração de linhas (rownames, id, index)."""
     if not _NOME_INDICE.match(coluna.strip()) or not tabela.e_numerica(coluna):
         return False
     valores = [float(v) for v in tabela.coluna(coluna)]
@@ -70,7 +63,7 @@ def parece_indice(coluna: str, tabela: Table) -> bool:
 
 
 def parece_ordem(coluna: str, tabela: Table) -> bool:
-    """Coluna 1..n com nome de ensaio/ordem é a ordem de execução (spec §8.3)."""
+    """Diz se a coluna é a ordem de execução dos ensaios (1..n)."""
     if not _NOME_ORDEM.match(coluna.strip()) or not tabela.e_numerica(coluna):
         return False
     valores = sorted(float(v) for v in tabela.coluna(coluna))
@@ -78,17 +71,10 @@ def parece_ordem(coluna: str, tabela: Table) -> bool:
 
 
 def sugerir_mapeamento(tabela: Table) -> dict[str, Papel]:
-    """Papel sugerido de cada coluna: o ponto de partida do passo "mapear".
-
-    Uma coluna com nome de bloco (bloco, block, lote, batch, dia…) vira bloco;
-    texto é ignorado; uma coluna 1..n com nome de ensaio também (ela não é
-    fator nem resposta — vira a sugestão inicial de `ordem_sugerida`, não um
-    papel de coluna), assim como colunas de índice (rownames, id, index…); a
-    última coluna numérica restante é a resposta; as demais numéricas são
-    fatores. O usuário (ou o assistente de IA) corrige o que não bater.
-    """
+    """Papel sugerido para cada coluna: fator, resposta, bloco ou ignorar."""
 
     def fora(c: str) -> bool:
+        """Diz se a coluna é de ordem ou de índice."""
         return parece_ordem(c, tabela) or parece_indice(c, tabela)
 
     blocos = [c for c in tabela.colunas if parece_bloco(c, tabela)]
@@ -112,14 +98,7 @@ def sugerir_mapeamento(tabela: Table) -> dict[str, Papel]:
 
 
 def ordem_sugerida(tabela: Table) -> list[int] | None:
-    """Posto de execução de cada linha (1..n), de uma coluna detectada.
-
-    Usa a mesma coluna que `parece_ordem` reconhece (ex.: "Ensaio", "N",
-    "Run"). Informar a ordem de execução é problema de quem desenha e roda o
-    experimento, não do EnsaIA — por isso não há tela para digitá-la: `None`
-    quando nenhuma coluna bate, e o gráfico de resíduos × ordem (D3) só
-    aparece quando bate.
-    """
+    """Posto de execução de cada ensaio, a partir da coluna de ordem."""
     for coluna in tabela.colunas:
         if parece_ordem(coluna, tabela):
             return [int(v) for v in tabela.coluna(coluna)]
@@ -155,27 +134,7 @@ def analisar_tabela(
     objetivos: Mapping[str, Sentido] | None = None,
     coluna_bloco: str | None = None,
 ) -> AnaliseDaTabela:
-    """Reconhece o planejamento, escolhe os termos e roda o núcleo.
-
-    `tipo_modelo=None` deixa o EnsaIA escolher pelo tipo de planejamento.
-
-    `tipo_planejamento`, se dado, força o rótulo do delineamento em vez do
-    detectado pela geometria (RF-06): Box-Behnken e um fatorial 3^k, por
-    exemplo, têm os mesmos 3 níveis, e a heurística pode escolher errado. Não
-    muda a codificação dos fatores (os ±1/α sempre vêm dos níveis reais, em
-    `identificar_planejamento`) — só o rótulo e, por tabela, o `tipo_modelo`
-    automático e o modelo quadrático/falta de ajuste que dependem dele.
-
-    `coluna_ordem` e `ordem_execucao` são as duas formas de informar a ordem
-    de execução (spec §8.3): a primeira lê uma coluna da planilha; a segunda
-    (usada pela tela, que deixa arrastar os ensaios) já traz o posto de cada
-    linha — ver `postos_da_sequencia`. Dá pra usar uma ou outra, nunca as
-    duas; se vierem as duas, `coluna_ordem` tem prioridade.
-
-    `coluna_bloco` (opcional) é a coluna que agrupa os ensaios em blocos: a
-    diferença entre blocos sai do erro (ver `core/blocos.py`).
-    Levanta `ValueError` com mensagem em português quando os dados não servem.
-    """
+    """Reconhece o planejamento, escolhe os termos e roda o núcleo."""
     if not fatores:
         raise ValueError("Marque ao menos um fator (uma coluna que você controlou).")
     if not respostas:

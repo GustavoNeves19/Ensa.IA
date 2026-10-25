@@ -1,22 +1,5 @@
-"""Montagem dos prompts da camada de IA, uma seção por vez.
-
-A IA é redatora, não analista (ADR 0001): cada chamada recebe os FATOS já
-verificados de UMA seção do relatório e devolve um parágrafo em prosa. O prompt
-é prescritivo de propósito — papel, regras numeradas e um exemplo resolvido
-(*few-shot*) — porque o alvo são modelos locais pequenos (4B–8B), fracos em
-raciocínio, que só precisam reescrever, não decidir (spec §12.3).
-
-Este módulo não chama o modelo (quem faz isso é `ai/client.py`) nem decide o
-fluxo (quem faz isso será `ai/report.py`). Ele só constrói o texto do prompt, em
-duas formas:
-
-- `montar_mensagens`: a conversa (system + exemplo + fatos) para os modos M2
-  (Ollama) e M3 (nuvem), enviada pelo cliente.
-- `montar_texto_para_copiar`: o mesmo prompt achatado num texto único para o
-  modo M1, em que o usuário cola numa IA de sua escolha.
-
-O texto prescritivo mora em `templates/*.j2` (Jinja2, spec §12.4); os exemplos
-few-shot, por serem dados de uma seção, ficam aqui em `_CONFIG`.
+"""Monta os pedidos (prompts) para a IA, uma seção do relatório por vez.
+Papel, regras, um exemplo resolvido e os fatos; os textos ficam em templates/.
 """
 
 from __future__ import annotations
@@ -32,14 +15,10 @@ from ensaia.ai.client import Mensagem
 from ensaia.core.facts import SECOES, Secao, fatos_por_secao
 from ensaia.core.results import AnalysisResult
 
-# Versionar o prompt é obrigatório: a métrica de fidelidade (§4.3(e)/§12.5) mede
-# o desempenho de UM prompt sobre UM modelo. Se o prompt mudar depois da coleta,
-# os números da monografia deixam de corresponder ao sistema descrito. Toda
-# mudança de texto em templates/ ou nos exemplos abaixo sobe esta etiqueta.
+# Versão do prompt: sobe a cada mudança nos templates ou exemplos.
 PROMPT_VERSION = "2026.10.2"
 
-# Teto de palavras por seção (spec §12.3, regra 4): parágrafos curtos cabem no
-# contexto de modelos pequenos e reduzem a chance de alucinação.
+# Teto de palavras por seção.
 MAX_PALAVRAS_PADRAO = 120
 
 _DIR_TEMPLATES = Path(__file__).parent / "templates"
@@ -47,7 +26,7 @@ _DIR_TEMPLATES = Path(__file__).parent / "templates"
 
 @dataclass(frozen=True)
 class _Exemplo:
-    """Um par entrada→saída para ensinar o formato ao modelo (few-shot)."""
+    """Par entrada→saída que ensina o formato ao modelo."""
 
     fatos: list[str]
     saida: str
@@ -55,14 +34,13 @@ class _Exemplo:
 
 @dataclass(frozen=True)
 class _ConfigSecao:
+    """Título e exemplo de uma seção do relatório."""
+
     titulo: str
     exemplo: _Exemplo
 
 
-# Exemplos resolvidos, um por seção. São fictícios mas plausíveis, e seguem as
-# mesmas regras exigidas do modelo (só os números dos fatos, vírgula decimal,
-# um parágrafo). É o conteúdo que mais afeta a qualidade do texto gerado —
-# revisar com cuidado antes de congelar numa coleta de dados do TCC.
+# Exemplos resolvidos, um por seção (fictícios, mas plausíveis).
 _CONFIG: dict[Secao, _ConfigSecao] = {
     "planejamento": _ConfigSecao(
         titulo="Planejamento experimental",
@@ -141,14 +119,14 @@ _CONFIG: dict[Secao, _ConfigSecao] = {
 
 
 def titulo_secao(secao: Secao) -> str:
-    """Título legível de uma seção, para o cabeçalho no relatório."""
+    """Título legível de uma seção."""
     return _CONFIG[secao].titulo
 
 
 @lru_cache(maxsize=1)
 def _ambiente() -> Environment:
-    # autoescape desligado: a saída é texto puro (um prompt), não HTML; escapar
-    # transformaria aspas e sinais em entidades e sujaria o prompt.
+    # Sem autoescape: a saída é texto puro, não HTML.
+    """Ambiente Jinja2 que carrega os templates."""
     return Environment(
         loader=FileSystemLoader(_DIR_TEMPLATES),
         autoescape=False,
@@ -159,12 +137,14 @@ def _ambiente() -> Environment:
 
 
 def _prompt_sistema(secao: Secao, max_palavras: int) -> str:
+    """Instrução de sistema de uma seção."""
     cfg = _CONFIG[secao]
     modelo = _ambiente().get_template("sistema.j2")
     return modelo.render(titulo=cfg.titulo, max_palavras=max_palavras).strip()
 
 
 def _bloco_fatos(fatos: Sequence[str]) -> str:
+    """Lista de fatos formatada para o pedido."""
     modelo = _ambiente().get_template("fatos.j2")
     return modelo.render(fatos=list(fatos)).strip()
 
@@ -175,11 +155,7 @@ def montar_mensagens(
     *,
     max_palavras: int = MAX_PALAVRAS_PADRAO,
 ) -> list[Mensagem]:
-    """Conversa pronta para o cliente (M2/M3): system, exemplo e os fatos reais.
-
-    O exemplo entra como um turno de usuário (os fatos dele) seguido de um turno
-    do assistente (a prosa esperada), ensinando o formato antes do pedido real.
-    """
+    """Conversa pronta para a IA local ou de nuvem."""
     cfg = _CONFIG[secao]
     return [
         Mensagem.sistema(_prompt_sistema(secao, max_palavras)),
@@ -195,11 +171,7 @@ def montar_texto_para_copiar(
     *,
     max_palavras: int = MAX_PALAVRAS_PADRAO,
 ) -> str:
-    """O mesmo prompt achatado num texto único, para o modo M1 (copiar e colar).
-
-    Reúne as instruções, o exemplo resolvido e os fatos reais num bloco que o
-    usuário cola em qualquer IA. Não depende de rede nem de chave.
-    """
+    """O pedido de uma seção num texto só, para copiar."""
     cfg = _CONFIG[secao]
     return (
         f"{_prompt_sistema(secao, max_palavras)}\n\n"
@@ -216,13 +188,7 @@ def montar_prompt_completo(
     *,
     max_palavras: int = MAX_PALAVRAS_PADRAO,
 ) -> str:
-    """O pedido do relatório inteiro num texto só, para o modo M1.
-
-    O usuário copia, cola numa IA de sua escolha (ChatGPT, Gemini, LM Studio…) e
-    traz a resposta de volta para a checagem de fidelidade. Modelos grandes de
-    conversa não precisam do exemplo resolvido por seção; um pedido único, com
-    as seções na ordem, poupa o usuário de colar cinco vezes.
-    """
+    """O pedido do relatório inteiro num texto só, para copiar."""
     por_secao = fatos_por_secao(resultado, alfa=resultado.metadados.alfa)
     secoes = [
         {"titulo": titulo_secao(s), "fatos": por_secao[s]}
@@ -233,8 +199,7 @@ def montar_prompt_completo(
     return modelo.render(secoes=secoes, max_palavras=max_palavras).strip()
 
 
-# Garantia de que nenhuma seção ficou sem configuração: se SECOES crescer e
-# alguém esquecer de adicionar o prompt, isto falha no import, não em produção.
+# Toda seção precisa de configuração (falha no import se faltar).
 _faltando = set(SECOES) - set(_CONFIG)
 if _faltando:  # pragma: no cover - rede de segurança de desenvolvimento
     raise RuntimeError(f"Seções sem prompt configurado: {sorted(_faltando)}")

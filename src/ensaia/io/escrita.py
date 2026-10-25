@@ -1,12 +1,5 @@
-"""Tabela de volta para CSV: o formato que circula entre as ferramentas do MCP.
-
-Uma planilha .xlsx/.ods lida pelo `read_table` volta como CSV normalizado
-(vírgula separando colunas, ponto decimal, UTF-8), para o assistente de IA
-repassar os mesmos dados às outras ferramentas sem reler o arquivo.
-
-Células de texto que começam com `=`, `+`, `-` ou `@` ganham um apóstrofo na
-frente (spec §15): se o CSV for aberto numa planilha, elas não viram fórmula.
-Números nunca são tocados — o `-1` de um nível codificado continua número.
+"""Converte uma Table de volta em CSV normalizado, usado entre as ferramentas MCP.
+Textos que começam com =, +, - ou @ ganham apóstrofo para não virar fórmula.
 """
 
 from __future__ import annotations
@@ -34,4 +27,5 @@ def tabela_para_csv(tabela: Table) -> str:
 
 
 def _neutralizar(texto: str) -> str:
+    """Põe um apóstrofo antes de texto que viraria fórmula."""
     return f"'{texto}" if texto.startswith(_INICIO_DE_FORMULA) else texto

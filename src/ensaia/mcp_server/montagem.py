@@ -1,23 +1,5 @@
-"""O MCP por HTTP em `/api/mcp`, carregado só quando alguém o chama.
-
-## Por que "sob demanda"
-
-O servidor web inteiro precisa caber em 512 MB, com no máximo 150 MB parado
-(RNF-01). Só importar o SDK do MCP custa uns 23 MB — com a interface já perto
-do teto, montá-lo na partida estouraria o orçamento de todo mundo que só usa a
-tela. Então `/api` recebe este objeto leve: na primeira requisição ele importa
-o servidor, sobe o gerenciador de sessões e daí em diante só repassa.
-
-## Como funciona, do zero
-
-Um app ASGI é só uma função `async (scope, receive, send)` que o Uvicorn chama
-a cada requisição. Este objeto é um app ASGI que, na primeira vez, monta o app
-de verdade (`server.app_http()`) e passa a delegar para ele.
-
-O gerenciador de sessões do SDK precisa ficar "aberto" (`async with`) enquanto
-o servidor vive, numa tarefa só dele: ele roda numa tarefa de fundo que espera
-o sinal de parar, dado por `encerrar()` no desligamento do app (o `lifespan` do
-FastAPI em `app/main.py`).
+"""Monta o MCP por HTTP em /api/mcp, carregado só na primeira chamada.
+Evita pagar a memória do SDK do MCP quando ninguém o usa.
 """
 
 from __future__ import annotations
@@ -34,15 +16,17 @@ AppASGI = Callable[[Escopo, Receber, Enviar], Awaitable[None]]
 
 
 class MCPSobDemanda:
-    """App ASGI que só importa e liga o servidor MCP na primeira requisição."""
+    """App ASGI que liga o servidor MCP na primeira requisição."""
 
     def __init__(self) -> None:
+        """Prepara a trava e o sinal de parada."""
         self._app: AppASGI | None = None
         self._trava = asyncio.Lock()
         self._parar = asyncio.Event()
         self._tarefa: asyncio.Task[None] | None = None
 
     async def __call__(self, scope: Escopo, receive: Receber, send: Enviar) -> None:
+        """Atende a requisição, ligando o MCP se preciso."""
         if scope["type"] == "lifespan":  # app montado não recebe lifespan
             return
         app = await self._garantir()
@@ -50,16 +34,18 @@ class MCPSobDemanda:
 
     @property
     def carregado(self) -> bool:
+        """Diz se o MCP já foi ligado."""
         return self._app is not None
 
     async def encerrar(self) -> None:
-        """Fecha o gerenciador de sessões, se ele chegou a ser ligado."""
+        """Fecha o gerenciador de sessões, se foi ligado."""
         if self._tarefa is None:
             return
         self._parar.set()
         await self._tarefa
 
     async def _garantir(self) -> AppASGI:
+        """Importa e liga o servidor MCP uma única vez."""
         if self._app is not None:
             return self._app
         async with self._trava:
@@ -70,6 +56,7 @@ class MCPSobDemanda:
                 pronto = asyncio.Event()
 
                 async def manter_aberto() -> None:
+                    """Mantém o gerenciador de sessões aberto até parar."""
                     async with mcp.session_manager.run():
                         pronto.set()
                         await self._parar.wait()

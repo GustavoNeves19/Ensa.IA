@@ -546,13 +546,15 @@ ensaio,x1,x2,x3,x4,colesterol_mg_g
 
 Fatores: x₁ = concentração de quilaia, x₂ = terra diatomácea, x₃ = temperatura, x₄ = pH.
 
+> **Errata (2026-10-25):** com o CSV acima como está, os termos significativos são os da **1ª e da 4ª colunas**, não da 1ª e da 3ª. Os coeficientes [CALCULADO] que este resumo chama de x₃ (0,3475; −0,0926; 0,1757) saem na 4ª coluna. Ou a 3ª e a 4ª colunas do CSV estão trocadas, ou os rótulos x₃/x₄ do texto estão; conferir na tabela do livro (p. 304) antes de citar. O teste `tests/unit/test_barros_neto_dccr.py` usa o CSV como está e afirma sobre a 4ª coluna.
+
 **[LIVRO]** (p. 303–304):
 - o quadrático é melhor que o linear, não tem falta de ajuste a 95% e explica 94,3%;
 - só os termos com x₁ e x₃ são significativos;
 - modelo reduzido publicado: ŷ = 1,861 − 0,189x₁ − 0,083x₁² + 0,348x₃ − 0,093x₃² + 0,176x₁x₃.
 
 **[CALCULADO]**:
-- quadrático completo: b₀ = 1,8608; x₁ = −0,1894; x₃ = 0,3475; x₁² = −0,0829; x₃² = −0,0926; x₁x₃ = 0,1757. R² = 94,30%; R² máximo = 99,26%; F_faj = 2,68 contra F₁₈,₄ = 5,96.
+- quadrático completo: b₀ = 1,8608; x₁ = −0,1894; x₃ = 0,3475; x₁² = −0,0829; x₃² = −0,0926; x₁x₃ = 0,1757. R² = 94,30%; R² máximo = 99,26%; F_faj = 2,68 contra F₁₀,₄ = 5,96 (25 combinações distintas − 15 parâmetros = 10 g.l. de falta de ajuste; a versão anterior deste resumo escrevia F₁₈,₄).
 - **Atenção:** os coeficientes do "modelo reduzido" do livro são **os mesmos do modelo completo**, só sem os termos não significativos. **Não houve reajuste.** Reajustando só com x₁ e x₃, b₀ vira 1,8135, x₁² vira −0,0760 e x₃² vira −0,0857.
 - O sistema precisa documentar qual das duas práticas usa na redução do modelo (seção 17).
 
@@ -592,7 +594,7 @@ ensaio,x1,x2,PPO_U_mL
 **[CALCULADO]**:
 - erros-padrão com erro puro coincidem com o livro;
 - ν_ep = 11, porque todos os pontos repetidos contam para o erro puro;
-- F_faj = 2,63 contra F₅,₁₁ = 3,59 (p = 0,10);
+- F_faj = 2,63 contra F₃,₁₁ = 3,59 (p = 0,10); são 9 combinações distintas − 6 parâmetros = 3 g.l. de falta de ajuste (a versão anterior deste resumo escrevia F₅,₁₁);
 - R² ajustado = 0,7956; R² de predição = 0,6824.
 
 ### 16.6 Exemplos auxiliares (capítulo 5 e início do capítulo 6)

@@ -1,14 +1,5 @@
-"""Gráficos do relatório, renderizados em PNG na memória.
-
-Usa o matplotlib pelo objeto `Figure` direto (sem pyplot), que é a forma
-recomendada em servidor: não mexe no estado global e libera a figura ao fim de
-cada gráfico. É importado só aqui, na camada de apresentação — o núcleo e a
-camada de IA nunca o veem.
-
-Os gráficos são os mesmos da tela, com a mesma paleta validada (`report/theme`
-espelha `ui/tema`): o que o usuário explorou é o que vai para o papel. Tudo sai
-do contrato congelado ou de funções do núcleo (Q-Q, meio-normal, grade da
-superfície); nenhum recálculo estatístico acontece aqui.
+"""Gráficos do relatório PDF em PNG, desenhados com matplotlib na memória.
+Os mesmos da tela, com a mesma paleta; nenhuma conta é feita aqui.
 """
 
 from __future__ import annotations
@@ -27,8 +18,7 @@ from matplotlib.ticker import FuncFormatter
 
 from ensaia.core.design import INTERCEPTO, nome_legivel
 from ensaia.core.diagnostico import pontos_qq
-from ensaia.core.fatorial import pontos_meio_normal
-from ensaia.core.results import AjusteResposta, EfeitosFatorial
+from ensaia.core.results import AjusteResposta
 from ensaia.core.surface import GradeSuperficie
 from ensaia.report.theme import TEMA, Tema, cor_mpl
 
@@ -37,7 +27,7 @@ DIAGNOSTICOS = ("C6", "D1", "D2", "D3")
 
 
 def numero_curto(valor: float) -> str:
-    """Número enxuto com vírgula decimal, para rótulos de eixo."""
+    """Número curto com vírgula, para rótulos de eixo."""
     if valor == 0 or not math.isfinite(valor):
         return "0"
     texto = f"{valor:.4g}"
@@ -48,12 +38,7 @@ def numero_curto(valor: float) -> str:
 
 
 def grafico_pareto(ajuste: AjusteResposta, *, tema: Tema = TEMA) -> bytes:
-    """Pareto dos efeitos padronizados: |t| por termo, com o t crítico.
-
-    Barras na cor da série para os termos significativos e na série apagada
-    para os demais; a linha tracejada é o t crítico — barra que passa dela é
-    efeito significativo.
-    """
+    """Pareto dos efeitos padronizados, com o t crítico."""
     efeitos = sorted(
         (c for c in ajuste.coeficientes if c.termo != INTERCEPTO),
         key=lambda c: abs(c.valor_t),
@@ -84,12 +69,7 @@ def grafico_pareto(ajuste: AjusteResposta, *, tema: Tema = TEMA) -> bytes:
 
 
 def grafico_coeficientes(ajuste: AjusteResposta, *, tema: Tema = TEMA) -> bytes:
-    """Coeficientes e seus intervalos de confiança, em escala codificada.
-
-    Cada termo vira um ponto (estimativa) com barra de erro (IC); a linha
-    vertical no zero separa efeito positivo de negativo. Termos sem IC no
-    contrato aparecem só como ponto.
-    """
+    """Coeficientes com seus intervalos de confiança."""
     efeitos = [c for c in ajuste.coeficientes if c.termo != INTERCEPTO]
     fig = Figure(figsize=(7.0, _altura_termos(efeitos)))
     ax = fig.subplots()
@@ -132,11 +112,7 @@ def grafico_coeficientes(ajuste: AjusteResposta, *, tema: Tema = TEMA) -> bytes:
 def grafico_diagnostico(
     ajuste: AjusteResposta, quais: Sequence[str], *, tema: Tema = TEMA
 ) -> bytes | None:
-    """Painel de diagnóstico com os gráficos marcados (C6, D1, D2, D3).
-
-    Um painel só, em grade de duas colunas, para o diagnóstico caber numa
-    página. Sem ordem de execução no contrato, o D3 fica de fora.
-    """
+    """Painel de diagnóstico com os gráficos marcados."""
     d = ajuste.diagnostico
     if d is None:
         return None
@@ -157,6 +133,7 @@ def grafico_diagnostico(
 
 
 def _previsto_observado(ax: Axes, ajuste: AjusteResposta, tema: Tema) -> None:
+    """Gráfico previsto × observado."""
     assert ajuste.diagnostico is not None
     obs, prev = ajuste.diagnostico.observados, ajuste.diagnostico.preditos
     baixo, alto = min(obs + prev), max(obs + prev)
@@ -175,6 +152,7 @@ def _previsto_observado(ax: Axes, ajuste: AjusteResposta, tema: Tema) -> None:
 
 
 def _residuos_previsto(ax: Axes, ajuste: AjusteResposta, tema: Tema) -> None:
+    """Gráfico resíduos × previsto."""
     assert ajuste.diagnostico is not None
     ax.axhline(0.0, color=cor_mpl(tema.cinza), linewidth=0.9, linestyle="--")
     _pontos(ax, ajuste.diagnostico.preditos, ajuste.diagnostico.residuos, tema)
@@ -184,6 +162,7 @@ def _residuos_previsto(ax: Axes, ajuste: AjusteResposta, tema: Tema) -> None:
 
 
 def _normalidade(ax: Axes, ajuste: AjusteResposta, tema: Tema) -> None:
+    """Gráfico Q-Q normal dos resíduos."""
     d = ajuste.diagnostico
     assert d is not None
     qq = pontos_qq(d.residuos)
@@ -203,6 +182,7 @@ def _normalidade(ax: Axes, ajuste: AjusteResposta, tema: Tema) -> None:
 
 
 def _residuos_ordem(ax: Axes, ajuste: AjusteResposta, tema: Tema) -> None:
+    """Gráfico dos resíduos na ordem de execução."""
     d = ajuste.diagnostico
     assert d is not None and d.ordem is not None
     pares = sorted(zip(d.ordem, d.residuos, strict=True))
@@ -229,132 +209,6 @@ _DESENHOS = {
 }
 
 
-def grafico_meio_normal(ef: EfeitosFatorial, *, tema: Tema = TEMA) -> bytes | None:
-    """Meio-normal dos efeitos (B3), com a margem de erro de Lenth tracejada."""
-    if ef.lenth is None or not ef.efeitos:
-        return None
-    pontos = pontos_meio_normal(ef.efeitos)
-    ativos = {e.termo for e in ef.efeitos if e.ativo_lenth}
-    fig = Figure(figsize=(6.0, 3.6))
-    ax = fig.subplots()
-    cores = [
-        cor_mpl(tema.serie if t in ativos else tema.serie_apagada)
-        for t in pontos.termos
-    ]
-    ax.scatter(
-        pontos.absolutos,
-        pontos.quantis,
-        c=cores,
-        s=34,
-        edgecolors=cor_mpl(tema.branco),
-        linewidths=0.8,
-        zorder=3,
-    )
-    for termo, x, y in zip(
-        pontos.termos, pontos.absolutos, pontos.quantis, strict=True
-    ):
-        if termo in ativos:
-            ax.annotate(
-                nome_legivel(termo),
-                (x, y),
-                xytext=(-6, 0),
-                textcoords="offset points",
-                ha="right",
-                va="center",
-                fontsize=8,
-                color=cor_mpl(tema.tinta),
-            )
-    ax.axvline(ef.lenth.me, color=cor_mpl(tema.tinta), linewidth=1, linestyle="--")
-    ax.set_xlabel("|efeito|")
-    ax.set_ylabel("Quantil meio-normal")
-    _titulo(ax, f"Meio-normal (ME de Lenth = {numero_curto(ef.lenth.me)})", tema)
-    _limpar(ax, tema, grade_y=True)
-    return _png(fig)
-
-
-def grafico_efeitos_principais(
-    ef: EfeitosFatorial, resposta: str, *, tema: Tema = TEMA
-) -> bytes | None:
-    """Média da resposta em cada nível de cada fator (B4), lado a lado."""
-    medias = ef.medias_principais
-    if not medias:
-        return None
-    todas = [v for m in medias for v in m.medias]
-    baixo, alto = min(todas), max(todas)
-    folga = (alto - baixo) * 0.12 or 1.0
-    colunas = min(len(medias), 4)
-    linhas = math.ceil(len(medias) / colunas)
-    fig = Figure(figsize=(7.0, 2.3 * linhas))
-    eixos = fig.subplots(linhas, colunas, squeeze=False, sharey=True).ravel()
-    for ax, m in zip(eixos, medias, strict=False):
-        ax.plot(
-            m.niveis,
-            m.medias,
-            color=cor_mpl(tema.serie),
-            linewidth=1.6,
-            marker="o",
-            markersize=6,
-            markeredgecolor=cor_mpl(tema.branco),
-        )
-        ax.set_ylim(baixo - folga, alto + folga)
-        ax.set_xticks(m.niveis)
-        ax.set_xlabel(nome_legivel(m.fator), fontsize=9)
-        _limpar(ax, tema, grade_y=True)
-    for ax in eixos[len(medias) :]:
-        ax.axis("off")
-    eixos[0].set_ylabel(f"Média de {nome_legivel(resposta)}", fontsize=9)
-    fig.suptitle(
-        "Efeitos principais",
-        x=0.01,
-        ha="left",
-        fontsize=11,
-        fontweight="bold",
-        color=cor_mpl(tema.tinta),
-    )
-    fig.tight_layout()
-    return _png(fig)
-
-
-def grafico_interacoes(ef: EfeitosFatorial, *, tema: Tema = TEMA) -> bytes | None:
-    """Uma linha por nível do segundo fator (B4): linhas não paralelas = interação."""
-    pares = ef.medias_interacoes
-    if not pares:
-        return None
-    colunas = min(len(pares), 3)
-    linhas = math.ceil(len(pares) / colunas)
-    fig = Figure(figsize=(7.0, 2.6 * linhas))
-    eixos = fig.subplots(linhas, colunas, squeeze=False).ravel()
-    for ax, m in zip(eixos, pares, strict=False):
-        cores = _cores_niveis(len(m.niveis_b), tema)
-        for j, nivel in enumerate(m.niveis_b):
-            ax.plot(
-                m.niveis_a,
-                m.medias[j],
-                color=cores[j],
-                linewidth=1.6,
-                marker="o",
-                markersize=5,
-                markeredgecolor=cor_mpl(tema.branco),
-                label=f"{nome_legivel(m.fator_b)} = {numero_curto(nivel)}",
-            )
-        ax.set_xticks(m.niveis_a)
-        ax.set_xlabel(nome_legivel(m.fator_a), fontsize=9)
-        ax.legend(fontsize=7, frameon=False, loc="best")
-        _limpar(ax, tema, grade_y=True)
-    for ax in eixos[len(pares) :]:
-        ax.axis("off")
-    fig.suptitle(
-        "Interações",
-        x=0.01,
-        ha="left",
-        fontsize=11,
-        fontweight="bold",
-        color=cor_mpl(tema.tinta),
-    )
-    fig.tight_layout()
-    return _png(fig)
-
-
 def grafico_contorno(
     grade: GradeSuperficie,
     *,
@@ -363,7 +217,7 @@ def grafico_contorno(
     destaque: tuple[float, float] | None = None,
     tema: Tema = TEMA,
 ) -> bytes:
-    """Curvas de contorno (E2): faixas da rampa, mais escuro = resposta maior."""
+    """Curvas de contorno da resposta prevista."""
     x = np.asarray(grade.valores_x)
     y = np.asarray(grade.valores_y)
     z = np.asarray(grade.z)
@@ -422,7 +276,7 @@ def grafico_superficie_3d(
     rotulo_y: str,
     tema: Tema = TEMA,
 ) -> bytes:
-    """Superfície de resposta em 3D (E1), na mesma rampa do contorno."""
+    """Superfície de resposta em 3D."""
     xx, yy = np.meshgrid(np.asarray(grade.valores_x), np.asarray(grade.valores_y))
     z = np.asarray(grade.z)
     fig = Figure(figsize=(6.2, 4.6))
@@ -448,16 +302,17 @@ def grafico_superficie_3d(
 
 
 def _rotulo_termo(termo: str) -> str:
-    """Nome do termo quebrado em linhas curtas: rótulo longo encolhe o gráfico."""
+    """Nome do termo quebrado em linhas curtas."""
     return textwrap.fill(nome_legivel(termo), width=24, break_long_words=False)
 
 
 def _altura_termos(efeitos: Sequence[object]) -> float:
-    """Altura de um gráfico com um termo por linha (Pareto, coeficientes)."""
+    """Altura do gráfico conforme o número de termos."""
     return max(1.8, 0.40 * len(efeitos) + 1.0)
 
 
 def _pontos(ax: Axes, x: Sequence[float], y: Sequence[float], tema: Tema) -> None:
+    """Desenha os pontos dos ensaios."""
     ax.scatter(
         x,
         y,
@@ -469,19 +324,8 @@ def _pontos(ax: Axes, x: Sequence[float], y: Sequence[float], tema: Tema) -> Non
     )
 
 
-def _cores_niveis(n: int, tema: Tema) -> list[tuple[float, float, float]]:
-    if n == 2:
-        return [cor_mpl(tema.nivel_baixo), cor_mpl(tema.nivel_alto)]
-    passos = [round(i * (len(tema.rampa) - 1) / max(n - 1, 1)) for i in range(n)]
-    return [_hex(tema.rampa[p]) for p in passos]
-
-
-def _hex(cor: str) -> tuple[float, float, float]:
-    h = cor.lstrip("#")
-    return cor_mpl((int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)))
-
-
 def _titulo(ax: Axes, texto: str, tema: Tema, *, tamanho: int = 11) -> None:
+    """Título do gráfico no estilo do tema."""
     ax.set_title(
         texto,
         loc="left",
@@ -499,7 +343,7 @@ def _limpar(
     grade_y: bool = False,
     categorias_y: bool = False,
 ) -> None:
-    """Aplica o visual sóbrio do tema: sem molduras supérfluas, cinzas calmos."""
+    """Aplica o visual sóbrio do tema aos eixos."""
     for lado in ("top", "right"):
         ax.spines[lado].set_visible(False)
     for lado in ("left", "bottom"):
@@ -507,8 +351,7 @@ def _limpar(
     ax.tick_params(colors=cor_mpl(tema.tinta), labelsize=8)
     ax.xaxis.label.set_color(cor_mpl(tema.tinta))
     ax.yaxis.label.set_color(cor_mpl(tema.tinta))
-    # Eixos numéricos com vírgula decimal; o eixo de categorias (nomes dos
-    # termos) mantém os rótulos que já recebeu.
+    # Eixos numéricos com vírgula decimal.
     formato = FuncFormatter(lambda v, _: numero_curto(v))
     ax.xaxis.set_major_formatter(formato)
     if not categorias_y:
@@ -528,12 +371,13 @@ def _limpar(
 
 
 def _vazio(ax: Axes, mensagem: str, tema: Tema) -> None:
+    """Mostra uma mensagem no lugar de um gráfico sem dados."""
     ax.text(0.5, 0.5, mensagem, ha="center", va="center", color=cor_mpl(tema.cinza))
     ax.axis("off")
 
 
 def _png(fig: Figure) -> bytes:
-    """Serializa a figura em PNG e libera os recursos."""
+    """Salva a figura em PNG e libera a memória."""
     buffer = BytesIO()
     fig.savefig(buffer, format="png", dpi=150, bbox_inches="tight")
     fig.clear()
