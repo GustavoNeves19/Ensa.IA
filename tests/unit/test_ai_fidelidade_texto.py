@@ -129,6 +129,8 @@ def test_contradicao_de_significancia(texto: str, termo: str, afirma: bool) -> N
         # Contraste interno ou termo composto: a leitura é conservadora.
         "Só a temperatura foi significativa, e o tempo_reacao não.",
         "O termo quadrático da temperatura não foi significativo.",
+        # Interação na notação do núcleo: não fala do efeito principal.
+        "'temperatura:tempo_reacao' não é significativo ao nível de 0,05.",
     ],
 )
 def test_afirmacoes_corretas_ou_ambiguas_nao_geram_alarme(texto: str) -> None:

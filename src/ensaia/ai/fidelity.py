@@ -287,9 +287,9 @@ _NEGA = re.compile(
     r"\binsignificante",
     re.IGNORECASE,
 )
-# Frases sobre termos compostos ou com exceções ficam de fora.
+# Frases sobre termos compostos ("x1:x2", "x1^2") ou com exceções ficam de fora.
 _AMBIGUA = re.compile(
-    r"quadr|interaç|²|×|\^|\bexceto\b|\bsalvo\b|exceção|\bapenas\b|\bsomente\b|"
+    r"quadr|interaç|²|×|\^|\S:\S|\bexceto\b|\bsalvo\b|exceção|\bapenas\b|\bsomente\b|"
     r"\bsó\b|\bmas\b|\bporém\b|\benquanto\b|\bembora\b|\bao passo\b",
     re.IGNORECASE,
 )

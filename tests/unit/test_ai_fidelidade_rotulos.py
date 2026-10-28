@@ -143,6 +143,7 @@ def test_texto_m0_confere_todos_os_numeros(nome: str) -> None:
     fid = gerar_relatorio(resultado, modo="m0").fidelidade
     assert fid is not None and fid.total > 0
     assert fid.rastreaveis == fid.total
+    assert fid.fiel
 
 
 def test_portao_da_ia_tambem_confere_pelo_rotulo() -> None:
