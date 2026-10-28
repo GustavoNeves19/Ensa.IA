@@ -61,6 +61,22 @@ def test_ocorrencias_trazem_a_posicao_do_numero() -> None:
     assert texto[n.inicio : n.fim] == "17" and n.valor == 17 and n.casas == 0
 
 
+@pytest.mark.parametrize(
+    ("texto", "valores"),
+    [
+        ("SQ = 1957,37", [1957.37]),
+        ("1.234,56 e 1.234.567,8", [1234.56, 1234567.8]),
+        ("12.5 e 0,85", [12.5, 0.85]),
+        ("-3,4", [-3.4]),
+    ],
+)
+def test_numero_de_quatro_digitos_sem_milhar_e_um_numero_so(
+    texto: str, valores: list[float]
+) -> None:
+    # Antes, "1957,37" virava 195 e 7,37, e "12.5" virava 12 e 5.
+    assert [o.valor for o in ocorrencias_numeros(texto)] == pytest.approx(valores)
+
+
 def test_arredondamento_do_texto_decide_se_o_numero_confere() -> None:
     from ensaia.core.numeros import numero_confere
 
