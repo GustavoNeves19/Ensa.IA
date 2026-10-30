@@ -8,8 +8,9 @@ import re
 from collections.abc import Iterable
 from typing import NamedTuple
 
-# Números em português: 1.234,56 · 0,85 · 12 · -3,4.
-_PADRAO_NUMERO = re.compile(r"-?\d{1,3}(?:\.\d{3})*(?:,\d+)?|-?\d+(?:[.,]\d+)?")
+# Números em português: 1.234,56 · 1957,37 · 0,85 · 12 · -3,4.
+# O primeiro ramo só vale com milhar separado; sem isso, "1957,37" virava 195 e 7,37.
+_PADRAO_NUMERO = re.compile(r"-?\d{1,3}(?:\.\d{3})+(?:,\d+)?(?!\d)|-?\d+(?:[.,]\d+)?")
 
 
 def _para_float(texto: str) -> float | None:
