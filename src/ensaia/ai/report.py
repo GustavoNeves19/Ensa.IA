@@ -4,7 +4,7 @@ Se a IA citar número fora dos fatos, tenta de novo e volta para o texto sem IA.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -81,8 +81,9 @@ def gerar_relatorio(
     cliente: ClienteModelo | None = None,
     max_palavras: int = MAX_PALAVRAS_PADRAO,
     tentativas_fidelidade: int = 2,
+    ao_avancar: Callable[[int, int, str], None] | None = None,
 ) -> RelatorioTextual:
-    """Gera o relatório em texto no modo escolhido."""
+    """Gera o relatório em texto; ao_avancar(n, total, título) segue o progresso."""
     if modo == "m1":
         raise ValueError("O modo M1 não chama modelo: use relatorio_colado.")
     if modo != "m0" and cliente is None:
@@ -94,15 +95,17 @@ def gerar_relatorio(
     # Sem resposta do modelo, desiste das demais seções com um aviso só.
     sem_conexao = False
 
-    for secao in SECOES:
+    # Seção sem fatos (ex.: otimização sem ponto ótimo) não entra.
+    com_fatos = [s for s in SECOES if por_secao[s]]
+    for n, secao in enumerate(com_fatos, start=1):
         fatos = por_secao[secao]
-        if not fatos:
-            continue  # seção sem fatos (ex.: otimização sem ponto ótimo) não entra
         titulo = titulo_secao(secao)
 
         if modo == "m0" or cliente is None or sem_conexao:
             secoes.append(SecaoTexto(secao, titulo, _texto_m0(fatos), com_ia=False))
             continue
+        if ao_avancar is not None:
+            ao_avancar(n, len(com_fatos), titulo)
 
         try:
             texto = _gerar_secao_com_ia(

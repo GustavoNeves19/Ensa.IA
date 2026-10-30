@@ -173,3 +173,20 @@ def test_texto_completo_junta_titulos_e_secoes() -> None:
     completo = rel.texto_completo()
     assert completo.startswith("## ")
     assert rel.secoes[0].titulo in completo
+
+
+def test_ao_avancar_segue_as_secoes_pedidas_a_ia() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("sem rede", request=request)
+
+    passos: list[tuple[int, int, str]] = []
+    rel = gerar_relatorio(
+        _resultado(),
+        modo="m3",
+        cliente=_cliente(handler),
+        ao_avancar=lambda n, total, titulo: passos.append((n, total, titulo)),
+    )
+
+    # Sem conexão na 1ª seção, as demais saem sem IA e sem nova chamada.
+    assert [(n, total) for n, total, _ in passos] == [(1, 4)]
+    assert all(not s.com_ia for s in rel.secoes)
