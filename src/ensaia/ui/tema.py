@@ -661,6 +661,24 @@ def _css() -> str:
     .ea-tag-ia {{ font-size: .7rem; font-weight: 700; color: var(--verde-escuro); }}
     .ea-tag-m0 {{ font-size: .7rem; font-weight: 700; color: var(--cinza); }}
     .ea-spinner {{ color: var(--verde-escuro) !important; }}
+    /* Relatório com IA: botões da mesma altura dos campos, a espera escrita no
+       próprio botão e o progresso num quadro, seção por seção. */
+    .ea-botao-alto.q-btn {{ min-height: 40px; min-width: 9.5rem; }}
+    .ea-botao-espera {{ display: inline-flex; align-items: center; gap: .5rem;
+      font-weight: 600; white-space: nowrap; }}
+    .ea-dica-chave {{ display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: .1rem .4rem; margin-top: -.2rem; }}
+    .ea-conexao {{ display: flex; flex-wrap: wrap; align-items: center;
+      gap: .2rem .5rem; font-size: .88rem; color: var(--tinta); }}
+    .ea-conexao-icone {{ color: var(--verde); font-size: 1.2rem; }}
+    .ea-conexao .ea-botao-sec.q-btn {{ min-height: 0; padding: 0 .25rem; }}
+    .ea-progresso {{ width: 100%; display: flex; flex-direction: column;
+      gap: .55rem; padding: 1rem 1.15rem; background: var(--papel-alto);
+      border: 1px solid var(--linha); border-radius: 14px; }}
+    .ea-progresso-topo {{ display: flex; align-items: center; gap: .6rem; }}
+    .ea-progresso-titulo {{ font-weight: 600; color: var(--tinta); }}
+    .ea-progresso-etapa {{ font-size: .88rem; color: var(--cinza);
+      font-variant-numeric: tabular-nums; }}
     </style>
     """
 

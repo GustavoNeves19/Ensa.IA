@@ -14,7 +14,7 @@ Box-Behnken.
 A especificação v0.6 (outubro de 2026, alinhada à Introdução revisada do TCC)
 fecha o escopo: só os grupos A, C, D e E; B1–B5 reservados para a versão
 geral; IA e MCP fora do escopo do TCC; três artigos de referência de DCCR
-para a verificação numérica (§14.3), dos quais R1 e R2 já estão escolhidos.
+para a verificação numérica (§14.3), ainda a escolher.
 
 ## Decisão
 
@@ -38,23 +38,22 @@ para a verificação numérica (§14.3), dos quais R1 e R2 já estão escolhidos
 5. **O runner de validação usa o α rotacional.** Sem `alfa_axial` no
    `referencia.yaml`, um composto central usa (2ᵏ)^(1/4), e a busca do ótimo
    vai até ±α, como na tela.
-6. **R1 e R2 entram como casos** (`bezerra-2022-pao-de-forma` e
-   `silva-2023-bombeamento-agua`), em rascunho até a dupla conferência
-   humana, e são conferidos por `tests/unit/test_artigos_referencia.py`.
 
 ## Consequências
 
 **Boas**
 - O usuário não vê mais nenhuma análise que não se aplique a um DCCR.
-- Os dois artigos de referência e cinco exemplos do livro (Barros Neto,
-  Scarminio e Bruns, 2010) são reproduzidos em teste automático.
+- Cinco exemplos de DCCR do livro (Barros Neto, Scarminio e Bruns, 2010) são
+  reproduzidos em teste automático.
 
 **Ruins / a vigiar**
 - `core/fatorial.py` e o campo `efeitos_fatorial` do contrato continuam sem
   caminho de produção (ver ADR 0013).
-- Nos dois artigos, a reprodução só fecha com o α exato (1,68179), embora as
-  tabelas imprimam 1,68, e com a matriz em valores codificados (os autores do
-  R1 deslocaram dois pontos axiais em unidades reais). Isso está registrado no
-  `fonte.md` de cada caso.
-- O critério (c) do §4.3 não se aplica a R1 e R2 no modelo completo: os
-  artigos só publicam o R² dos modelos reduzidos.
+- Os artigos de referência do TCC ainda precisam ser escolhidos e
+  cadastrados como casos de estudo (spec v0.6, D-16).
+
+**Revisão (2026-10-25)**
+- Uma primeira versão desta ADR cadastrava como R1 e R2 os artigos de Bezerra
+  et al. (2022) e Silva, Pereira e Almeida (2023), que a especificação v0.6
+  lista só como candidatos e que não estão no TCC. Os dois casos e o teste
+  saíram do repositório.

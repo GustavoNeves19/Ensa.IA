@@ -17,6 +17,8 @@ from ensaia.ai.client import (
     ErroDeConexao,
     ErroDeIA,
     ErroDeResposta,
+    ErroDeTempo,
+    RespostaInvalida,
 )
 from ensaia.ai.fidelity import (
     RelatorioFidelidade,
@@ -189,14 +191,26 @@ def _painel_m2(sessao: Sessao, saida: ui.column) -> None:
         "está rodando: nada sai dessa máquina. Modelos de 4B a 8B (Qwen 3, Llama 3, "
         "Gemma 3) dão conta, porque a IA só reescreve os resultados.</div>"
     )
-    endereco = ui.input("Endereço do Ollama", value=url_ollama() or OLLAMA.url_base)
-    endereco.props("dense outlined").classes("ea-campo-longo")
+    with ui.element("div").classes("ea-controles") as linha:
+        endereco = ui.input("Endereço do Ollama", value=url_ollama() or OLLAMA.url_base)
+        endereco.props("dense outlined").classes("ea-campo-longo")
 
     def config(modelo: str) -> ConfiguracaoModelo:
         """Configuração do Ollama com o modelo escolhido."""
-        return ConfiguracaoModelo(url_base=str(endereco.value), modelo=modelo)
+        # O Ollama pode levar mais tempo para carregar o modelo na 1ª chamada.
+        return ConfiguracaoModelo(
+            url_base=str(endereco.value), modelo=modelo, timeout_s=60.0
+        )
 
-    _conectar_e_narrar(sessao, saida, OLLAMA, config, modo="m2")
+    _conectar_e_narrar(
+        sessao,
+        saida,
+        OLLAMA,
+        config,
+        modo="m2",
+        linha=linha,
+        conectado=lambda: f"Conectado ao Ollama em {endereco.value}.",
+    )
 
 
 def _painel_m3(sessao: Sessao, saida: ui.column) -> None:
@@ -232,8 +246,10 @@ def _painel_servidor(
         f"(modelo <b>{escape(config.modelo)}</b>). Só os resultados verificados "
         "são enviados, nunca a sua planilha.</div>"
     )
-    botao = ui.button("Escrever com IA").props("unelevated").classes("ea-botao")
-    botao.on_click(lambda: _narrar(sessao, saida, config, "m3", botao))
+    botao = _botao("Escrever com IA", "Escrevendo…", icone="edit_note")
+    botao.on_click(
+        lambda: _narrar(sessao, saida, config, "m3", botao, "servidor do EnsaIA")
+    )
 
 
 def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
@@ -244,7 +260,7 @@ def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
         "nem volta ao navegador. Só os resultados verificados são enviados ao "
         "provedor, nunca a sua planilha.</div>"
     )
-    with ui.element("div").classes("ea-controles"):
+    with ui.element("div").classes("ea-controles") as linha:
         campo = (
             ui.input(
                 "Sua chave de API",
@@ -254,10 +270,13 @@ def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
             .props("dense outlined autocomplete=off")
             .classes("ea-campo-longo")
         )
-        if provedor.onde_criar_chave:
+    if provedor.onde_criar_chave:
+        with ui.element("div").classes("ea-ler ea-dica-chave") as dica:
+            ui.label("Ainda não tem uma chave?")
             ui.link("Criar uma chave", provedor.onde_criar_chave, new_tab=True).classes(
                 "ea-link"
             )
+        linha.bind_visibility_to(dica)
 
     def config(modelo: str) -> ConfiguracaoModelo:
         """Configuração do provedor com a chave guardada."""
@@ -286,6 +305,8 @@ def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
         provedor,
         config,
         modo="m3",
+        linha=linha,
+        conectado=lambda: f"Chave aceita pelo {provedor.nome}.",
         antes=guardar_chave,
         ao_recusar=esquecer,
     )
@@ -301,11 +322,19 @@ def _conectar_e_narrar(
     config: Callable[[str], ConfiguracaoModelo],
     *,
     modo: Modo,
+    linha: ui.element,
+    conectado: Callable[[], str],
     antes: Callable[[], bool] = lambda: True,
     ao_recusar: Callable[[], None] = lambda: None,
 ) -> None:
-    """Botão Conectar, lista de modelos e botão Escrever."""
-    escolha = ui.column().classes("w-full gap-2")
+    """Conectar ao lado do campo; depois, status, modelo e botão Escrever."""
+    escolha = ui.column().classes("w-full gap-3")
+
+    def trocar() -> None:
+        """Volta ao campo de conexão e esquece a escolha de modelo."""
+        escolha.clear()
+        saida.clear()
+        linha.set_visibility(True)
 
     async def conectar() -> None:
         """Lista os modelos do provedor e libera o Escrever."""
@@ -318,7 +347,7 @@ def _conectar_e_narrar(
             if _chave_recusada(erro):
                 ao_recusar()
             ui.notify(
-                _mensagem_erro(erro, provedor),
+                _mensagem_erro(erro, provedor.nome, ollama=provedor is OLLAMA),
                 type="negative",
                 position="top",
                 timeout=9000,
@@ -336,28 +365,54 @@ def _conectar_e_narrar(
                 position="top",
             )
             return
+        linha.set_visibility(False)
         escolha.clear()
-        with escolha, ui.element("div").classes("ea-controles"):
-            modelo = (
-                ui.select(
-                    modelos,
-                    value=modelo_sugerido(provedor, modelos),
-                    label="Modelo",
-                    with_input=True,
+        with escolha:
+            with ui.element("div").classes("ea-conexao"):
+                ui.icon("check_circle").classes("ea-conexao-icone")
+                ui.label(f"{conectado()} {len(modelos)} modelos de texto disponíveis.")
+                trocar_botao = ui.button("Trocar", on_click=trocar)
+                trocar_botao.props("flat dense no-caps").classes("ea-botao-sec")
+            with ui.element("div").classes("ea-controles"):
+                modelo = (
+                    ui.select(
+                        modelos,
+                        value=modelo_sugerido(provedor, modelos),
+                        label="Modelo",
+                        with_input=True,
+                    )
+                    .props("dense outlined")
+                    .classes("ea-campo-longo")
                 )
-                .props("dense outlined")
-                .classes("ea-campo-longo")
-            )
-            narrar = (
-                ui.button("Escrever com IA").props("unelevated").classes("ea-botao")
-            )
-            narrar.on_click(
-                lambda: _narrar(sessao, saida, config(str(modelo.value)), modo, narrar)
-            )
+                narrar = _botao("Escrever com IA", "Escrevendo…", icone="edit_note")
+                narrar.on_click(
+                    lambda: _narrar(
+                        sessao,
+                        saida,
+                        config(str(modelo.value)),
+                        modo,
+                        narrar,
+                        provedor.nome,
+                        ollama=provedor is OLLAMA,
+                    )
+                )
 
+    with linha:
+        botao = _botao("Conectar", "Conectando…")
+        botao.on_click(conectar)
+
+
+def _botao(texto: str, espera: str, *, icone: str | None = None) -> ui.button:
+    """Botão primário que, ocupado, mostra uma rodinha e o aviso de espera."""
     botao = (
-        ui.button("Conectar", on_click=conectar).props("unelevated").classes("ea-botao")
+        ui.button(texto, icon=icone)
+        .props("unelevated")
+        .classes("ea-botao ea-botao-alto")
     )
+    with botao.add_slot("loading"), ui.element("span").classes("ea-botao-espera"):
+        ui.spinner("dots", size="1.4em", color=None)  # cor do texto do botão
+        ui.label(espera)
+    return botao
 
 
 def _listar(config: ConfiguracaoModelo) -> list[str]:
@@ -372,26 +427,64 @@ async def _narrar(
     config: ConfiguracaoModelo,
     modo: Modo,
     botao: ui.button,
+    nome: str,
+    *,
+    ollama: bool = False,
 ) -> None:
-    """Gera o texto com a IA e mostra o resultado."""
+    """Gera o texto com a IA e mostra o resultado, ou o erro do modelo."""
     analise = sessao.analise
+    # (n, total, título): escrito pela thread do trabalho, lido pelo timer da tela.
+    progresso: list[tuple[int, int, str]] = []
     saida.clear()
-    with saida:
-        ui.spinner(size="lg").classes("ea-spinner")
-        ui.html(
-            '<div class="ea-secao-sub">Escrevendo uma seção por vez e conferindo '
-            "cada número…</div>"
+    with saida, ui.element("div").classes("ea-progresso"):
+        with ui.element("div").classes("ea-progresso-topo"):
+            ui.spinner("dots", size="1.6em").classes("ea-spinner")
+            ui.label(f"Escrevendo com {config.modelo}").classes("ea-progresso-titulo")
+        barra = ui.linear_progress(value=0, show_value=False).props(
+            "rounded size=6px color=primary track-color=grey-4"
         )
+        etapa = ui.label("Preparando os resultados…").classes("ea-progresso-etapa")
+        ui.label(
+            "Cada número do texto é conferido com a análise. Se o modelo não "
+            f"responder em {config.timeout_s:g} s, a escrita para com um aviso."
+        ).classes("ea-ler")
+
+        def atualizar() -> None:
+            """Mostra a seção em andamento."""
+            if progresso:
+                n, total, titulo = progresso[-1]
+                barra.set_value((n - 0.5) / total)
+                etapa.set_text(f"Seção {n} de {total}: {titulo}")
+
+        relogio = ui.timer(0.3, atualizar)
+
+    def avancar(n: int, total: int, titulo: str) -> None:
+        """Anota a seção que a IA está escrevendo."""
+        progresso.append((n, total, titulo))
 
     def trabalho() -> RelatorioTextual:
         """Gera o relatório com o cliente da IA."""
         with ClienteModelo(config) as cliente:
-            return gerar_relatorio(analise, modo=modo, cliente=cliente)
+            return gerar_relatorio(
+                analise, modo=modo, cliente=cliente, ao_avancar=avancar
+            )
 
     botao.props("loading")
     try:
         relatorio = await run.io_bound(trabalho)
+    except ErroDeIA as erro:
+        # Sem texto do sistema no lugar: o texto com IA só sai se a IA escrever.
+        sessao.texto = None
+        saida.clear()
+        with saida, ui.element("div").classes("ea-alerta"):
+            ui.icon("error_outline")
+            ui.label(
+                f"{_mensagem_erro(erro, nome, ollama=ollama)} Nenhum texto foi "
+                "gerado; tente de novo ou escolha outro modelo."
+            )
+        return
     finally:
+        relogio.cancel()
         botao.props(remove="loading")
     if relatorio is None:  # o servidor encerrou no meio da chamada
         return
@@ -401,22 +494,24 @@ async def _narrar(
         mostrar_relatorio(relatorio, analise)
 
 
-def _mensagem_erro(erro: ErroDeIA, provedor: Provedor) -> str:
+def _mensagem_erro(erro: ErroDeIA, nome: str, *, ollama: bool = False) -> str:
     """Mensagem de erro da IA em português claro."""
     if isinstance(erro, ErroDeResposta):
         if _chave_recusada(erro):
-            return (
-                f"O {provedor.nome} recusou a chave. Confira se ela foi colada inteira."
-            )
+            return f"O {nome} recusou a chave. Confira se ela foi colada inteira."
         if erro.status == 429:
-            return f"O {provedor.nome} atingiu o limite de uso. Tente daqui a pouco."
-        return f"O {provedor.nome} respondeu com erro ({erro.status})."
-    if isinstance(erro, ErroDeConexao) and provedor is OLLAMA:
+            return f"O {nome} atingiu o limite de uso. Tente daqui a pouco."
+        return f"O {nome} respondeu com erro ({erro.status})."
+    if isinstance(erro, ErroDeTempo):
+        return f"O modelo não respondeu em {erro.segundos:g} s."
+    if isinstance(erro, RespostaInvalida):
+        return f"O {nome} respondeu, mas sem texto utilizável."
+    if isinstance(erro, ErroDeConexao) and ollama:
         return (
             "Não encontrei o Ollama nesse endereço. Ele está aberto no computador "
             "onde o EnsaIA está rodando?"
         )
-    return f"Não consegui falar com o {provedor.nome}. Verifique a conexão."
+    return f"Não consegui falar com o {nome}. Verifique a conexão."
 
 
 def _chave_recusada(erro: ErroDeIA) -> bool:

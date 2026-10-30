@@ -27,3 +27,4 @@ Formato: contexto → decisão → consequências (inclusive as ruins).
 | [0013](0013-restricao-a-dccr.md) | Restringir o escopo a DCCR; generalização vira trabalho futuro | Aceita |
 | [0014](0014-reducao-de-modelo-reajusta.md) | Redução de modelo sempre reajusta (diverge do livro-texto num exemplo) | Aceita |
 | [0015](0015-sistema-so-dccr-de-ponta-a-ponta.md) | Sistema só DCCR de ponta a ponta: tela, PDF e verificação | Aceita |
+| [0016](0016-texto-com-ia-sem-mistura.md) | Texto com IA não se mistura com o texto do sistema | Aceita |

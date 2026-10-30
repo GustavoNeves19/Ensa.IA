@@ -1,14 +1,14 @@
 """Orquestra o relatório em texto, seção por seção, com ou sem IA.
-Se a IA citar número fora dos fatos, tenta de novo e volta para o texto sem IA.
+Com IA, todo o texto vem do modelo; o que não bate com os fatos fica marcado.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
-from ensaia.ai.client import ClienteModelo, ErroDeIA
+from ensaia.ai.client import ClienteModelo
 from ensaia.ai.fidelity import RelatorioFidelidade, verificar_secao, verificar_texto
 from ensaia.ai.prompts import (
     MAX_PALAVRAS_PADRAO,
@@ -81,8 +81,9 @@ def gerar_relatorio(
     cliente: ClienteModelo | None = None,
     max_palavras: int = MAX_PALAVRAS_PADRAO,
     tentativas_fidelidade: int = 2,
+    ao_avancar: Callable[[int, int, str], None] | None = None,
 ) -> RelatorioTextual:
-    """Gera o relatório em texto no modo escolhido."""
+    """Gera o relatório em texto; com IA, falha do modelo sobe como ErroDeIA."""
     if modo == "m1":
         raise ValueError("O modo M1 não chama modelo: use relatorio_colado.")
     if modo != "m0" and cliente is None:
@@ -91,35 +92,22 @@ def gerar_relatorio(
     por_secao = fatos_por_secao(resultado)
     secoes: list[SecaoTexto] = []
     avisos: list[str] = []
-    # Sem resposta do modelo, desiste das demais seções com um aviso só.
-    sem_conexao = False
 
-    for secao in SECOES:
+    # Seção sem fatos (ex.: otimização sem ponto ótimo) não entra.
+    com_fatos = [s for s in SECOES if por_secao[s]]
+    for n, secao in enumerate(com_fatos, start=1):
         fatos = por_secao[secao]
-        if not fatos:
-            continue  # seção sem fatos (ex.: otimização sem ponto ótimo) não entra
         titulo = titulo_secao(secao)
 
-        if modo == "m0" or cliente is None or sem_conexao:
+        if modo == "m0" or cliente is None:
             secoes.append(SecaoTexto(secao, titulo, _texto_m0(fatos), com_ia=False))
             continue
-
-        try:
-            texto = _gerar_secao_com_ia(
-                cliente, secao, fatos, max_palavras, tentativas_fidelidade,
-                avisos, titulo,
-            )
-        except ErroDeIA as exc:
-            sem_conexao = True
-            texto = None
-            avisos.append(
-                f"O texto ficou sem IA (M0) a partir da seção {titulo!r}: "
-                f"não foi possível falar com o modelo ({exc})."
-            )
-        if texto is not None:
-            secoes.append(SecaoTexto(secao, titulo, texto, com_ia=True))
-        else:
-            secoes.append(SecaoTexto(secao, titulo, _texto_m0(fatos), com_ia=False))
+        if ao_avancar is not None:
+            ao_avancar(n, len(com_fatos), titulo)
+        texto = _gerar_secao_com_ia(
+            cliente, secao, fatos, max_palavras, tentativas_fidelidade, avisos, titulo
+        )
+        secoes.append(SecaoTexto(secao, titulo, texto, com_ia=True))
 
     return RelatorioTextual(
         secoes=secoes,
@@ -158,16 +146,21 @@ def _gerar_secao_com_ia(
     tentativas: int,
     avisos: list[str],
     titulo: str,
-) -> str | None:
-    """Pede um parágrafo fiel ao modelo; None se não conseguir."""
+) -> str:
+    """Pede o parágrafo ao modelo; sem versão fiel, fica a com menos números soltos."""
     mensagens = montar_mensagens(secao, fatos, max_palavras=max_palavras)
+    melhor: tuple[int, str] | None = None
     for _ in range(max(1, tentativas)):
         texto = cliente.completar(mensagens).texto.strip()
-        if verificar_secao(texto, fatos).fiel:
+        soltos = len(verificar_secao(texto, fatos).numeros_sem_correspondencia)
+        if not soltos:
             return texto
+        if melhor is None or soltos < melhor[0]:
+            melhor = (soltos, texto)
 
+    assert melhor is not None
     avisos.append(
-        f"A seção {titulo!r} usou o texto sem IA (M0): o texto gerado citou "
-        f"números fora dos fatos verificados (checagem de fidelidade)."
+        f"A seção {titulo!r} cita números que não estão nos resultados da "
+        "análise: eles aparecem em destaque."
     )
-    return None
+    return melhor[1]

@@ -1,7 +1,7 @@
 # EnsaIA
 
-Análise e otimização de experimentos químicos (DOE) em Python, com uma camada
-de interpretação por modelo de linguagem.
+Sistema web gratuito e didático para analisar experimentos químicos planejados
+por **delineamento composto central rotacional (DCCR)**, feito em Python.
 
 > **TCC — Universidade Federal Rural da Amazônia (UFRA)**
 > Instituto da Saúde e Produção Animal · Curso de Graduação em Sistemas de Informação
@@ -15,209 +15,213 @@ de interpretação por modelo de linguagem.
 
 ## O problema
 
-O Planejamento de Experimentos (DOE) é uma das ferramentas mais eficazes para
-otimizar processos químicos, mas seu uso esbarra em duas barreiras: os
-softwares consolidados (Statistica, MiniTab) têm custo de licenciamento alto,
-e interpretar a saída deles exige formação em estatística que boa parte dos
-profissionais e estudantes de química não tem.
+O planejamento de experimentos (DOE), e o DCCR em particular, é uma das
+ferramentas mais usadas para otimizar processos químicos. Na prática, a
+análise depende de softwares pagos (Statistica, Minitab, Design-Expert,
+Protimiza), e ler a saída deles exige uma formação em estatística que muitos
+estudantes e profissionais de química não têm.
 
-O EnsaIA ataca as duas: um pipeline estatístico determinístico em Python, de
-código aberto, e uma camada de linguagem que traduz o resultado numérico em
-texto compreensível.
+O EnsaIA faz a análise completa de um DCCR no navegador, sem instalar nada e
+sem guardar os dados, e explica cada número na própria tela.
+
+## O que o sistema faz
+
+1. **Enviar e conferir.** Recebe CSV, TSV, TXT, XLSX, XLS ou ODS (até 5 MB) e
+   mostra uma prévia. Também abre exemplos publicados e oferece uma
+   planilha-modelo de DCCR.
+2. **Mapear colunas.** Sugere o papel de cada coluna (fator, resposta, bloco ou
+   não usar), com arrastar e soltar.
+3. **Reconhecer o DCCR.** Codifica os fatores em −α, −1, 0, +1, +α e confere a
+   parte fatorial, os pontos axiais, os pontos centrais e o α rotacional. Se não
+   for um DCCR, explica o que falta.
+4. **Analisar.** Modelo quadrático, coeficientes com Pareto, ANOVA da regressão
+   com F calculado / F tabelado, R², R² máximo, falta de ajuste, diagnóstico
+   dos resíduos, equação, superfície de resposta, ponto estacionário, melhor
+   condição e desejabilidade. Ensaios feitos em blocos (dias, lotes) também são
+   aceitos: a diferença entre blocos sai do erro.
+5. **Explicar e baixar.** Lâmpadas de dica em cada número, glossário, texto do
+   relatório e download em PDF e JSON.
+
+O texto do relatório pode ser escrito de quatro jeitos, escolhidos na tela:
+
+| Modo | Como funciona |
+|---|---|
+| Sem IA | Texto montado a partir dos resultados; sempre disponível, offline. |
+| Copiar para a sua IA | O EnsaIA monta o pedido, você cola no ChatGPT, Gemini etc. e traz a resposta de volta. |
+| IA local | Ollama aberto no computador onde o EnsaIA está rodando. |
+| IA em nuvem | Gemini, Groq ou OpenAI com a sua chave, ou a IA que o servidor oferecer. |
+
+Com IA, cada número do texto é conferido contra os resultados e o que não bate
+fica marcado em amarelo.
 
 ## A ideia central da arquitetura
 
 ```
-      dados experimentais (CSV)
+      planilha do experimento
                  │
                  ▼
     ┌────────────────────────────┐
-    │   NÚCLEO DETERMINÍSTICO    │   sem rede, sem LLM, sem aleatoriedade
+    │   NÚCLEO DETERMINÍSTICO    │   sem rede, sem IA, sem aleatoriedade
     │   ensaia/core              │   mesmo dado → mesmo resultado, sempre
     │                            │
-    │   OLS → ANOVA → efeitos    │
-    │       → desejabilidade     │
+    │   DCCR → OLS → ANOVA       │
+    │   → superfície → ótimo     │
     └────────────┬───────────────┘
                  │
                  ▼
          ╔═══════════════╗
-         ║ AnalysisResult ║   ◄── a fronteira. frozen, serializável em JSON
+         ║ AnalysisResult ║   ◄── a fronteira: congelado, serializável em JSON
          ╚═══════╤═══════╝
                  │
-         ┌───────┴───────────────┐
-         ▼                       ▼
-┌──────────────────┐   ┌───────────────────┐
-│    ensaia/ai     │   │ ensaia/validation │
-│   (LLM narra)    │   │   (§4.3 mede)     │
-│   não calcula    │   │                   │
-└──────────────────┘   └───────────────────┘
+     ┌───────────┼───────────┬──────────────┐
+     ▼           ▼           ▼              ▼
+   ui/        report/       ai/       mcp_server/
+  (tela)       (PDF)    (só escreve)  (assistentes)
 ```
 
-**O LLM narra, mas não calcula.** Essa é a decisão que sustenta a hipótese do
-trabalho — não adianta afirmar equivalência estatística com software pago se o
-modelo de linguagem puder alterar um número no caminho. A camada narrativa
-recebe um `AnalysisResult` congelado e nada mais.
-
-Isso não é convenção de código: está travado por teste automatizado em
-[`tests/test_arquitetura.py`](tests/test_arquitetura.py), que falha o CI se
-alguém importar `numpy` dentro de `ai/` ou `langchain` dentro de
-`core/`. Ver [ADR 0001](docs/decisoes/0001-fronteira-deterministica-llm.md).
+**A IA escreve, mas não calcula.** Toda conta acontece no núcleo; a tela, o PDF,
+a IA e o servidor MCP só leem o `AnalysisResult`. Isso é conferido por teste
+automático em [`tests/test_arquitetura.py`](tests/test_arquitetura.py) — ver
+[ADR 0001](docs/decisoes/0001-fronteira-deterministica-llm.md).
 
 ## Como rodar
 
-Requer Python 3.11+. Usamos [uv](https://docs.astral.sh/uv/) — mais rápido que
-pip e resolve o lockfile sozinho.
+Requer Python 3.11+ e o [uv](https://docs.astral.sh/uv/).
 
 ```bash
 # instalar o uv (uma vez só)
-curl -LsSf https://astral.sh/uv/install.sh | sh      # Linux/macOS
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"   # Windows
+curl -LsSf https://astral.sh/uv/install.sh | sh                # Linux/macOS
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"     # Windows
 
-# clonar e instalar (--all-extras traz interface, relatório, LLM e dev)
-git clone git@github.com:<org>/ensaia.git
-cd ensaia
+# clonar e instalar (--all-extras traz interface, relatório, IA, MCP e dev)
+git clone https://github.com/GustavoNeves19/Ensa.IA.git
+cd Ensa.IA
 uv sync --all-extras
 
 # rodar os testes
 uv run pytest
 
-# subir a interface web → abre em http://127.0.0.1:8080
+# subir a interface web → http://127.0.0.1:8080
 uv run ensaia-ui
 ```
 
-A interface é **NiceGUI sobre FastAPI**, servida por um único processo Uvicorn
-(spec seção 7.2; ver [ADR 0011](docs/decisoes/0011-interface-nicegui-processo-unico.md)).
-O entrypoint é `ensaia.app.main:main`, exposto como o script `ensaia-ui`.
+Para abrir de outro computador ou celular na mesma rede, suba escutando em
+todos os endereços e acesse pelo IP da máquina (ex.: `http://192.168.0.10:8080`):
 
-Ela depende do extra **`ui`**: o `uv sync --all-extras` acima já o instala. Se
-tiver sincronizado só o núcleo, `uv run ensaia-ui` falha com
-`ModuleNotFoundError: No module named 'fastapi'` — rode `uv sync --extra ui`
-(ou `--all-extras`) antes. Para parar o servidor, `Ctrl+C` no terminal.
+```bash
+uv run uvicorn ensaia.app.main:app --host 0.0.0.0 --port 8080
+```
 
-O texto do relatório pode ser escrito de quatro jeitos, escolhidos na tela:
-sem IA (sempre disponível), copiando o pedido para qualquer IA e colando a
-resposta de volta, com o Ollama local (só quando o EnsaIA roda no seu
-computador) ou com uma IA em nuvem usando a chave do próprio usuário (Gemini,
-Groq, OpenAI). Em todos os casos com IA, cada número do texto é conferido contra
-os resultados e o que não bate fica marcado em amarelo.
+O firewall do Windows pode pedir permissão na primeira vez.
 
-Quem hospeda pode oferecer uma IA pronta, sem o usuário precisar de chave:
-copie `.env.example` para `.env` e preencha `ENSAIA_IA_CHAVE`. **O `.env` nunca
-vai para o repositório.**
+**IA local.** Instale o [Ollama](https://ollama.com), baixe um modelo pequeno
+(`ollama pull qwen3:4b`, por exemplo) e deixe-o aberto na mesma máquina do
+EnsaIA. O endereço pode ser trocado na tela.
 
-O núcleo estatístico funciona sem chave nenhuma e sem internet — isso é
-proposital e é testado.
+**IA oferecida pelo servidor.** Copie `.env.example` para `.env` e preencha
+`ENSAIA_IA_CHAVE` (e, se quiser, `ENSAIA_IA_URL` e `ENSAIA_IA_MODELO`).
+**O `.env` nunca vai para o repositório.**
+
+O núcleo estatístico funciona sem chave nenhuma e sem internet.
 
 ## Rodar com Docker
-
-A imagem traz o que o app usa em produção (interface, relatório PDF e camada de
-IA) e sobe **um único processo**: o Uvicorn com 1 worker, na porta **8080**.
 
 ```bash
 docker compose up --build        # abre em http://localhost:8080
 ```
 
-- `GET /health` responde `{"status": "ok"}` quando o servidor está de pé. É a
-  sonda que o `HEALTHCHECK` da imagem e o painel de hospedagem usam para saber
-  se o app já pode receber acessos.
-- A IA oferecida pelo servidor lê `ENSAIA_IA_CHAVE` (ou `OPENAI_API_KEY`). No
-  `docker compose` ela vem do `.env`, se ele existir; sem a chave, o app
-  funciona normalmente: o texto sem IA, o "copiar para a sua IA" e a chave do
-  próprio usuário continuam disponíveis.
-- O `docker-compose.yml` limita o contêiner a 512 MB de RAM, o mesmo orçamento
-  da hospedagem (spec §16), e traz comentado um serviço `ollama` para IA local.
+- Um único processo (Uvicorn, 1 worker) na porta **8080**, limitado a 512 MB
+  de RAM, o mesmo orçamento da hospedagem.
+- `GET /health` responde `{"status": "ok"}` quando o servidor está de pé.
+- A IA oferecida pelo servidor vem do `.env`, se ele existir; sem ele, os modos
+  sem IA, copiar e chave própria continuam disponíveis.
 
 ### Publicar no EasyPanel
 
-O EasyPanel é um painel para VPS que constrói e roda contêineres Docker. Como o
-app é um processo só, basta um serviço:
-
 1. Crie um serviço do tipo **App** apontando para este repositório (branch
    `main`).
-2. Em **Build**, escolha **Dockerfile** (o arquivo `Dockerfile` da raiz).
-3. Em **Domains**, aponte o domínio para a porta **8080** do contêiner. Se o
-   painel definir a variável `PORT`, o app escuta nela.
-4. Em **Environment**, opcionalmente, defina `ENSAIA_IA_CHAVE` para oferecer
-   uma IA pronta aos usuários (com `ENSAIA_IA_URL` e `ENSAIA_IA_MODELO`; o
-   padrão é a OpenAI com `gpt-4o-mini`). Sem ela, cada usuário usa a própria
-   chave ou copia o pedido para a IA que preferir.
-5. Para assistentes de IA usarem o EnsaIA pela internet, defina também
-   `ENSAIA_HOSTS` com o domínio público (ex.: `ensaia.exemplo.com`; vários,
-   separados por vírgula). Sem ela, o `/api/mcp` só aceita chamadas de
-   localhost (proteção do SDK do MCP contra *DNS rebinding*).
+2. Em **Build**, escolha **Dockerfile**.
+3. Em **Domains**, aponte o domínio para a porta **8080** do contêiner.
+4. Em **Environment**, opcionalmente, defina `ENSAIA_IA_CHAVE` (com
+   `ENSAIA_IA_URL` e `ENSAIA_IA_MODELO`) para oferecer uma IA pronta.
+5. Para assistentes de IA usarem o MCP pela internet, defina `ENSAIA_HOSTS` com
+   o domínio público (vários, separados por vírgula).
 6. Faça o deploy e confira `https://<seu-domínio>/health`.
 
-Não é preciso volume: o app não grava nada em disco; a planilha enviada fica só
-na memória da sessão.
+Não é preciso volume: o app não grava nada em disco.
 
 ## Usar com assistentes de IA (MCP)
 
 O EnsaIA também é um servidor **MCP** (*Model Context Protocol*): assistentes
 como Claude, ChatGPT e LM Studio usam as análises como ferramentas, com os
-mesmos números da tela. O assistente orquestra e escreve; quem calcula é o
-núcleo do EnsaIA. Ferramentas: `read_table`, `detect_design`, `fit_model`,
-`compute_effects`, `check_residuals`, `find_stationary_point`, `optimize`,
-`run_full_analysis`, `render_pdf` e `verify_text` (confere cada número de um
-texto contra o resultado). Recursos: `doe://glossario`,
-`doe://guia-interpretacao`, `doe://catalogo` e `doe://exemplos/{nome}`.
+mesmos números da tela.
 
-**Local e privado (stdio).** No Claude Desktop, no LM Studio (`mcp.json`) e em
-clientes compatíveis:
+- **Ferramentas:** `read_table`, `detect_design`, `fit_model`,
+  `compute_effects` (Pareto), `check_residuals`, `find_stationary_point`,
+  `optimize`, `run_full_analysis` (aceita coluna de bloco), `render_pdf` e
+  `verify_text`.
+- **Recursos:** `doe://glossario`, `doe://guia-interpretacao`,
+  `doe://catalogo` e `doe://exemplos/{nome}`.
+
+**Local (stdio):**
 
 ```json
 { "mcpServers": { "ensaia": { "command": "uvx", "args": ["--from", "ensaia[mcp,report]", "ensaia-mcp"] } } }
 ```
 
-Num clone deste repositório, `uv run --extra mcp --extra report ensaia-mcp`
-sobe o mesmo servidor.
+Num clone deste repositório: `uv run --extra mcp --extra report ensaia-mcp`.
 
-**Pela internet (HTTP).** O servidor web já atende em
-`https://<seu-domínio>/api/mcp` (modo sem estado), para assistentes em nuvem
-com conectores MCP remotos. Ele só é carregado na primeira chamada, para não
-pesar na memória de quem usa apenas a tela. Configure `ENSAIA_HOSTS` (ver
-EasyPanel acima).
-
-**Ollama.** O Ollama não fala MCP sozinho: use um cliente intermediário (por
-exemplo `ollmcp` ou MCPHost) apontando para o `ensaia-mcp`.
+**Pela internet (HTTP):** o servidor web atende em `https://<seu-domínio>/api/mcp`
+(sem estado, carregado só na primeira chamada). Configure `ENSAIA_HOSTS`.
 
 ## Estrutura
 
 ```
 src/ensaia/
-├── core/          Núcleo determinístico. Offline, reprodutível.
-│   ├── design.py       Fatores, codificação [-1,+1], termos do modelo
-│   ├── model.py        Matriz de modelo e ajuste OLS
-│   ├── anova.py        ANOVA tipo II, seleção de termos, falta de ajuste
-│   ├── effects.py      Coeficientes, efeitos, intervalos de confiança
-│   ├── desirability.py Otimização de Derringer-Suich
-│   ├── table.py        Tabela de dados leve, em numpy, sem pandas (ADR 0008)
-│   ├── facts.py        Fatos interpretativos verificados a partir do ajuste
-│   ├── numeros.py      Extração/rastreio de números em português (utilidade)
-│   └── results.py      ★ AnalysisResult — o contrato da fronteira
-├── ai/            Camada de LLM (HTTP direto, sem LangChain — ADR 0006). Consome AnalysisResult, produz texto.
-├── validation/    Métricas do §4.3 do pré-projeto. É o instrumento de medida do TCC.
-├── report/        Relatório PDF (fpdf2 + matplotlib) a partir do resultado + texto (ADR 0010).
-├── io/            Leitura (CSV/XLSX → Table) e validação dos dados de entrada
-├── ui/            Interface web em NiceGUI: home, tema, upload
-└── app/           Processo único ASGI (FastAPI + Uvicorn). Entrypoint `ensaia-ui` (ADR 0011).
+├── core/          Núcleo estatístico determinístico (numpy e scipy, sem pandas)
+│   ├── identificacao.py  Codificação dos fatores e reconhecimento do DCCR
+│   ├── termos.py         Termos do modelo, confundimento e redução backward
+│   ├── model.py          Matriz do modelo e ajuste OLS (com ANOVA Tipo II)
+│   ├── anova.py          ANOVA da regressão, erro puro e falta de ajuste
+│   ├── blocos.py         Ensaios em blocos (dias, lotes)
+│   ├── surface.py        Superfície, previsão e ponto estacionário
+│   ├── desirability.py   Melhor condição e desejabilidade (Derringer-Suich)
+│   ├── pipeline.py       Fim a fim: dados → AnalysisResult
+│   ├── fluxo.py          Caminho comum da tela e do MCP
+│   ├── facts.py          Fatos verificados (texto sem IA)
+│   └── results.py        ★ AnalysisResult — o contrato da fronteira
+├── io/            Leitura de planilhas (→ Table), planilha-modelo e CSV
+├── ui/            Interface web em NiceGUI (envio, mapeamento, resultados, texto)
+├── report/        Relatório PDF (fpdf2 + matplotlib)
+├── ai/            Texto com IA e checagem de fidelidade (HTTP direto, sem LangChain)
+├── mcp_server/    Ferramentas para assistentes de IA
+├── validation/    Métricas de validação e o comando ensaia-validar
+├── conteudo/      Glossário e guia de leitura
+├── exemplos/      Exemplos públicos de DCCR
+└── app/           Processo único (FastAPI + Uvicorn); comando ensaia-ui
 
-casos_de_estudo/   Um diretório por caso, com dados + valores publicados
-docs/decisoes/     ADRs — por que cada decisão de arquitetura foi tomada
-tests/             Unitários, integração, e regressão contra valores publicados
+casos_de_estudo/   Um diretório por artigo: dados + valores publicados + fonte
+docs/decisoes/     ADRs — por que cada decisão foi tomada
+docs/pesquisa/     Material de apoio (resumo do livro de DOE, IHC, candidatos)
+tests/             Unitários, arquitetura e regressão contra valores publicados
 ```
 
-## Casos de estudo e validação
+Cada arquivo de `src/ensaia` começa com um resumo de duas linhas, e cada função
+tem uma linha dizendo o que faz.
 
-O capítulo de resultados do TCC sai daqui. Cada caso de estudo é uma pasta com
-os dados experimentais, os valores publicados no artigo original, e a citação
-da fonte — ver [`casos_de_estudo/README.md`](casos_de_estudo/README.md).
+## Validação numérica
 
-```bash
-uv run ensaia-validar                      # roda todos os casos
-uv run ensaia-validar --caso nome-do-caso  # roda um só
-```
+A correção dos números é testada contra duas referências:
 
-As métricas são as cinco fixadas no §4.3 do pré-projeto assinado:
+| Referência | O que é conferido | Onde |
+|---|---|---|
+| statsmodels (só nos testes) | Coeficientes, erros-padrão, t e p (até 1e-7) e ANOVA Tipo II | `tests/unit/test_oraculo_statsmodels.py` |
+| Barros Neto, Scarminio e Bruns (2010), cap. 6 | 5 exemplos de DCCR: coeficientes, ANOVA, R², R² máximo, falta de ajuste, F/F tabelado e ponto ótimo | `tests/unit/test_barros_neto_dccr.py` |
+
+Os artigos de DCCR usados como casos de estudo ficam em
+[`casos_de_estudo/`](casos_de_estudo/README.md), cada um com `dados.csv`,
+`referencia.yaml` (valores publicados) e `fonte.md` (procedência e ressalvas).
+Os critérios do §4.3 do pré-projeto:
 
 | | Métrica | Critério |
 |---|---|---|
@@ -225,28 +229,36 @@ As métricas são as cinco fixadas no §4.3 do pré-projeto assinado:
 | (b) | Concordância de significância | α = 0,05 |
 | (c) | Diferença de R² e R² ajustado | ≤ 0,01 |
 | (d) | Diferença na condição ótima | absoluta e % da faixa |
-| (e) | Fidelidade do relatório do LLM | classificação manual, item a item |
 
-Os limiares vêm do documento entregue à orientadora. Mudar um número aqui
-significa mudar o documento também — ver
+```bash
+uv run ensaia-validar                      # roda os casos prontos
+uv run ensaia-validar --caso nome-do-caso  # roda um só
+```
+
+O comando só roda casos que já passaram pela dupla conferência humana. Hoje
+todos estão em rascunho, então ele não roda nenhum. Ver
 [`docs/protocolo-validacao.md`](docs/protocolo-validacao.md).
 
 ## Idioma
 
 Identificadores, docstrings, documentação e mensagens de commit em
-**português**. A banca e a orientadora leem este código, e ela é do domínio de
-química, não de software — clareza para quem avalia vale mais que aderência à
-convenção anglófona.
-
-Exceção: termos estatísticos consagrados ficam como são (`OLS`, `ANOVA`, `R²`,
-`p-valor`), e nomes vindos de bibliotecas externas não são traduzidos.
+**português**: a banca e a orientadora leem este código. Termos estatísticos
+consagrados ficam como são (`OLS`, `ANOVA`, `R²`, `p-valor`).
 
 ## Estado atual
 
-Fase de implementação do pipeline (cronograma: ago–set/2026). O contrato
-`AnalysisResult`, as métricas de validação e os testes de arquitetura estão
-prontos; o núcleo estatístico está com as assinaturas definidas e as
-implementações marcadas com `TODO(#n)` apontando para as issues.
+- **Escopo:** só DCCR ([ADR 0013](docs/decisoes/0013-restricao-a-dccr.md) e
+  [ADR 0015](docs/decisoes/0015-sistema-so-dccr-de-ponta-a-ponta.md)). As
+  análises de fatoriais de triagem continuam no núcleo, mas não aparecem na
+  tela nem no PDF; outros planejamentos são trabalho futuro.
+- **Pronto:** leitura, mapeamento, reconhecimento do DCCR, modelo, ANOVA,
+  diagnóstico, superfície, otimização, blocos, texto (sem IA e com IA), PDF,
+  JSON e servidor MCP.
+- **IA e MCP:** continuam no sistema, mas estão fora do escopo do TCC
+  (especificação v0.6).
+- **Pendente:** escolha dos artigos de referência do TCC; dupla conferência
+  humana dos casos de estudo; catálogo de indicadores com fonte de cada
+  limiar; modos Iniciante e Avançado; teste com usuários.
 
 Ver [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de trabalho.
 

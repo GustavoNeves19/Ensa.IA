@@ -1,6 +1,6 @@
 # 0006 — A camada de IA fala HTTP direto, sem LangChain
 
-**Status:** Aceita · **Data:** 2026-10-02
+**Status:** Aceita (item 4 revisto pela [0016](0016-texto-com-ia-sem-mistura.md)) · **Data:** 2026-10-02
 
 ## Contexto
 

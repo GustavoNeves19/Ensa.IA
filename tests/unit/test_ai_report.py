@@ -7,8 +7,15 @@ o teste escolher (fiel, com número inventado, ou erro de conexão), sem rede.
 from __future__ import annotations
 
 import httpx
+import pytest
 
-from ensaia.ai.client import ClienteModelo, ConfiguracaoModelo
+from ensaia.ai.client import (
+    ClienteModelo,
+    ConfiguracaoModelo,
+    ErroDeConexao,
+    ErroDeResposta,
+    ErroDeTempo,
+)
 from ensaia.ai.report import gerar_relatorio
 from ensaia.core.results import (
     AjusteResposta,
@@ -100,8 +107,6 @@ def test_otimizacao_entra_quando_ha_ponto_otimo() -> None:
 
 
 def test_modo_com_ia_exige_cliente() -> None:
-    import pytest
-
     with pytest.raises(ValueError):
         gerar_relatorio(_resultado(), modo="m2", cliente=None)
 
@@ -121,7 +126,7 @@ def test_texto_fiel_do_modelo_e_aceito() -> None:
     assert all("Parágrafo fiel" in s.texto for s in rel.secoes)
 
 
-def test_numero_inventado_cai_para_m0_com_aviso() -> None:
+def test_numero_inventado_fica_com_a_ia_e_avisa() -> None:
     chamadas = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -136,36 +141,54 @@ def test_numero_inventado_cai_para_m0_com_aviso() -> None:
         _resultado(), modo="m2", cliente=cliente, tentativas_fidelidade=2
     )
 
-    # Todas as seções caíram para M0 (número fora dos fatos).
-    assert all(not s.com_ia for s in rel.secoes)
+    # O texto continua sendo o da IA; o número solto fica marcado na conferência.
+    assert all(s.com_ia and "123456,0" in s.texto for s in rel.secoes)
     assert len(rel.avisos) == len(rel.secoes)
-    assert all("fidelidade" in a for a in rel.avisos)
+    assert all("em destaque" in a for a in rel.avisos)
+    assert rel.fidelidade is not None and not rel.fidelidade.fiel
     # Retentou 2 vezes por seção (4 seções com fato × 2).
     assert chamadas["n"] == len(rel.secoes) * 2
 
 
-def test_erro_de_conexao_cai_para_m0() -> None:
+def test_fica_a_tentativa_com_menos_numeros_soltos() -> None:
+    respostas = iter(["Valores 111,1 e 222,2.", "Valor 333,3."] * 4)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        texto = next(respostas)
+        return httpx.Response(200, json={"choices": [{"message": {"content": texto}}]})
+
+    rel = gerar_relatorio(_resultado(), modo="m2", cliente=_cliente(handler))
+    assert all(s.texto == "Valor 333,3." for s in rel.secoes)
+
+
+def test_erro_de_conexao_sobe_sem_texto_do_sistema() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("sem rota", request=request)
 
-    cliente = _cliente(handler)
-    rel = gerar_relatorio(_resultado(), modo="m3", cliente=cliente)
-
-    assert all(not s.com_ia for s in rel.secoes)
-    assert all("não foi possível falar com o modelo" in a for a in rel.avisos)
+    with pytest.raises(ErroDeConexao):
+        gerar_relatorio(_resultado(), modo="m3", cliente=_cliente(handler))
 
 
-def test_sem_conexao_desiste_das_demais_secoes_com_um_aviso_so() -> None:
+def test_tempo_esgotado_sobe_como_erro_de_tempo() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("demorou", request=request)
+
+    with pytest.raises(ErroDeTempo) as info:
+        gerar_relatorio(_resultado(), modo="m3", cliente=_cliente(handler))
+    assert info.value.segundos == 30.0
+
+
+def test_chave_recusada_para_na_primeira_chamada() -> None:
     chamadas = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
         chamadas["n"] += 1
         return httpx.Response(401, json={"error": "chave recusada"})
 
-    rel = gerar_relatorio(_resultado(), modo="m3", cliente=_cliente(handler))
+    with pytest.raises(ErroDeResposta) as info:
+        gerar_relatorio(_resultado(), modo="m3", cliente=_cliente(handler))
+    assert info.value.status == 401
     assert chamadas["n"] == 1
-    assert len(rel.avisos) == 1 and "401" in rel.avisos[0]
-    assert all(not s.com_ia for s in rel.secoes)
 
 
 def test_texto_completo_junta_titulos_e_secoes() -> None:
@@ -173,3 +196,16 @@ def test_texto_completo_junta_titulos_e_secoes() -> None:
     completo = rel.texto_completo()
     assert completo.startswith("## ")
     assert rel.secoes[0].titulo in completo
+
+
+def test_ao_avancar_segue_as_secoes_pedidas_a_ia() -> None:
+    passos: list[tuple[int, int, str]] = []
+    rel = gerar_relatorio(
+        _resultado(),
+        modo="m3",
+        cliente=_cliente(_responder("Parágrafo sem números.")),
+        ao_avancar=lambda n, total, titulo: passos.append((n, total, titulo)),
+    )
+
+    assert [(n, total) for n, total, _ in passos] == [(1, 4), (2, 4), (3, 4), (4, 4)]
+    assert [t for _, _, t in passos] == [s.titulo for s in rel.secoes]

@@ -27,6 +27,15 @@ class ErroDeConexao(ErroDeIA):
     """A requisição não recebeu resposta (rede, DNS, tempo limite)."""
 
 
+class ErroDeTempo(ErroDeConexao):
+    """O modelo não respondeu dentro do tempo limite."""
+
+    def __init__(self, mensagem: str, *, segundos: float) -> None:
+        """Guarda a mensagem e o limite usado."""
+        super().__init__(mensagem)
+        self.segundos = segundos
+
+
 class ErroDeResposta(ErroDeIA):
     """O provedor respondeu com status de erro."""
 
@@ -84,7 +93,9 @@ class ConfiguracaoModelo:
     url_base: str
     modelo: str
     chave_api: str | None = None
-    timeout_s: float = 60.0
+    # Espera máxima pela resposta; tempo esgotado não é repetido.
+    timeout_s: float = 30.0
+    timeout_conexao_s: float = 5.0
     max_tentativas: int = 3
     espera_base_s: float = 0.5
     temperatura: float = 0.0
@@ -97,6 +108,8 @@ class ConfiguracaoModelo:
             raise ValueError("modelo é obrigatório.")
         if self.max_tentativas < 1:
             raise ValueError("max_tentativas deve ser ≥ 1.")
+        if self.timeout_s <= 0 or self.timeout_conexao_s <= 0:
+            raise ValueError("Os tempos limite devem ser positivos.")
         if not 0.0 <= self.temperatura <= 2.0:
             raise ValueError("temperatura deve estar entre 0,0 e 2,0.")
 
@@ -123,7 +136,7 @@ class ClienteModelo:
         if config.chave_api:
             cabecalhos["Authorization"] = f"Bearer {config.chave_api}"
         self._cliente = httpx.Client(
-            timeout=config.timeout_s,
+            timeout=httpx.Timeout(config.timeout_s, connect=config.timeout_conexao_s),
             headers=cabecalhos,
             transport=transporte,
         )
@@ -156,7 +169,7 @@ class ClienteModelo:
         try:
             resposta = self._cliente.get(url)
         except httpx.TimeoutException as exc:
-            raise ErroDeConexao(f"Tempo esgotado ao chamar {url}.") from exc
+            raise self._tempo_esgotado(url) from exc
         except httpx.TransportError as exc:
             raise ErroDeConexao(f"Falha de conexão com {url}: {exc}") from exc
         if resposta.status_code >= 400:
@@ -206,12 +219,8 @@ class ClienteModelo:
             try:
                 resposta = self._cliente.post(self.config.endpoint, json=payload)
             except httpx.TimeoutException as exc:
-                if ultima:
-                    raise ErroDeConexao(
-                        f"Tempo esgotado ao chamar {self.config.endpoint}."
-                    ) from exc
-                self._esperar(tentativa)
-                continue
+                # Modelo lento não fica mais rápido na segunda vez: falha já.
+                raise self._tempo_esgotado(self.config.endpoint) from exc
             except httpx.TransportError as exc:
                 if ultima:
                     raise ErroDeConexao(
@@ -233,6 +242,15 @@ class ClienteModelo:
 
         # Inalcançável: o laço ou retorna, ou levanta na última tentativa.
         raise ErroDeConexao("Falha ao obter resposta do modelo.")
+
+    def _tempo_esgotado(self, url: str) -> ErroDeTempo:
+        """Erro de tempo esgotado com o limite usado."""
+        segundos = self.config.timeout_s
+        return ErroDeTempo(
+            f"O modelo não respondeu em {segundos:g} s "
+            f"(tempo esgotado ao chamar {url}).",
+            segundos=segundos,
+        )
 
     def _esperar(self, tentativa: int) -> None:
         """Espera antes da próxima tentativa (crescente)."""

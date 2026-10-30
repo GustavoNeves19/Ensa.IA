@@ -619,17 +619,18 @@ Base: `ESPECIFICACAO.md` v0.6 (grupos A, C, D e E). **Confirme no código** que 
 | A2 | Nº de pontos centrais | ✅ | 297 | Regra: 3 a 5 repetições se α ≈ √k. Bom candidato a indicador de atenção. |
 | A3 | Codificação real ↔ codificada | ✅ | 267, 273, 308 | x = (X − centro)/meia-amplitude. Coeficientes mudam com a escala (p. 280). |
 | C1 | Coeficientes (MQO) | ✅ | 222 (eq. 5.12) | b = (X'X)⁻¹X'y. Teste com a seção 16. |
-| C1 | Coeficientes em unidades reais | ⚠️ | 273, 277 | O livro só converte pontos (ótimo e caminho), não a equação inteira. |
+| C1 | Coeficientes em unidades reais | ⚠️ | 223, 271–273, 280 | O livro converte pontos (caminho e ótimo) e ajusta a reta direto em °C (eq. 5.13), mas não expande a equação codificada inteira. Ver 18.1. |
+| C1 | Pareto dos efeitos padronizados | ⚠️ | 109–110 (eq. 3.6), 234 | A regra de decisão está no livro (\|efeito\| > t·s(efeito), o mesmo que \|t\| > t crítico); o gráfico de barras não. Ver 18.1. |
 | C1 | Erro-padrão, t, IC 95% | ✅ | 233–236 (eq. 5.22, 5.30) | ν = g.l. da variância usada. Ver a seção 9 sobre resíduo × erro puro. |
 | C1 | Termo de erro (resíduo × erro puro) | ✅ | 233, 236, 248, 268, 300–307 | Teoria com MQ_r; exemplos com MQ_ep. As duas opções têm base. Registrar a escolhida. |
-| C1 | Significância por p < α | ⚠️ | 234 | O livro usa o IC (contém zero?) e trabalha a **95%**. Não usa α = 0,10. |
+| C1 | Significância por p < α | ⚠️ | 234, 401, 404 | O livro usa o IC (contém zero?) e trabalha a **95%** nos exemplos. As tabelas trazem t e F para α = 0,10, mas o texto não os aplica. Ver 18.1. |
 | C1 | Hierarquia (manter b₀) | ✅ | 234 | Mantém-se b₀ mesmo não significativo. Hierarquia para outros termos não é discutida. |
 | C1 | Redução do modelo | ⚠️ | 285, 304 | Em 6A.3 o livro **não reajusta**: mantém os coeficientes do modelo completo (seção 16.4). Na eq. 6.11 (p. 285) também apenas elimina termos. Documentar a prática do sistema. |
 | C2 | Tabela ANOVA completa | ✅ | 245 (Tabela 5.8) | Fórmulas e g.l. na seção 5. |
 | C3 | R² | ✅ | 229 (eq. 5.17) | "% de variação explicada". |
 | C3 | R² máximo | ✅ | 245–246 | (SQ_T − SQ_ep)/SQ_T. Só com repetições. |
-| C3 | R² ajustado | ❌ | — | Não está no livro. Precisa de outra fonte. |
-| C3 | R² de predição (PRESS) | ❌ | — | Não está no livro. Precisa de outra fonte. |
+| C3 | R² ajustado | ❌ | — | Não está no livro (busca no texto integral). Precisa de outra fonte. |
+| C3 | R² de predição (PRESS) | ❌ | 309–312 (só ideia) | PRESS não aparece. O livro valida com conjunto de teste separado (6A.5), não com deixar-um-fora. Ver 18.1. |
 | C3 | F da regressão e F tabelado | ✅ | 237 (eq. 5.31) | MQ_R/MQ_r contra F(p − 1, n − p). |
 | C3 | Razão F_calc/F_tab ≥ ~10 | ✅ | 238 | Regra de Box e Wetz (1973) para regressão útil para previsão. |
 | C4 | Falta de ajuste | ✅ | 244–245 | MQ_faj/MQ_ep contra F(m − p, n − m). Exige m > p e repetições. |
@@ -637,13 +638,16 @@ Base: `ESPECIFICACAO.md` v0.6 (grupos A, C, D e E). **Confirme no código** que 
 | C6 | Previstos × observados | ✅ | 285, 301 | Gráfico e erro médio absoluto (Tabela 6.11). |
 | C7 | Comparação de modelos | ✅ | 238–241, 283 | Linear × quadrático por % explicada, falta de ajuste, F e resíduos. |
 | D1 | Resíduos × previstos | ✅ | 239, 242, 283–284 | Padrão curvo = termo faltando; funil = heteroscedasticidade. |
-| D2 | Normalidade dos resíduos | ⚠️ | 232, 239 | O livro exige a hipótese de normalidade, mas **não usa Shapiro-Wilk**. Precisa de outra fonte para o teste. |
-| D3 | Resíduos × ordem de execução | ❌ | — | Não encontrado no livro. |
-| D4 | Pontos influentes (Cook, alavancagem) | ⚠️ | 312 (só ideia) | O livro só sugere repetir um ensaio anômalo. Cook e alavancagem precisam de outra fonte. |
+| D2 | Gráfico Q-Q dos resíduos | ✅ | 132–138 | Gráfico normal dos resíduos (p. 137–138). Posição (i − 0,5)/n no livro; Blom no sistema. Ver 18.1. |
+| D2 | Teste de Shapiro-Wilk | ❌ | 232, 239 | O livro exige a hipótese de normalidade, mas **não tem teste formal**. Precisa de outra fonte. |
+| D3 | Resíduos × ordem de execução | ⚠️ | 85–89, 107, 232 | O gráfico de resíduos × ordem não aparece; a base dele sim: erros não correlacionados (p. 232), aleatorização (p. 107) e dados na ordem de execução (Figura 2A.1). Ver 18.1. |
+| D4 | Alavancagem | ⚠️ | 235 (eq. 5.26) | Só para a reta: o fator 1/n + (X − X̄)²/S_xx da variância da previsão é o hᵢᵢ. Ver 18.1. |
+| D4 | Resíduo studentizado e Cook | ❌ | 89–92, 312 (só ideia) | Não estão no livro. Há só testes de anomalia em amostra simples (Dixon, Grubbs) e a sugestão de repetir o ensaio anômalo. |
 | E1, E2 | Superfície e curvas de nível | ✅ | 270, 279, 285–288 | — |
-| E3 | Ponto estacionário | ⚠️ | 277–278 | Via derivadas (exercício 6.8). A forma matricial e a classificação por autovalores não estão no livro (seção 14). |
+| E3 | Ponto estacionário | ✅ | 277–278, 396 | Via derivadas (exercício 6.8; resposta na p. 396: x₁ = 0,152, x₂ = −0,374). A forma matricial dá o mesmo ponto. |
+| E3 | Natureza (máximo, mínimo, sela) por autovalores | ❌ | 277 | O livro só classifica pelo gráfico ("ponto de máximo", Figura 6.6). Análise canônica e autovalores não aparecem; o livro remete a Myers e Montgomery (1995) e Box e Draper (1987), p. 265 e 298. |
 | E3 | Aviso de ótimo fora da região | ✅ | 241, 278 | Extrapolação é arriscada; deslocar e remodelar. |
-| E4 | Otimização de uma resposta | ⚠️ | 277–278 | O conceito está no livro; o algoritmo (busca em malha + refinamento local) não. |
+| E4 | Otimização de uma resposta | ⚠️ | 277–278, 292 | O conceito está no livro, e a busca em malha também (grade 20 × 20 × 20 na p. 292). O refinamento local (L-BFGS-B, Powell) não. |
 | E5 | Desejabilidade | ✅ | 289–294 (eq. 6.13–6.14) | Conferir as fórmulas, os unilaterais, s e t, e a grade. Teste com Tabela 6.12 — D = 0,99. |
 | E6 | Previsão "e se?" e intervalo | ⚠️ | 235–236 (eq. 5.27–5.29) | Fórmula só para a reta; a forma matricial decorre da eq. 5.30 (seção 10). |
 | E6 | Ensaio de confirmação | ✅ | 241, 291 | — |
@@ -653,16 +657,56 @@ Base: `ESPECIFICACAO.md` v0.6 (grupos A, C, D e E). **Confirme no código** que 
 
 ## 18. O que o livro NÃO cobre (precisa de outra fonte ou fica "a confirmar")
 
+Conferido em 25/10/2026 no texto integral do livro (OCR das páginas 15–329, 363–406 e índice remissivo). Nenhum destes termos aparece: R² ajustado, PRESS, Shapiro, Cook, alavancagem, studentizado, Pareto, canônica, autovalor, sela.
+
 - R² ajustado.
-- R² de predição / PRESS.
-- Teste de Shapiro-Wilk e outros testes formais de normalidade.
-- Distância de Cook, alavancagem (h_ii) e resíduos studentizados.
-- Gráfico de resíduos à ordem de execução.
+- R² de predição / PRESS (só a ideia de validar com conjunto de teste, p. 309–312).
+- Teste de Shapiro-Wilk e outros testes formais de normalidade dos resíduos.
+- Distância de Cook e resíduos studentizados. A alavancagem só aparece na reta (eq. 5.26).
 - Análise canônica e classificação do ponto estacionário por autovalores.
-- Uso de α = 0,10; o livro trabalha sempre a 95%.
-- Algoritmo numérico de otimização (malha + refinamento local, múltiplos pontos de partida).
-- Conversão da equação inteira para unidades reais.
+- Refinamento local da busca do ótimo (a malha está no livro, p. 292).
+- Expansão da equação codificada inteira para unidades reais.
 - Variância da previsão em forma matricial; apenas implícita na eq. 5.30.
+- O gráfico de Pareto em si (a regra de decisão está no livro).
+
+O próprio livro indica onde procurar o resto: Myers e Montgomery (1995) e Box e Draper (1987) para a RSM completa (p. 265 e 298), e Montgomery (1997) para planejamento em geral. As duas primeiras referências tratam de análise canônica, R² ajustado, PRESS, alavancagem, resíduos studentizados e Cook, e são a ponte natural para citar o que falta.
+
+### 18.1 O livro × o sistema, métrica a métrica
+
+| Métrica | O que o livro tem | O que o sistema faz | Veredito |
+|---|---|---|---|
+| R² ajustado | Nada. O livro compara o R² com o R² máximo explicável (p. 245–246). | `1 − [SQres/(n − p)]/[SQT/(n − 1)]` (`core/model.py`). | Sem fonte no livro. |
+| R² de predição (PRESS) | 6A.5 (p. 309–312): ajusta com um conjunto de treinamento e mede os erros de previsão num conjunto de teste; "os erros de previsão não devem apresentar comportamento sistemático". | `1 − PRESS/SQT`, `PRESS = Σ[eᵢ/(1 − hᵢᵢ)]²` (deixar-um-fora sem reajustar). | Mesma pergunta (o modelo prevê o que não viu?), método diferente. Citar o livro para a ideia e outra fonte para o PRESS. |
+| Gráfico Q-Q | Gráfico normal (p. 132–137); p. 137–138 o aplica aos resíduos: devem cair numa reta que passa por (0, 0). Posições pelo centro de cada fatia, (i − 0,5)/n (Tabela 3.9: 3,33% para o 1º de 15). Nota 3 da p. 138: com poucos g.l. o gráfico diz pouco. | Posições de Blom, (i − 3/8)/(n + 1/4); reta pelos quartis (`core/diagnostico.py`). | Coberto. Diferem só a fórmula da posição e a reta de referência; a forma do gráfico e a leitura são as mesmas. |
+| Shapiro-Wilk | Hipótese de erros normais (p. 232, 237); o F só vale "se não houver evidência de anormalidade" (p. 239). Nenhum teste formal. | `scipy.stats.shapiro`, `p < α` → não normal. | Sem fonte no livro. |
+| Alavancagem | Eq. 5.26 (p. 235): V(ŷ) = σ²[1/n + (X − X̄)²/S_xx]; "quanto mais longe de X̄, mais incertas serão as previsões". O colchete é o hᵢᵢ da reta. | `hᵢᵢ` = diagonal de X(XᵀX)⁻¹Xᵀ; corte `2p/n`. | Ideia coberta para a reta; a forma matricial decorre da eq. 5.30. O corte 2p/n precisa de outra fonte. |
+| Resíduo studentizado | Nada. O mais próximo é o teste de Grubbs (p. 91): distância ao valor médio medida em desvios-padrão. | Interno `eᵢ/√(QMres(1 − hᵢᵢ))`; externo (R-student) com corte `\|t\| > 3`. | Sem fonte no livro. |
+| Distância de Cook | Nada. Para um ensaio anômalo, o livro manda repetir o ensaio (p. 312). | `Dᵢ = rᵢ²·hᵢᵢ/[p(1 − hᵢᵢ)]`; influente se `D > 1` e `h > 2p/n`. | Sem fonte no livro. A recomendação "conferir o ensaio" bate com a p. 312. |
+| Resíduos × ordem | Hipótese 2 da p. 232: erros de ensaios diferentes não correlacionados. Aleatorização contra fatores desconhecidos (p. 107); a numeração dos ensaios "nada tem a ver" com a ordem de execução. 2A.1 (p. 85–89): dados plotados na ordem em que foram obtidos (Figura 2A.1) mostram efeitos do horário. Figuras 6A.8–6A.9: resíduos por número do ensaio. | Resíduos na ordem da coluna de ordem; tendência = deriva. | Base conceitual coberta (independência e aleatorização). O gráfico de resíduos × ordem em si precisa de outra fonte. O sistema faz bem em exigir a coluna de ordem, porque o número do ensaio não é a ordem (p. 107). |
+| Ponto estacionário | Derivadas parciais igualadas a zero (exercício 6.8, p. 278; resposta p. 396). | `xₛ = −½B⁻¹b`, que é a solução do mesmo sistema de derivadas. | Coberto. Com a eq. 6.8, o sistema dá (0,153; −0,372) e o livro (0,152; −0,374); a diferença vem do arredondamento dos coeficientes. |
+| Máximo, mínimo ou sela | Só pelo gráfico ("a região contém um ponto de máximo", p. 277). Exercício 6.8(b): um plano não tem extremo. | Sinais dos autovalores de B. | Sem fonte no livro. Na eq. 6.8 os autovalores são −3,69 e −1,94 (máximo), o que concorda com o livro. |
+| α = 0,10 | Todos os exemplos a 95% (e 99% no teste de Dixon, p. 91). O exercício 2.27 (p. 83) pergunta a que nível de confiança a conclusão muda. Tabela A.2 (p. 401) tem t para área 0,05 por cauda; Tabela A.4 (p. 404) tem F a 10%. | 0,05 (padrão) ou 0,10. | Parcial: o livro trata o nível de confiança como escolha e traz as tabelas, mas nunca usa 90%. Justificar o 0,10 com outra fonte (ver ADR 0003). |
+| Busca do ótimo | Grade de 20 pontos por fator, 8.000 combinações, para a desejabilidade (p. 292). O simplex do cap. 8 (Nelder e Mead, 1965, p. 370) é sequencial com experimentos, não numérico. | Malha (41, 21 ou 11 por eixo; 4.000 sorteados com 5+ fatores) e refinamento local dos 5 melhores (L-BFGS-B ou Powell). | A malha está coberta; o refinamento local precisa de outra fonte (documentação do SciPy ou a referência dos métodos). |
+| Equação em unidades reais | Codificação x = (X − centro)/meia-amplitude (Tabela 6.5, p. 273); conversão de pontos (p. 271–273); os coeficientes mudam com a escala (p. 280); a reta ajustada direto em °C (eq. 5.13). | Substitui x = (X − c)/s no polinômio codificado e expande (`core/equacao.py`). | Parcial: a relação de codificação está no livro, a expansão é álgebra direta dela. |
+| Pareto dos efeitos | Eq. 3.6 (p. 109–110): um efeito é significativo se \|efeito\| > t_ν·s(efeito); na regressão, se o IC não contém zero (p. 234). A alternativa gráfica do livro é o gráfico normal dos efeitos (p. 132–137). | Barras de \|t\| = \|b/s(b)\| com linha em t(1 − α/2; gl). Como efeito = 2b e s(efeito) = 2s(b), a razão é a mesma. | Regra coberta; o gráfico de barras precisa de outra fonte (é a saída padrão do Statistica, ADR 0015). |
+
+### 18.2 O que os casos de estudo mostram (Sarrai et al., 2016; Igreja et al., 2023)
+
+Os dois artigos são casos de estudo do projeto (`casos_de_estudo/tylosin-photo-fenton` e `casos_de_estudo/igreja-2023-acai-hidrolise-acida`). São artigos de **aplicação**: usam as métricas, mas não as definem nem as justificam. Servem para mostrar que a prática aparece em DCCR publicado, não como fonte do método. Conferido no texto integral dos PDFs em 25/10/2026.
+
+| Métrica | Sarrai et al. (2016), *Materials* 9, 428 | Igreja et al. (2023), *Molecules* 28, 6661 | Confronto com o sistema |
+|---|---|---|---|
+| R² ajustado | Reporta R²adj = 0,973 (Tabela 3, MODDE), sem fórmula. | Não usa. | A fórmula do sistema com o R² do artigo (0,986; n = 20; p = 10) dá 0,973. Com os dados, o sistema dá R² = 0,988 e R²aj = 0,977; a diferença já vem do R². |
+| R² de predição (PRESS) | Não usa. Confirma o ótimo com um ensaio (Tabela 4). | Não usa. Chama os modelos de "significativos, mas não preditivos" por causa da falta de ajuste. | Sem uso nos artigos. |
+| Pareto dos efeitos padronizados | Não usa (ordena os efeitos pelos coeficientes). | Usa: "Pareto charts for the standardized effect estimates (absolute values)" (Figura 2, Statistica 7.0), linha em p = 0,1. | Mesmo gráfico do sistema (\|t\| com linha no t crítico). Os valores de t estão na Tabela S2, só no material suplementar. |
+| α = 0,10 | Não; usa α = 0,05. | Usa: Pareto e ANOVA a 10% (α = 0,1, seção 3.6); F tabelado = 2,72. | 2,72 é F₀,₁₀(9; 7), o mesmo que o sistema usa com α = 0,10 e o resíduo como erro (17 ensaios, 10 termos). |
+| Resíduos × ordem | Só diz que "the order of experiments was arranged randomly". | Não usa. | Apoia a aleatorização, não o gráfico. |
+| Q-Q, Shapiro-Wilk, Cook, alavancagem, studentizado | Não usa. | Não usa. Fala só da "distribuição dos resíduos" (aleatória × curva) na Figura 3. | Sem uso nos artigos. |
+| Ponto estacionário e autovalores | Não. Ótimo lido nas curvas de nível (pH 2,6–2,7; Fe²⁺ 5,8–6,0). | Não. Ótimo pela desejabilidade do Statistica. | Sem uso nos artigos. |
+| Busca do ótimo | Não descreve o algoritmo. | Desejabilidade (Figura S1), sem algoritmo descrito. | Sem uso nos artigos. |
+| Equação em unidades reais | Só a equação codificada (eq. 11). | Não traz a equação. | Sem uso nos artigos. |
+
+Um cuidado ao citar Igreja et al. (2023): na p. 7 eles chamam de significativa a regressão da massa solubilizada com F = 1,93, mas esse valor é **menor** que o F tabelado (2,72).
 
 ---
 
