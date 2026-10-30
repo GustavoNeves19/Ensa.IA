@@ -21,7 +21,7 @@ análise depende de softwares pagos (Statistica, Minitab, Design-Expert,
 Protimiza), e ler a saída deles exige uma formação em estatística que muitos
 estudantes e profissionais de química não têm.
 
-O EnsaIA faz a análise completa de um DCCR no navegador, sem instalar nada e
+O EnsaIA faz a análise completa de um DCCR pelo navegador, sem instalar nada e
 sem guardar os dados, e explica cada número na própria tela.
 
 ## O que o sistema faz
