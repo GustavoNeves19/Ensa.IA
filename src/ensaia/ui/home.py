@@ -75,8 +75,9 @@ def _headline() -> None:
     )
     ui.html(
         '<div class="ea-sub">Envie a planilha dos seus ensaios. O EnsaIA faz o '
-        "delineamento, a análise estatística e o relatório — offline, sem "
-        "instalar nada e sem mandar seus dados para lugar nenhum.</div>"
+        "delineamento, a análise estatística e o relatório, sem instalar nada: "
+        "sua planilha é lida só na memória, nada é gravado e tudo some quando "
+        "você fecha a página.</div>"
     )
 
 
