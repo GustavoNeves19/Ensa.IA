@@ -194,7 +194,10 @@ def _painel_m2(sessao: Sessao, saida: ui.column) -> None:
 
     def config(modelo: str) -> ConfiguracaoModelo:
         """Configuração do Ollama com o modelo escolhido."""
-        return ConfiguracaoModelo(url_base=str(endereco.value), modelo=modelo)
+        # O Ollama pode levar mais tempo para carregar o modelo na 1ª chamada.
+        return ConfiguracaoModelo(
+            url_base=str(endereco.value), modelo=modelo, timeout_s=60.0
+        )
 
     _conectar_e_narrar(sessao, saida, OLLAMA, config, modo="m2")
 

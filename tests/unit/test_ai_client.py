@@ -210,13 +210,26 @@ def test_esgota_tentativas_em_status_transitorio() -> None:
     assert chamadas["n"] == 3
 
 
-def test_timeout_vira_erro_de_conexao() -> None:
+def test_timeout_vira_erro_de_conexao_sem_repetir() -> None:
+    chamadas = {"n": 0}
+
     def handler(request: httpx.Request) -> httpx.Response:
+        chamadas["n"] += 1
         raise httpx.ReadTimeout("demorou", request=request)
 
-    cliente = _cliente(handler, max_tentativas=2)
-    with pytest.raises(ErroDeConexao):
+    cliente = _cliente(handler, max_tentativas=3)
+    with pytest.raises(ErroDeConexao, match="não respondeu em 30 s"):
         cliente.completar([Mensagem.usuario("oi")])
+
+    assert chamadas["n"] == 1  # tempo esgotado não repete
+    assert cliente.esperas == []
+
+
+def test_tempo_limite_configurado_no_httpx() -> None:
+    config = ConfiguracaoModelo(url_base=URL_BASE, modelo="m", timeout_s=12.0)
+    with ClienteModelo(config) as cliente:
+        assert cliente._cliente.timeout.read == 12.0
+        assert cliente._cliente.timeout.connect == 5.0
 
 
 # --- respostas malformadas ------------------------------------------------
@@ -272,6 +285,7 @@ def test_uso_ausente_vira_none() -> None:
         {"url_base": URL_BASE, "modelo": "m", "max_tentativas": 0},
         {"url_base": URL_BASE, "modelo": "m", "temperatura": 2.5},
         {"url_base": URL_BASE, "modelo": "m", "temperatura": -0.1},
+        {"url_base": URL_BASE, "modelo": "m", "timeout_s": 0},
     ],
 )
 def test_config_invalida(kwargs: dict) -> None:
