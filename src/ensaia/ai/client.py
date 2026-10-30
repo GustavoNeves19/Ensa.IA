@@ -27,6 +27,15 @@ class ErroDeConexao(ErroDeIA):
     """A requisição não recebeu resposta (rede, DNS, tempo limite)."""
 
 
+class ErroDeTempo(ErroDeConexao):
+    """O modelo não respondeu dentro do tempo limite."""
+
+    def __init__(self, mensagem: str, *, segundos: float) -> None:
+        """Guarda a mensagem e o limite usado."""
+        super().__init__(mensagem)
+        self.segundos = segundos
+
+
 class ErroDeResposta(ErroDeIA):
     """O provedor respondeu com status de erro."""
 
@@ -160,7 +169,7 @@ class ClienteModelo:
         try:
             resposta = self._cliente.get(url)
         except httpx.TimeoutException as exc:
-            raise ErroDeConexao(self._msg_tempo_esgotado(url)) from exc
+            raise self._tempo_esgotado(url) from exc
         except httpx.TransportError as exc:
             raise ErroDeConexao(f"Falha de conexão com {url}: {exc}") from exc
         if resposta.status_code >= 400:
@@ -211,9 +220,7 @@ class ClienteModelo:
                 resposta = self._cliente.post(self.config.endpoint, json=payload)
             except httpx.TimeoutException as exc:
                 # Modelo lento não fica mais rápido na segunda vez: falha já.
-                raise ErroDeConexao(
-                    self._msg_tempo_esgotado(self.config.endpoint)
-                ) from exc
+                raise self._tempo_esgotado(self.config.endpoint) from exc
             except httpx.TransportError as exc:
                 if ultima:
                     raise ErroDeConexao(
@@ -236,11 +243,13 @@ class ClienteModelo:
         # Inalcançável: o laço ou retorna, ou levanta na última tentativa.
         raise ErroDeConexao("Falha ao obter resposta do modelo.")
 
-    def _msg_tempo_esgotado(self, url: str) -> str:
-        """Mensagem de tempo esgotado com o limite usado."""
-        return (
-            f"O modelo não respondeu em {self.config.timeout_s:g} s "
-            f"(tempo esgotado ao chamar {url})."
+    def _tempo_esgotado(self, url: str) -> ErroDeTempo:
+        """Erro de tempo esgotado com o limite usado."""
+        segundos = self.config.timeout_s
+        return ErroDeTempo(
+            f"O modelo não respondeu em {segundos:g} s "
+            f"(tempo esgotado ao chamar {url}).",
+            segundos=segundos,
         )
 
     def _esperar(self, tentativa: int) -> None:

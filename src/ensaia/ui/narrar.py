@@ -17,6 +17,8 @@ from ensaia.ai.client import (
     ErroDeConexao,
     ErroDeIA,
     ErroDeResposta,
+    ErroDeTempo,
+    RespostaInvalida,
 )
 from ensaia.ai.fidelity import (
     RelatorioFidelidade,
@@ -245,7 +247,9 @@ def _painel_servidor(
         "são enviados, nunca a sua planilha.</div>"
     )
     botao = _botao("Escrever com IA", "Escrevendo…", icone="edit_note")
-    botao.on_click(lambda: _narrar(sessao, saida, config, "m3", botao))
+    botao.on_click(
+        lambda: _narrar(sessao, saida, config, "m3", botao, "servidor do EnsaIA")
+    )
 
 
 def _painel_chave(sessao: Sessao, saida: ui.column, provedor: Provedor) -> None:
@@ -343,7 +347,7 @@ def _conectar_e_narrar(
             if _chave_recusada(erro):
                 ao_recusar()
             ui.notify(
-                _mensagem_erro(erro, provedor),
+                _mensagem_erro(erro, provedor.nome, ollama=provedor is OLLAMA),
                 type="negative",
                 position="top",
                 timeout=9000,
@@ -383,7 +387,13 @@ def _conectar_e_narrar(
                 narrar = _botao("Escrever com IA", "Escrevendo…", icone="edit_note")
                 narrar.on_click(
                     lambda: _narrar(
-                        sessao, saida, config(str(modelo.value)), modo, narrar
+                        sessao,
+                        saida,
+                        config(str(modelo.value)),
+                        modo,
+                        narrar,
+                        provedor.nome,
+                        ollama=provedor is OLLAMA,
                     )
                 )
 
@@ -417,8 +427,11 @@ async def _narrar(
     config: ConfiguracaoModelo,
     modo: Modo,
     botao: ui.button,
+    nome: str,
+    *,
+    ollama: bool = False,
 ) -> None:
-    """Gera o texto com a IA e mostra o resultado."""
+    """Gera o texto com a IA e mostra o resultado, ou o erro do modelo."""
     analise = sessao.analise
     # (n, total, título): escrito pela thread do trabalho, lido pelo timer da tela.
     progresso: list[tuple[int, int, str]] = []
@@ -433,7 +446,7 @@ async def _narrar(
         etapa = ui.label("Preparando os resultados…").classes("ea-progresso-etapa")
         ui.label(
             "Cada número do texto é conferido com a análise. Se o modelo não "
-            f"responder em {config.timeout_s:g} s, o texto segue sem IA."
+            f"responder em {config.timeout_s:g} s, a escrita para com um aviso."
         ).classes("ea-ler")
 
         def atualizar() -> None:
@@ -459,6 +472,17 @@ async def _narrar(
     botao.props("loading")
     try:
         relatorio = await run.io_bound(trabalho)
+    except ErroDeIA as erro:
+        # Sem texto do sistema no lugar: o texto com IA só sai se a IA escrever.
+        sessao.texto = None
+        saida.clear()
+        with saida, ui.element("div").classes("ea-alerta"):
+            ui.icon("error_outline")
+            ui.label(
+                f"{_mensagem_erro(erro, nome, ollama=ollama)} Nenhum texto foi "
+                "gerado; tente de novo ou escolha outro modelo."
+            )
+        return
     finally:
         relogio.cancel()
         botao.props(remove="loading")
@@ -470,22 +494,24 @@ async def _narrar(
         mostrar_relatorio(relatorio, analise)
 
 
-def _mensagem_erro(erro: ErroDeIA, provedor: Provedor) -> str:
+def _mensagem_erro(erro: ErroDeIA, nome: str, *, ollama: bool = False) -> str:
     """Mensagem de erro da IA em português claro."""
     if isinstance(erro, ErroDeResposta):
         if _chave_recusada(erro):
-            return (
-                f"O {provedor.nome} recusou a chave. Confira se ela foi colada inteira."
-            )
+            return f"O {nome} recusou a chave. Confira se ela foi colada inteira."
         if erro.status == 429:
-            return f"O {provedor.nome} atingiu o limite de uso. Tente daqui a pouco."
-        return f"O {provedor.nome} respondeu com erro ({erro.status})."
-    if isinstance(erro, ErroDeConexao) and provedor is OLLAMA:
+            return f"O {nome} atingiu o limite de uso. Tente daqui a pouco."
+        return f"O {nome} respondeu com erro ({erro.status})."
+    if isinstance(erro, ErroDeTempo):
+        return f"O modelo não respondeu em {erro.segundos:g} s."
+    if isinstance(erro, RespostaInvalida):
+        return f"O {nome} respondeu, mas sem texto utilizável."
+    if isinstance(erro, ErroDeConexao) and ollama:
         return (
             "Não encontrei o Ollama nesse endereço. Ele está aberto no computador "
             "onde o EnsaIA está rodando?"
         )
-    return f"Não consegui falar com o {provedor.nome}. Verifique a conexão."
+    return f"Não consegui falar com o {nome}. Verifique a conexão."
 
 
 def _chave_recusada(erro: ErroDeIA) -> bool:

@@ -931,9 +931,11 @@ Regras que geram a lista numerada "Próximos passos":
 ### Fidelidade: a IA narra, mas não calcula
 Em todos os modos com IA, **cada número do texto é conferido** contra o resultado
 do núcleo. Números sem correspondência ficam marcados em amarelo, e afirmações de
-significância que contradizem os p-valores são apontadas. Se um parágrafo gerado
-cita um número que não está nos fatos da seção, ele é rejeitado e substituído pelo
-texto M0.
+significância que contradizem os p-valores são apontadas. Com IA, todo o texto
+vem do modelo: se um parágrafo cita um número fora dos fatos, o modelo tenta de
+novo e, se não acertar, o parágrafo fica com o número marcado. Se o modelo não
+responder (30 s; 60 s no Ollama), a tela mostra o erro, sem texto do sistema no
+lugar.
 
 ---
 
